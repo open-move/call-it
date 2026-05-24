@@ -6,19 +6,25 @@ import { PriceChart } from "~/components/market-detail/price-chart"
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
-import { formatCompactUsd } from "~/lib/callit/format"
-import { getCryptoPredictionMarket } from "~/lib/callit/market-data"
+import { formatCompactUsd, formatUsd } from "~/lib/callit/format"
+import { mapOracleStateToPredictionMarket } from "~/lib/callit/live-market-mapper"
+import { getOraclePrices, getOracleState } from "~/lib/deepbook/predict-client"
 import { cn } from "~/lib/utils"
 
 type TradeSide = "buy" | "sell"
 
-export function loader({ params }: Route.LoaderArgs) {
+export async function loader({ params }: Route.LoaderArgs) {
   const marketId = params.marketId
-  const market = marketId ? getCryptoPredictionMarket(marketId) : undefined
 
-  if (!market) {
+  if (!marketId) {
     throw new Response("Market not found", { status: 404 })
   }
+
+  const [oracleState, prices] = await Promise.all([
+    getOracleState(marketId),
+    getOraclePrices(marketId, 120),
+  ])
+  const market = mapOracleStateToPredictionMarket(oracleState, prices)
 
   return { market }
 }
@@ -37,35 +43,46 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export default function Market({ loaderData }: Route.ComponentProps) {
   const { market } = loaderData
   const [tradeSide, setTradeSide] = useState<TradeSide>("buy")
-  const [selectedOutcome, setSelectedOutcome] = useState(market.outcomes[0].value)
+  const [selectedOutcome, setSelectedOutcome] = useState(
+    market.outcomes[0].value
+  )
   const [amount, setAmount] = useState("25.00")
   const selectedOutcomeLabel =
-    market.outcomes.find((outcome) => outcome.value === selectedOutcome)?.label ?? "Up"
-  const downPercent = 100 - market.primaryOutcomePercent
-  const selectedOutcomePercent =
-    selectedOutcome === market.outcomes[0].value ? market.primaryOutcomePercent : downPercent
+    market.outcomes.find((outcome) => outcome.value === selectedOutcome)
+      ?.label ?? "Yes"
   const trend = market.priceChangePercent >= 0 ? "up" : "down"
+  const amountLabel = `${amount || "0.00"} USDC`
 
   return (
     <AppFrame>
       <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
         <section className="py-1">
           <div className="flex min-w-0 items-start gap-2.5">
-            <img
-              alt={`${market.assetName} icon`}
-              className="size-7 shrink-0 rounded-full sm:size-8"
-              src={market.assetIconUrl}
-            />
+            {market.assetIconUrl ? (
+              <img
+                alt={`${market.assetName} icon`}
+                className="size-7 shrink-0 rounded-full sm:size-8"
+                src={market.assetIconUrl}
+              />
+            ) : (
+              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-semibold text-muted-foreground sm:size-8">
+                {market.assetSymbol.slice(0, 3)}
+              </span>
+            )}
             <div className="min-w-0">
               <h1 className="max-w-2xl text-lg leading-tight font-semibold tracking-tight text-foreground sm:text-xl">
                 {market.prompt}
               </h1>
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-                <span>{formatCompactUsd(market.volumeUsd)} volume</span>
+                {market.volumeUsd !== undefined && (
+                  <>
+                    <span>{formatCompactUsd(market.volumeUsd)} volume</span>
+                    <span>·</span>
+                  </>
+                )}
+                <span>{market.durationLabel}</span>
                 <span>·</span>
-                <span>{market.durationLabel} window</span>
-                <span>·</span>
-                <span>{market.primaryOutcomePercent}% Up</span>
+                <span>{formatUsd(market.currentPriceUsd, 0)} now</span>
               </div>
             </div>
           </div>
@@ -73,7 +90,10 @@ export default function Market({ loaderData }: Route.ComponentProps) {
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="space-y-4">
-            <Card className="rounded-md bg-surface-raised py-5 ring-0 shadow-none" size="sm">
+            <Card
+              className="rounded-md bg-surface-raised py-5 shadow-none ring-0"
+              size="sm"
+            >
               <CardContent className="px-4 sm:px-5">
                 <PriceChart points={market.priceHistory} trend={trend} />
               </CardContent>
@@ -82,20 +102,38 @@ export default function Market({ loaderData }: Route.ComponentProps) {
             <section className="space-y-2 py-2">
               <h2 className="text-sm font-semibold text-foreground">Rules</h2>
               <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                This market uses the asset price at the end of the {market.durationLabel} window.
-                Choose {market.outcomes[0].label} if you think the final price will be higher.
-                Choose {market.outcomes[1].label} if you think it will be lower.
+                Yes wins if {market.assetSymbol} settles above{" "}
+                {formatUsd(market.strikePriceUsd, 0)}. No wins if it settles at
+                or below {formatUsd(market.strikePriceUsd, 0)}. Loss is capped
+                to your risk amount. No borrowing. No liquidation.
               </p>
             </section>
 
             <section className="space-y-3 py-2">
-              <h2 className="text-sm font-semibold text-foreground">Market info</h2>
+              <h2 className="text-sm font-semibold text-foreground">
+                Market info
+              </h2>
               <div>
                 <DetailRow label="Status" value={market.statusLabel} />
                 <DetailRow label="Ends in" value={market.durationLabel} />
-                <DetailRow label="Price update" value={market.priceUpdatedLabel} />
-                <DetailRow label="Trades" value={market.tradeCount.toString()} />
-                <DetailRow label="Volume" value={formatCompactUsd(market.volumeUsd)} />
+                <DetailRow
+                  label="Strike"
+                  value={formatUsd(market.strikePriceUsd, 0)}
+                />
+                <DetailRow
+                  label="Price update"
+                  value={market.priceUpdatedLabel}
+                />
+                <DetailRow
+                  label="Trades"
+                  value={market.tradeCount.toString()}
+                />
+                {market.volumeUsd !== undefined && (
+                  <DetailRow
+                    label="Volume"
+                    value={formatCompactUsd(market.volumeUsd)}
+                  />
+                )}
               </div>
             </section>
           </div>
@@ -124,15 +162,21 @@ export default function Market({ loaderData }: Route.ComponentProps) {
               <div className="grid grid-cols-2 gap-2">
                 {market.outcomes.map((outcome) => {
                   const isSelected = selectedOutcome === outcome.value
-                  const isPrimaryOutcome = outcome.value === market.outcomes[0].value
+                  const isPrimaryOutcome =
+                    outcome.value === market.outcomes[0].value
 
                   return (
                     <Button
                       className={cn(
                         "h-11 justify-center border-transparent px-3 text-sm font-semibold shadow-none",
-                        !isSelected && "border-border/40 bg-surface-muted text-muted-foreground hover:bg-surface-hover hover:text-foreground",
-                        !isSelected && isPrimaryOutcome && "hover:border-outcome-up-border/50 hover:text-outcome-up",
-                        !isSelected && !isPrimaryOutcome && "hover:border-outcome-down-border/50 hover:text-outcome-down",
+                        !isSelected &&
+                          "border-border/40 bg-surface-muted text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+                        !isSelected &&
+                          isPrimaryOutcome &&
+                          "hover:border-outcome-up-border/50 hover:text-outcome-up",
+                        !isSelected &&
+                          !isPrimaryOutcome &&
+                          "hover:border-outcome-down-border/50 hover:text-outcome-down",
                         isSelected &&
                           isPrimaryOutcome &&
                           "border-outcome-up-border bg-outcome-up-surface text-outcome-up-foreground ring-1 ring-outcome-up-border/30 hover:bg-outcome-up-surface/90",
@@ -152,7 +196,9 @@ export default function Market({ loaderData }: Route.ComponentProps) {
               </div>
 
               <label className="block space-y-2">
-                <span className="text-xs font-medium text-muted-foreground">Amount</span>
+                <span className="text-xs font-medium text-muted-foreground">
+                  Amount
+                </span>
                 <div className="relative">
                   <Input
                     className="h-11 border-transparent bg-surface-muted pr-14 font-mono shadow-none focus-visible:border-ring"
@@ -171,17 +217,18 @@ export default function Market({ loaderData }: Route.ComponentProps) {
               <div className="text-sm">
                 <DetailRow
                   label="Action"
-                  value={`${tradeSide === "buy" ? "Buy" : "Sell"} ${market.assetSymbol} ${selectedOutcomeLabel}`}
+                  value={`${tradeSide === "buy" ? "Buy" : "Sell"} ${selectedOutcomeLabel}`}
                 />
-                <DetailRow label="Amount" value={`${amount || "0.00"} USDC`} />
+                <DetailRow label="Risk" value={amountLabel} />
+                <DetailRow label="Potential payout" value="Quoted at review" />
                 <DetailRow
-                  label="Market"
-                  value={`${selectedOutcomePercent}% ${selectedOutcomeLabel}`}
+                  label="Settlement"
+                  value={`Above ${formatUsd(market.strikePriceUsd, 0)}`}
                 />
               </div>
 
-              <Button className="h-11 w-full" type="button">
-                Review {tradeSide === "buy" ? "Buy" : "Sell"}
+              <Button className="h-11 w-full" disabled type="button">
+                Review coming soon
               </Button>
             </div>
           </aside>

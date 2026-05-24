@@ -43,18 +43,21 @@ export type MarketTradeEvent =
 
 export interface PredictionMarketCardData {
   id: string
+  oracleId: string
   assetSymbol: string
   assetName: string
-  assetIconUrl: string
+  assetIconUrl?: string
   prompt: string
-  volumeUsd: number
+  volumeUsd?: number
   durationLabel: string
-  primaryOutcomePercent: number
+  primaryOutcomePercent?: number
   currentPriceUsd: number
   priceChangePercent: number
   tradeCount: number
   statusLabel: string
   priceUpdatedLabel: string
+  expiryMs: number
+  strikePriceUsd: number
   priceHistory: MarketPricePoint[]
   recentTrades: MarketTradeEvent[]
   kind: PredictionMarketKind

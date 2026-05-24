@@ -12,8 +12,13 @@ function formatWalletAddress(address: string) {
 }
 
 function DynamicWalletButton() {
-  const { primaryWallet, sdkHasLoaded, setShowAuthFlow, setShowDynamicUserProfile, user } =
-    useDynamicContext()
+  const {
+    primaryWallet,
+    sdkHasLoaded,
+    setShowAuthFlow,
+    setShowDynamicUserProfile,
+    user,
+  } = useDynamicContext()
 
   if (!sdkHasLoaded) {
     return (

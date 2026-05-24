@@ -29,7 +29,10 @@ export function StatusIndicator({
 }: StatusIndicatorProps) {
   return (
     <div
-      className={cn("inline-flex items-center gap-2 text-sm text-muted-foreground", className)}
+      className={cn(
+        "inline-flex items-center gap-2 text-sm text-muted-foreground",
+        className
+      )}
       {...props}
     >
       <span

@@ -1,4 +1,7 @@
-import { DynamicContextProvider, DynamicUserProfile } from "@dynamic-labs/sdk-react-core"
+import {
+  DynamicContextProvider,
+  DynamicUserProfile,
+} from "@dynamic-labs/sdk-react-core"
 import { SuiWalletConnectors } from "@dynamic-labs/sui"
 import { type ReactNode, useEffect, useState } from "react"
 

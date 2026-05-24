@@ -6,7 +6,7 @@ export interface OutcomeRailProps {
   className?: string
   labelClassName?: string
   outcomes: [PredictionOutcomeOption, PredictionOutcomeOption]
-  primaryPercent: number
+  primaryPercent?: number
 }
 
 function clampPercent(value: number) {
@@ -20,9 +20,11 @@ export function OutcomeRail({
   outcomes,
   primaryPercent,
 }: OutcomeRailProps) {
-  const firstPercent = clampPercent(primaryPercent)
+  const firstPercent =
+    primaryPercent === undefined ? 50 : clampPercent(primaryPercent)
   const secondPercent = 100 - firstPercent
   const [firstOutcome, secondOutcome] = outcomes
+  const shouldShowPercent = primaryPercent !== undefined
 
   return (
     <div className={cn("space-y-2.5", className)}>
@@ -33,10 +35,12 @@ export function OutcomeRail({
         )}
       >
         <span className="text-outcome-up">
-          {firstOutcome.label} {firstPercent}%
+          {firstOutcome.label}
+          {shouldShowPercent && ` ${firstPercent}%`}
         </span>
         <span className="text-outcome-down">
-          {secondOutcome.label} {secondPercent}%
+          {secondOutcome.label}
+          {shouldShowPercent && ` ${secondPercent}%`}
         </span>
       </div>
       <div

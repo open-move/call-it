@@ -23,7 +23,9 @@ export function Metric({
       <div className="mt-2 font-mono text-2xl leading-none font-semibold tracking-[-0.04em] text-foreground tabular-nums">
         {value}
       </div>
-      {detail && <div className="mt-2 text-sm text-muted-foreground">{detail}</div>}
+      {detail && (
+        <div className="mt-2 text-sm text-muted-foreground">{detail}</div>
+      )}
     </div>
   )
 }

@@ -64,7 +64,10 @@ export function AppHeader() {
                   >
                     <span>{item.label}</span>
                     {item.status === AppNavStatus.Soon && (
-                      <Badge className="px-1.5 py-0 text-[10px]" tone={BadgeTone.Simulated}>
+                      <Badge
+                        className="px-1.5 py-0 text-[10px]"
+                        tone={BadgeTone.Simulated}
+                      >
                         Soon
                       </Badge>
                     )}
@@ -80,7 +83,13 @@ export function AppHeader() {
             </div>
             <CollapsibleTrigger
               className="md:hidden"
-              render={<Button aria-label="Toggle navigation" size="icon-sm" variant="ghost" />}
+              render={
+                <Button
+                  aria-label="Toggle navigation"
+                  size="icon-sm"
+                  variant="ghost"
+                />
+              }
             >
               {isMobileNavOpen ? <XIcon /> : <MenuIcon />}
             </CollapsibleTrigger>
@@ -101,7 +110,10 @@ export function AppHeader() {
               >
                 <span>{item.label}</span>
                 {item.status === AppNavStatus.Soon && (
-                  <Badge className="px-1.5 py-0 text-[10px]" tone={BadgeTone.Simulated}>
+                  <Badge
+                    className="px-1.5 py-0 text-[10px]"
+                    tone={BadgeTone.Simulated}
+                  >
                     Soon
                   </Badge>
                 )}
