@@ -92,11 +92,13 @@ export function mapOracleStateToMarketSnapshot(
     assetIconUrl: metadata.assetIconUrl,
     currentPriceUsd: toUsdPrice(state.latest_price.spot),
     expiryMs: state.oracle.expiry,
+    minStrikeUsd: toUsdPrice(state.oracle.min_strike),
     priceChangePercent: getPriceChangePercent(priceHistory),
     priceHistory,
     priceUpdatedMs: state.latest_price.checkpoint_timestamp_ms,
     recentTrades: [],
     status: state.oracle.status,
     strikePriceUsd: deriveStrikePriceUsd(state),
+    tickSizeUsd: toUsdPrice(state.oracle.tick_size),
   }
 }

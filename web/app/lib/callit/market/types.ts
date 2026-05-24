@@ -32,12 +32,14 @@ export interface MarketSnapshot {
   assetIconUrl?: string
   currentPriceUsd: number
   expiryMs: number
+  minStrikeUsd: number
   priceChangePercent: number
   priceHistory: MarketPricePoint[]
   priceUpdatedMs: number
   recentTrades: MarketTradeEvent[]
   status: string
   strikePriceUsd: number
+  tickSizeUsd: number
   volumeUsd?: number
   tradeCount?: number
 }

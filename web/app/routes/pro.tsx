@@ -3,10 +3,13 @@ import { AppFrame } from "~/components/app-frame/app-frame"
 import { Page as MarketsPage } from "~/components/markets/page"
 import { AppMode } from "~/lib/callit/app-mode"
 import { loadActiveMarketSnapshots } from "~/lib/callit/market/loaders"
+import { presentProMarkets } from "~/lib/callit/pro/presenter"
 
 export async function loader() {
+  const snapshots = await loadActiveMarketSnapshots()
+
   return {
-    markets: await loadActiveMarketSnapshots(),
+    markets: presentProMarkets(snapshots),
   }
 }
 

@@ -239,4 +239,8 @@
       radial-gradient(circle at 24% -16%, oklch(0.24 0.06 252 / 0.18), transparent 32rem),
       linear-gradient(180deg, var(--background), var(--background));
   }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }

@@ -1,7 +1,7 @@
 import { Page as ProPage } from "~/components/pro/markets/page"
 import { Page as SimplePage } from "~/components/simple/markets/page"
 import { AppMode } from "~/lib/callit/app-mode"
-import { type MarketSnapshot } from "~/lib/callit/market/types"
+import { type ProMarket } from "~/lib/callit/pro/types"
 import { type SimpleMarket } from "~/lib/callit/simple/types"
 
 export type PageProps =
@@ -11,7 +11,7 @@ export type PageProps =
     }
   | {
       mode: AppMode.Pro
-      markets: MarketSnapshot[]
+      markets: ProMarket[]
     }
 
 export function Page(props: PageProps) {
