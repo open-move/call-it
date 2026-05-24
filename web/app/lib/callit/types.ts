@@ -17,6 +17,7 @@ export interface PredictionOutcomeOption {
 
 export interface MarketPricePoint {
   label: string
+  timestampMs: number
   valueUsd: number
 }
 
@@ -53,10 +54,11 @@ export interface PredictionMarketCardData {
   primaryOutcomePercent?: number
   currentPriceUsd: number
   priceChangePercent: number
-  tradeCount: number
+  tradeCount?: number
   statusLabel: string
   priceUpdatedLabel: string
   expiryMs: number
+  expiryLabel: string
   strikePriceUsd: number
   priceHistory: MarketPricePoint[]
   recentTrades: MarketTradeEvent[]

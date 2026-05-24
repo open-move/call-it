@@ -109,6 +109,7 @@ function mapPriceHistory(prices: OraclePriceUpdate[]): MarketPricePoint[] {
     .reverse()
     .map((price) => ({
       label: formatRelativeTime(price.checkpoint_timestamp_ms),
+      timestampMs: price.checkpoint_timestamp_ms,
       valueUsd: toUsdPrice(price.spot),
     }))
 }
@@ -138,13 +139,13 @@ export function mapOracleStateToPredictionMarket(
     durationLabel: formatTimeRemaining(state.oracle.expiry),
     currentPriceUsd,
     priceChangePercent: getPriceChangePercent(priceHistory),
-    tradeCount: 0,
     statusLabel:
       state.oracle.status === "active" ? "Live" : state.oracle.status,
     priceUpdatedLabel: formatRelativeTime(
       state.latest_price.checkpoint_timestamp_ms
     ),
     expiryMs: state.oracle.expiry,
+    expiryLabel,
     strikePriceUsd,
     priceHistory,
     recentTrades: [],

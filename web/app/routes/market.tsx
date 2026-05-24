@@ -4,7 +4,6 @@ import type { Route } from "./+types/market"
 import { AppFrame } from "~/components/app-frame/app-frame"
 import { PriceChart } from "~/components/market-detail/price-chart"
 import { Button } from "~/components/ui/button"
-import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
 import { formatCompactUsd, formatUsd } from "~/lib/callit/format"
 import { mapOracleStateToPredictionMarket } from "~/lib/callit/live-market-mapper"
@@ -14,15 +13,15 @@ import { cn } from "~/lib/utils"
 type TradeSide = "buy" | "sell"
 
 export async function loader({ params }: Route.LoaderArgs) {
-  const marketId = params.marketId
+  const oracleId = params.oracleId
 
-  if (!marketId) {
+  if (!oracleId) {
     throw new Response("Market not found", { status: 404 })
   }
 
   const [oracleState, prices] = await Promise.all([
-    getOracleState(marketId),
-    getOraclePrices(marketId, 120),
+    getOracleState(oracleId),
+    getOraclePrices(oracleId, 120),
   ])
   const market = mapOracleStateToPredictionMarket(oracleState, prices)
 
@@ -90,14 +89,40 @@ export default function Market({ loaderData }: Route.ComponentProps) {
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
           <div className="space-y-4">
-            <Card
-              className="rounded-md bg-surface-raised py-5 shadow-none ring-0"
-              size="sm"
-            >
-              <CardContent className="px-4 sm:px-5">
-                <PriceChart points={market.priceHistory} trend={trend} />
-              </CardContent>
-            </Card>
+            <div className="border-y border-border/35 py-1 sm:py-3">
+              <div className="divide-y divide-border/30 sm:grid sm:grid-cols-3 sm:gap-4 sm:divide-y-0">
+                <div className="flex items-baseline justify-between gap-3 py-2.5 sm:block sm:space-y-1 sm:py-0">
+                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                    Current
+                  </div>
+                  <div className="text-right text-base font-semibold text-foreground tabular-nums sm:text-left">
+                    {formatUsd(market.currentPriceUsd, 0)}
+                  </div>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 py-2.5 sm:block sm:space-y-1 sm:py-0">
+                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                    Target
+                  </div>
+                  <div className="text-right text-base font-semibold text-outcome-up tabular-nums sm:text-left">
+                    Above {formatUsd(market.strikePriceUsd, 0)}
+                  </div>
+                </div>
+                <div className="flex items-baseline justify-between gap-3 py-2.5 sm:block sm:space-y-1 sm:py-0">
+                  <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                    Ends
+                  </div>
+                  <div className="text-right text-base font-semibold text-foreground tabular-nums sm:text-left">
+                    {market.durationLabel}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <PriceChart
+              points={market.priceHistory}
+              strikePriceUsd={market.strikePriceUsd}
+              trend={trend}
+            />
 
             <section className="space-y-2 py-2">
               <h2 className="text-sm font-semibold text-foreground">Rules</h2>
@@ -116,6 +141,7 @@ export default function Market({ loaderData }: Route.ComponentProps) {
               <div>
                 <DetailRow label="Status" value={market.statusLabel} />
                 <DetailRow label="Ends in" value={market.durationLabel} />
+                <DetailRow label="Settlement" value={market.expiryLabel} />
                 <DetailRow
                   label="Strike"
                   value={formatUsd(market.strikePriceUsd, 0)}
@@ -124,10 +150,12 @@ export default function Market({ loaderData }: Route.ComponentProps) {
                   label="Price update"
                   value={market.priceUpdatedLabel}
                 />
-                <DetailRow
-                  label="Trades"
-                  value={market.tradeCount.toString()}
-                />
+                {market.tradeCount !== undefined && (
+                  <DetailRow
+                    label="Trades"
+                    value={market.tradeCount.toString()}
+                  />
+                )}
                 {market.volumeUsd !== undefined && (
                   <DetailRow
                     label="Volume"
