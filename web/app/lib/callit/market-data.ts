@@ -1,0 +1,87 @@
+import {
+  PredictionMarketKind,
+  PredictionOutcome,
+  type PredictionMarketCardData,
+} from "./types"
+
+const directionalOutcomes = [
+  { label: "Up", value: PredictionOutcome.Up },
+  { label: "Down", value: PredictionOutcome.Down },
+] satisfies PredictionMarketCardData["outcomes"]
+
+export const cryptoPredictionMarkets: PredictionMarketCardData[] = [
+  {
+    id: "btc-up-down-5m",
+    assetSymbol: "BTC",
+    assetName: "Bitcoin",
+    assetIconUrl: "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 42_100,
+    durationLabel: "5m",
+    primaryOutcomePercent: 54,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+  {
+    id: "eth-up-down-5m",
+    assetSymbol: "ETH",
+    assetName: "Ethereum",
+    assetIconUrl: "https://assets.coingecko.com/coins/images/279/standard/ethereum.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 31_600,
+    durationLabel: "5m",
+    primaryOutcomePercent: 49,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+  {
+    id: "sol-up-down-5m",
+    assetSymbol: "SOL",
+    assetName: "Solana",
+    assetIconUrl: "https://assets.coingecko.com/coins/images/4128/standard/solana.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 18_900,
+    durationLabel: "5m",
+    primaryOutcomePercent: 61,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+  {
+    id: "sui-up-down-5m",
+    assetSymbol: "SUI",
+    assetName: "Sui",
+    assetIconUrl:
+      "https://assets.coingecko.com/coins/images/26375/standard/sui-ocean-square.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 12_400,
+    durationLabel: "5m",
+    primaryOutcomePercent: 46,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+  {
+    id: "doge-up-down-5m",
+    assetSymbol: "DOGE",
+    assetName: "Dogecoin",
+    assetIconUrl: "https://assets.coingecko.com/coins/images/5/standard/dogecoin.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 9_800,
+    durationLabel: "5m",
+    primaryOutcomePercent: 58,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+  {
+    id: "bnb-up-down-5m",
+    assetSymbol: "BNB",
+    assetName: "BNB",
+    assetIconUrl:
+      "https://assets.coingecko.com/coins/images/825/standard/bnb-icon2_2x.png",
+    prompt: "Up or Down in 5 minutes?",
+    volumeUsd: 7_200,
+    durationLabel: "5m",
+    primaryOutcomePercent: 52,
+    kind: PredictionMarketKind.Directional,
+    outcomes: directionalOutcomes,
+  },
+]
