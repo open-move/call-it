@@ -15,6 +15,32 @@ export interface PredictionOutcomeOption {
   value: PredictionOutcome
 }
 
+export interface MarketPricePoint {
+  label: string
+  valueUsd: number
+}
+
+export type MarketTradeEvent =
+  | {
+      type: "mint"
+      checkpoint_timestamp_ms: number
+      trader: string
+      is_up: boolean
+      quantity: number
+      cost: number
+      ask_price: number
+    }
+  | {
+      type: "redeem"
+      checkpoint_timestamp_ms: number
+      owner: string
+      is_up: boolean
+      quantity: number
+      payout: number
+      bid_price: number
+      is_settled: boolean
+    }
+
 export interface PredictionMarketCardData {
   id: string
   assetSymbol: string
@@ -24,6 +50,13 @@ export interface PredictionMarketCardData {
   volumeUsd: number
   durationLabel: string
   primaryOutcomePercent: number
+  currentPriceUsd: number
+  priceChangePercent: number
+  tradeCount: number
+  statusLabel: string
+  priceUpdatedLabel: string
+  priceHistory: MarketPricePoint[]
+  recentTrades: MarketTradeEvent[]
   kind: PredictionMarketKind
   outcomes: [PredictionOutcomeOption, PredictionOutcomeOption]
 }
