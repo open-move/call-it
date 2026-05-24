@@ -3,6 +3,7 @@ import { useState } from "react"
 import { MenuIcon, XIcon } from "lucide-react"
 
 import { Badge, BadgeTone } from "~/components/primitives/badge"
+import { DynamicWalletWidget } from "~/components/dynamic/wallet-widget"
 import { Button } from "~/components/ui/button"
 import {
   Collapsible,
@@ -74,9 +75,9 @@ export function AppHeader() {
           </NavigationMenu>
 
           <div className="flex items-center gap-2">
-            <Button className="hidden sm:inline-flex" size="sm">
-              Connect Wallet
-            </Button>
+            <div className="hidden sm:block">
+              <DynamicWalletWidget />
+            </div>
             <CollapsibleTrigger
               className="md:hidden"
               render={<Button aria-label="Toggle navigation" size="icon-sm" variant="ghost" />}
@@ -106,9 +107,9 @@ export function AppHeader() {
                 )}
               </Link>
             ))}
-            <Button className="mt-3 w-full sm:hidden" size="sm">
-              Connect Wallet
-            </Button>
+            <div className="mt-3 sm:hidden">
+              <DynamicWalletWidget />
+            </div>
           </nav>
         </CollapsibleContent>
       </header>
