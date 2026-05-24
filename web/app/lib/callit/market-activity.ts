@@ -1,5 +1,6 @@
 import { formatRelativeTime } from "./format"
-import { type MarketTradeEvent, type PredictionOutcomeOption } from "./types"
+import { type MarketTradeEvent } from "./market/types"
+import { type PredictionOutcomeOption } from "./simple/types"
 
 export interface MarketActivityRow {
   id: string

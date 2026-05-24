@@ -1,10 +1,7 @@
-import { formatRelativeTime, formatUsd } from "./format"
 import {
-  PredictionMarketKind,
-  PredictionOutcome,
   type MarketPricePoint,
-  type PredictionMarketCardData,
-} from "./types"
+  type MarketSnapshot,
+} from "~/lib/callit/market/types"
 import {
   type OraclePriceUpdate,
   type OracleStateResponse,
@@ -21,44 +18,6 @@ const assetMetadata: Record<
     assetIconUrl:
       "https://assets.coingecko.com/coins/images/1/standard/bitcoin.png",
   },
-}
-
-const simpleDirectionalOutcomes = [
-  { label: "Yes", value: PredictionOutcome.Yes },
-  { label: "No", value: PredictionOutcome.No },
-] satisfies PredictionMarketCardData["outcomes"]
-
-function formatExpiryTime(expiryMs: number) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  }).format(new Date(expiryMs))
-}
-
-function formatTimeRemaining(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Ending now"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m left`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h left`
-  }
-
-  const days = Math.round(hours / 24)
-  return `${days}d left`
 }
 
 function toUsdPrice(value: number) {
@@ -108,16 +67,15 @@ function mapPriceHistory(prices: OraclePriceUpdate[]): MarketPricePoint[] {
     .slice()
     .reverse()
     .map((price) => ({
-      label: formatRelativeTime(price.checkpoint_timestamp_ms),
       timestampMs: price.checkpoint_timestamp_ms,
       valueUsd: toUsdPrice(price.spot),
     }))
 }
 
-export function mapOracleStateToPredictionMarket(
+export function mapOracleStateToMarketSnapshot(
   state: OracleStateResponse,
   prices: OraclePriceUpdate[] = []
-): PredictionMarketCardData {
+): MarketSnapshot {
   if (!state.latest_price) {
     throw new Error(`Missing latest price for oracle ${state.oracle.oracle_id}`)
   }
@@ -125,9 +83,6 @@ export function mapOracleStateToPredictionMarket(
   const assetSymbol = state.oracle.underlying_asset
   const metadata = getAssetMetadata(assetSymbol)
   const priceHistory = mapPriceHistory(prices)
-  const currentPriceUsd = toUsdPrice(state.latest_price.spot)
-  const strikePriceUsd = deriveStrikePriceUsd(state)
-  const expiryLabel = formatExpiryTime(state.oracle.expiry)
 
   return {
     id: state.oracle.oracle_id,
@@ -135,21 +90,13 @@ export function mapOracleStateToPredictionMarket(
     assetSymbol,
     assetName: metadata.assetName,
     assetIconUrl: metadata.assetIconUrl,
-    prompt: `Will ${assetSymbol} finish above ${formatUsd(strikePriceUsd, 0)} by ${expiryLabel}?`,
-    durationLabel: formatTimeRemaining(state.oracle.expiry),
-    currentPriceUsd,
-    priceChangePercent: getPriceChangePercent(priceHistory),
-    statusLabel:
-      state.oracle.status === "active" ? "Live" : state.oracle.status,
-    priceUpdatedLabel: formatRelativeTime(
-      state.latest_price.checkpoint_timestamp_ms
-    ),
+    currentPriceUsd: toUsdPrice(state.latest_price.spot),
     expiryMs: state.oracle.expiry,
-    expiryLabel,
-    strikePriceUsd,
+    priceChangePercent: getPriceChangePercent(priceHistory),
     priceHistory,
+    priceUpdatedMs: state.latest_price.checkpoint_timestamp_ms,
     recentTrades: [],
-    kind: PredictionMarketKind.Directional,
-    outcomes: simpleDirectionalOutcomes,
+    status: state.oracle.status,
+    strikePriceUsd: deriveStrikePriceUsd(state),
   }
 }

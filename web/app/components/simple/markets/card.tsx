@@ -8,16 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "~/components/ui/card"
+import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatCompactUsd, formatUsd } from "~/lib/callit/format"
-import { type PredictionMarketCardData } from "~/lib/callit/types"
+import { type SimpleMarket } from "~/lib/callit/simple/types"
 
 import { OutcomeRail } from "./outcome-rail"
 
-export interface PredictionCardProps {
-  market: PredictionMarketCardData
+export interface MarketCardProps {
+  market: SimpleMarket
 }
 
-export function PredictionCard({ market }: PredictionCardProps) {
+export function MarketCard({ market }: MarketCardProps) {
   const footerParts = [
     formatUsd(market.currentPriceUsd, market.currentPriceUsd >= 100 ? 0 : 2),
     market.volumeUsd === undefined
@@ -39,17 +40,12 @@ export function PredictionCard({ market }: PredictionCardProps) {
         <CardHeader className="px-4">
           <div className="flex items-center gap-2.5">
             <div className="flex min-w-0 items-center gap-2.5">
-              {market.assetIconUrl ? (
-                <img
-                  alt={`${market.assetName} icon`}
-                  className="size-7 shrink-0 rounded-full"
-                  src={market.assetIconUrl}
-                />
-              ) : (
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-semibold text-muted-foreground">
-                  {market.assetSymbol.slice(0, 3)}
-                </span>
-              )}
+              <AssetIcon
+                assetIconUrl={market.assetIconUrl}
+                assetName={market.assetName}
+                assetSymbol={market.assetSymbol}
+                className="size-7"
+              />
               <CardTitle className="min-w-0 text-sm leading-5 font-semibold tracking-tight text-foreground">
                 {market.prompt}
               </CardTitle>

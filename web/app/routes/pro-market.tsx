@@ -1,9 +1,8 @@
-import type { Route } from "./+types/market"
+import type { Route } from "./+types/pro-market"
 import { AppFrame } from "~/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "~/components/market-detail/page"
 import { AppMode } from "~/lib/callit/app-mode"
 import { loadMarketSnapshot } from "~/lib/callit/market/loaders"
-import { presentSimpleMarket } from "~/lib/callit/simple/presenter"
 
 export async function loader({ params }: Route.LoaderArgs) {
   const oracleId = params.oracleId
@@ -12,15 +11,13 @@ export async function loader({ params }: Route.LoaderArgs) {
     throw new Response("Market not found", { status: 404 })
   }
 
-  const market = await loadMarketSnapshot(oracleId)
-
-  return { market: presentSimpleMarket(market) }
+  return { market: await loadMarketSnapshot(oracleId) }
 }
 
-export default function Market({ loaderData }: Route.ComponentProps) {
+export default function ProMarket({ loaderData }: Route.ComponentProps) {
   return (
     <AppFrame>
-      <MarketDetailPage mode={AppMode.Simple} market={loaderData.market} />
+      <MarketDetailPage mode={AppMode.Pro} market={loaderData.market} />
     </AppFrame>
   )
 }

@@ -1,34 +1,22 @@
 import type { Route } from "./+types/home"
 import { AppFrame } from "~/components/app-frame/app-frame"
-import { CryptoMarketGrid } from "~/components/simple-markets/crypto-market-grid"
-import { mapOracleStateToPredictionMarket } from "~/lib/callit/live-market-mapper"
-import {
-  getOracleState,
-  getPredictOracles,
-} from "~/lib/deepbook/predict-client"
+import { Page as MarketsPage } from "~/components/markets/page"
+import { AppMode } from "~/lib/callit/app-mode"
+import { loadActiveMarketSnapshots } from "~/lib/callit/market/loaders"
+import { presentSimpleMarket } from "~/lib/callit/simple/presenter"
 
 export async function loader() {
-  const oracles = await getPredictOracles()
-  const activeOracles = oracles
-    .filter((oracle) => oracle.status === "active")
-    .sort(
-      (firstOracle, secondOracle) => firstOracle.expiry - secondOracle.expiry
-    )
-  const oracleStates = await Promise.all(
-    activeOracles.map((oracle) => getOracleState(oracle.oracle_id))
-  )
+  const markets = await loadActiveMarketSnapshots()
 
   return {
-    markets: oracleStates.map((state) =>
-      mapOracleStateToPredictionMarket(state)
-    ),
+    markets: markets.map((market) => presentSimpleMarket(market)),
   }
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <AppFrame>
-      <CryptoMarketGrid markets={loaderData.markets} />
+      <MarketsPage mode={AppMode.Simple} markets={loaderData.markets} />
     </AppFrame>
   )
 }

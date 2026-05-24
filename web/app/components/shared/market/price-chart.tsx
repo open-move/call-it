@@ -14,7 +14,7 @@ import {
   type ChartConfig,
 } from "~/components/ui/chart"
 import { formatUsd } from "~/lib/callit/format"
-import { type MarketPricePoint } from "~/lib/callit/types"
+import { type MarketPricePoint } from "~/lib/callit/market/types"
 import { cn } from "~/lib/utils"
 
 export interface PriceChartProps {

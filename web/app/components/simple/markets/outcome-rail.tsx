@@ -1,4 +1,4 @@
-import { type PredictionOutcomeOption } from "~/lib/callit/types"
+import { type PredictionOutcomeOption } from "~/lib/callit/simple/types"
 import { cn } from "~/lib/utils"
 
 export interface OutcomeRailProps {
