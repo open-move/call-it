@@ -44,7 +44,7 @@ export function AppHeader() {
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/85 backdrop-blur-xl">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto flex h-16 w-full max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <Link
             className="text-base leading-none font-semibold tracking-tight text-foreground transition-colors hover:text-primary"
             to="/"
@@ -99,7 +99,7 @@ export function AppHeader() {
         <CollapsibleContent className="border-t border-border/80 md:hidden">
           <nav
             aria-label="Mobile navigation"
-            className="mx-auto flex w-full max-w-7xl flex-col px-4 py-3 sm:px-6"
+            className="mx-auto flex w-full max-w-[96rem] flex-col px-4 py-3 sm:px-6"
           >
             {appNavItems.map((item) => (
               <Link

@@ -8,7 +8,7 @@ export interface PageProps {
 
 export function Page({ markets }: PageProps) {
   return (
-    <section className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <section className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8">
       {markets.length > 0 ? (
         <Grid markets={markets} />
       ) : (

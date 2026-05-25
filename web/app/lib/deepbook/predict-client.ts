@@ -1,9 +1,13 @@
 import { PREDICT_OBJECT_ID, PREDICT_SERVER_URL } from "./config"
 import {
+  type DirectionalPositionMintEvent,
+  type DirectionalPositionRedeemEvent,
   type OracleInfo,
   type OraclePriceUpdate,
   type OracleStateResponse,
   type OracleSviUpdate,
+  type RangeMintEvent,
+  type RangeRedeemEvent,
 } from "./predict-types"
 
 export class PredictServerError extends Error {
@@ -166,6 +170,133 @@ function parseOracleStateResponse(value: unknown): OracleStateResponse {
   }
 }
 
+function parseDirectionalPositionMintEvent(
+  value: unknown
+): DirectionalPositionMintEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: directional position mint must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    trader: readString(value, "trader"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    expiry: readNumber(value, "expiry"),
+    strike: readNumber(value, "strike"),
+    is_up: readBoolean(value, "is_up"),
+    quantity: readNumber(value, "quantity"),
+    cost: readNumber(value, "cost"),
+    ask_price: readNumber(value, "ask_price"),
+  }
+}
+
+function parseDirectionalPositionRedeemEvent(
+  value: unknown
+): DirectionalPositionRedeemEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: directional position redeem must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    owner: readString(value, "owner"),
+    executor: readString(value, "executor"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    expiry: readNumber(value, "expiry"),
+    strike: readNumber(value, "strike"),
+    is_up: readBoolean(value, "is_up"),
+    quantity: readNumber(value, "quantity"),
+    payout: readNumber(value, "payout"),
+    bid_price: readNumber(value, "bid_price"),
+    is_settled: readBoolean(value, "is_settled"),
+  }
+}
+
+function parseRangeMintEvent(value: unknown): RangeMintEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: range mint must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    trader: readString(value, "trader"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    expiry: readNumber(value, "expiry"),
+    lower_strike: readNumber(value, "lower_strike"),
+    higher_strike: readNumber(value, "higher_strike"),
+    quantity: readNumber(value, "quantity"),
+    cost: readNumber(value, "cost"),
+    ask_price: readNumber(value, "ask_price"),
+  }
+}
+
+function parseRangeRedeemEvent(value: unknown): RangeRedeemEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: range redeem must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    trader: readString(value, "trader"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    expiry: readNumber(value, "expiry"),
+    lower_strike: readNumber(value, "lower_strike"),
+    higher_strike: readNumber(value, "higher_strike"),
+    quantity: readNumber(value, "quantity"),
+    payout: readNumber(value, "payout"),
+    bid_price: readNumber(value, "bid_price"),
+    is_settled: readBoolean(value, "is_settled"),
+  }
+}
+
 function parseOracleInfoArray(value: unknown): OracleInfo[] {
   if (!Array.isArray(value)) {
     throw new PredictServerError(
@@ -184,6 +315,50 @@ function parseOraclePriceUpdateArray(value: unknown): OraclePriceUpdate[] {
   }
 
   return value.map(parseOraclePriceUpdate)
+}
+
+function parseDirectionalPositionMintEventArray(
+  value: unknown
+): DirectionalPositionMintEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected directional position mint array"
+    )
+  }
+
+  return value.map(parseDirectionalPositionMintEvent)
+}
+
+function parseDirectionalPositionRedeemEventArray(
+  value: unknown
+): DirectionalPositionRedeemEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected directional position redeem array"
+    )
+  }
+
+  return value.map(parseDirectionalPositionRedeemEvent)
+}
+
+function parseRangeMintEventArray(value: unknown): RangeMintEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected range mint array"
+    )
+  }
+
+  return value.map(parseRangeMintEvent)
+}
+
+function parseRangeRedeemEventArray(value: unknown): RangeRedeemEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected range redeem array"
+    )
+  }
+
+  return value.map(parseRangeRedeemEvent)
 }
 
 async function readPredictJson<T>(
@@ -222,5 +397,37 @@ export function getOraclePrices(oracleId: string, limit: number) {
   return readPredictJson(
     `/oracles/${encodeURIComponent(oracleId)}/prices?${params.toString()}`,
     parseOraclePriceUpdateArray
+  )
+}
+
+export function getDirectionalPositionMints(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+  return readPredictJson(
+    `/positions/minted?${params.toString()}`,
+    parseDirectionalPositionMintEventArray
+  )
+}
+
+export function getDirectionalPositionRedeems(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+  return readPredictJson(
+    `/positions/redeemed?${params.toString()}`,
+    parseDirectionalPositionRedeemEventArray
+  )
+}
+
+export function getRangeMints(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+  return readPredictJson(
+    `/ranges/minted?${params.toString()}`,
+    parseRangeMintEventArray
+  )
+}
+
+export function getRangeRedeems(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+  return readPredictJson(
+    `/ranges/redeemed?${params.toString()}`,
+    parseRangeRedeemEventArray
   )
 }

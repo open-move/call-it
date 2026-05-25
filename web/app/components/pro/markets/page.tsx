@@ -104,7 +104,7 @@ export function Page({ markets }: PageProps) {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
       <section className="space-y-4">
         {markets.length > 0 ? (
           <Table

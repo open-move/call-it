@@ -16,7 +16,7 @@ export function Page({ market }: PageProps) {
   const trend = market.priceChangePercent >= 0 ? "up" : "down"
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-[96rem] px-4 py-5 sm:px-6 lg:px-8">
       <section className="py-1">
         <div className="flex min-w-0 items-start gap-2.5">
           <AssetIcon
