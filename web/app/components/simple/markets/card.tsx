@@ -21,6 +21,14 @@ function clampPercent(value: number) {
   return Math.min(Math.max(Math.round(value), 0), 100)
 }
 
+function getProbabilityPercent(probability: number | undefined) {
+  return probability === undefined ? undefined : clampPercent(probability * 100)
+}
+
+function formatOutcomeLabel(label: string, percent: number | undefined) {
+  return percent === undefined ? label : `${label} ${percent}%`
+}
+
 export function MarketCard({ market }: MarketCardProps) {
   const footerParts = [
     formatUsd(market.currentPriceUsd, market.currentPriceUsd >= 100 ? 0 : 2),
@@ -30,6 +38,8 @@ export function MarketCard({ market }: MarketCardProps) {
     market.durationLabel,
   ].filter((part): part is string => part !== undefined)
   const [yesOutcome, noOutcome] = market.outcomes
+  const yesPercent = getProbabilityPercent(market.fairUpProbability)
+  const noPercent = yesPercent === undefined ? undefined : 100 - yesPercent
 
   return (
     <Link
@@ -54,17 +64,20 @@ export function MarketCard({ market }: MarketCardProps) {
                 {market.prompt}
               </CardTitle>
             </div>
-            <OutcomeGauge
-              label={market.outcomes[0].label}
-              percent={market.primaryOutcomePercent}
-            />
+            <OutcomeGauge label="Chance" percent={yesPercent} />
           </div>
         </CardHeader>
 
         <CardContent className="px-4 pt-1">
           <div className="grid grid-cols-2 gap-2">
-            <OutcomeButton label={yesOutcome.label} tone="up" />
-            <OutcomeButton label={noOutcome.label} tone="down" />
+            <OutcomeButton
+              label={formatOutcomeLabel(yesOutcome.label, yesPercent)}
+              tone="up"
+            />
+            <OutcomeButton
+              label={formatOutcomeLabel(noOutcome.label, noPercent)}
+              tone="down"
+            />
           </div>
         </CardContent>
 
@@ -113,7 +126,7 @@ function OutcomeGauge({ label, percent }: { label: string; percent?: number }) {
     <div
       aria-label={
         displayPercent === undefined
-          ? `${label} price is not available yet`
+          ? `${label} is not available yet`
           : `${label} ${displayPercent} percent`
       }
       className="shrink-0 text-center"

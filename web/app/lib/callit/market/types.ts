@@ -32,6 +32,7 @@ export interface MarketSnapshot {
   assetIconUrl?: string
   currentPriceUsd: number
   expiryMs: number
+  fairUpProbability?: number
   minStrikeUsd: number
   priceChangePercent: number
   priceHistory: MarketPricePoint[]

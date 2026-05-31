@@ -7,6 +7,8 @@ import {
   type OracleStateResponse,
 } from "~/lib/deepbook/predict-types"
 
+import { computeFairUpProbability } from "./svi"
+
 const PRICE_SCALE = 1_000_000_000
 
 const assetMetadata: Record<
@@ -24,7 +26,7 @@ function toUsdPrice(value: number) {
   return value / PRICE_SCALE
 }
 
-function deriveStrikePriceUsd(state: OracleStateResponse) {
+function deriveStrike(state: OracleStateResponse) {
   if (!state.latest_price) {
     throw new Error(`Missing latest price for oracle ${state.oracle.oracle_id}`)
   }
@@ -37,7 +39,7 @@ function deriveStrikePriceUsd(state: OracleStateResponse) {
   )
   const strike = min_strike + ticksFromMinimum * tick_size
 
-  return toUsdPrice(strike)
+  return strike
 }
 
 function getAssetMetadata(assetSymbol: string) {
@@ -83,6 +85,7 @@ export function mapOracleStateToMarketSnapshot(
   const assetSymbol = state.oracle.underlying_asset
   const metadata = getAssetMetadata(assetSymbol)
   const priceHistory = mapPriceHistory(prices)
+  const strike = deriveStrike(state)
 
   return {
     id: state.oracle.oracle_id,
@@ -92,13 +95,18 @@ export function mapOracleStateToMarketSnapshot(
     assetIconUrl: metadata.assetIconUrl,
     currentPriceUsd: toUsdPrice(state.latest_price.spot),
     expiryMs: state.oracle.expiry,
+    fairUpProbability: computeFairUpProbability({
+      forward: state.latest_price.forward,
+      strike,
+      svi: state.latest_svi,
+    }),
     minStrikeUsd: toUsdPrice(state.oracle.min_strike),
     priceChangePercent: getPriceChangePercent(priceHistory),
     priceHistory,
     priceUpdatedMs: state.latest_price.checkpoint_timestamp_ms,
     recentTrades: [],
     status: state.oracle.status,
-    strikePriceUsd: deriveStrikePriceUsd(state),
+    strikePriceUsd: toUsdPrice(strike),
     tickSizeUsd: toUsdPrice(state.oracle.tick_size),
   }
 }
