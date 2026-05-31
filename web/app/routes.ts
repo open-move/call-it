@@ -2,6 +2,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes"
 
 export default [
   index("routes/home.tsx"),
+  route("earn", "routes/earn.tsx"),
   route("markets/:oracleId", "routes/market.tsx"),
   route("pro", "routes/pro.tsx"),
   route("pro/markets/:oracleId", "routes/pro-market.tsx"),

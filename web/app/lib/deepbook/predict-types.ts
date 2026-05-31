@@ -55,6 +55,37 @@ export interface OracleStateResponse {
   ask_bounds: unknown | null
 }
 
+export interface VaultSummary {
+  predict_id: string
+  quote_assets: string[]
+  vault_balance: number
+  vault_value: number
+  total_mtm: number
+  total_max_payout: number
+  available_liquidity: number
+  available_withdrawal: number
+  plp_total_supply: number
+  plp_share_price: number
+  utilization: number
+  max_payout_utilization: number
+  net_deposits: number
+  total_supplied: number
+  total_withdrawn: number
+}
+
+export interface VaultPerformancePoint {
+  timestamp_ms: number
+  share_price: number
+  vault_value: number
+  total_shares: number
+}
+
+export interface VaultPerformanceResponse {
+  predict_id: string
+  range: string
+  points: VaultPerformancePoint[]
+}
+
 export interface DirectionalPositionMintEvent {
   event_digest: string
   digest: string
@@ -144,6 +175,38 @@ export interface RangeRedeemEvent {
   payout: number
   bid_price: number
   is_settled: boolean
+}
+
+export interface LpSupplyEvent {
+  event_digest: string
+  digest: string
+  sender: string
+  checkpoint: number
+  checkpoint_timestamp_ms: number
+  tx_index: number
+  event_index: number
+  package: string
+  predict_id: string
+  supplier: string
+  quote_asset: string
+  amount: number
+  shares_minted: number
+}
+
+export interface LpWithdrawalEvent {
+  event_digest: string
+  digest: string
+  sender: string
+  checkpoint: number
+  checkpoint_timestamp_ms: number
+  tx_index: number
+  event_index: number
+  package: string
+  predict_id: string
+  withdrawer: string
+  quote_asset: string
+  amount: number
+  shares_burned: number
 }
 
 export interface PredictManagerCreatedEvent {

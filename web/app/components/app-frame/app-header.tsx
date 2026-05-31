@@ -1,4 +1,4 @@
-import { Link } from "react-router"
+import { Link, useLocation } from "react-router"
 import { useState } from "react"
 import { MenuIcon, XIcon } from "lucide-react"
 
@@ -40,6 +40,18 @@ function getMobileNavLinkClassName(status: AppNavStatus) {
 
 export function AppHeader() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
+  const { pathname } = useLocation()
+
+  function getItemStatus(item: (typeof appNavItems)[number]) {
+    if (item.status === AppNavStatus.Soon) {
+      return item.status
+    }
+
+    const isActive =
+      item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+
+    return isActive ? AppNavStatus.Active : AppNavStatus.Available
+  }
 
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
@@ -58,8 +70,8 @@ export function AppHeader() {
               {appNavItems.map((item) => (
                 <NavigationMenuItem key={item.href}>
                   <NavigationMenuLink
-                    active={item.status === AppNavStatus.Active}
-                    className={getNavLinkClassName(item.status)}
+                    active={getItemStatus(item) === AppNavStatus.Active}
+                    className={getNavLinkClassName(getItemStatus(item))}
                     render={<Link to={item.href} />}
                   >
                     <span>{item.label}</span>
@@ -103,7 +115,7 @@ export function AppHeader() {
           >
             {appNavItems.map((item) => (
               <Link
-                className={getMobileNavLinkClassName(item.status)}
+                className={getMobileNavLinkClassName(getItemStatus(item))}
                 key={item.href}
                 onClick={() => setIsMobileNavOpen(false)}
                 to={item.href}

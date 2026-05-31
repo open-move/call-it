@@ -2,6 +2,8 @@ import { PREDICT_OBJECT_ID, PREDICT_SERVER_URL } from "./config"
 import {
   type DirectionalPositionMintEvent,
   type DirectionalPositionRedeemEvent,
+  type LpSupplyEvent,
+  type LpWithdrawalEvent,
   type OracleInfo,
   type OraclePriceUpdate,
   type OracleStateResponse,
@@ -10,6 +12,9 @@ import {
   type PredictManagerCreatedEvent,
   type RangeMintEvent,
   type RangeRedeemEvent,
+  type VaultPerformancePoint,
+  type VaultPerformanceResponse,
+  type VaultSummary,
 } from "./predict-types"
 
 export class PredictServerError extends Error {
@@ -85,6 +90,21 @@ function readNullableString(record: Record<string, unknown>, key: string) {
   if (typeof value !== "string") {
     throw new PredictServerError(
       `Invalid Predict response: ${key} must be a string or null`
+    )
+  }
+
+  return value
+}
+
+function readStringArray(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string")
+  ) {
+    throw new PredictServerError(
+      `Invalid Predict response: ${key} must be a string array`
     )
   }
 
@@ -185,6 +205,71 @@ function parseOracleStateResponse(value: unknown): OracleStateResponse {
     latest_price: parseNullableOraclePriceUpdate(value.latest_price),
     latest_svi: parseNullableOracleSviUpdate(value.latest_svi),
     ask_bounds: value.ask_bounds ?? null,
+  }
+}
+
+function parseVaultSummary(value: unknown): VaultSummary {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: vault summary must be an object"
+    )
+  }
+
+  return {
+    predict_id: readString(value, "predict_id"),
+    quote_assets: readStringArray(value, "quote_assets"),
+    vault_balance: readNumber(value, "vault_balance"),
+    vault_value: readNumber(value, "vault_value"),
+    total_mtm: readNumber(value, "total_mtm"),
+    total_max_payout: readNumber(value, "total_max_payout"),
+    available_liquidity: readNumber(value, "available_liquidity"),
+    available_withdrawal: readNumber(value, "available_withdrawal"),
+    plp_total_supply: readNumber(value, "plp_total_supply"),
+    plp_share_price: readNumber(value, "plp_share_price"),
+    utilization: readNumber(value, "utilization"),
+    max_payout_utilization: readNumber(value, "max_payout_utilization"),
+    net_deposits: readNumber(value, "net_deposits"),
+    total_supplied: readNumber(value, "total_supplied"),
+    total_withdrawn: readNumber(value, "total_withdrawn"),
+  }
+}
+
+function parseVaultPerformancePoint(value: unknown): VaultPerformancePoint {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: vault performance point must be an object"
+    )
+  }
+
+  return {
+    timestamp_ms: readNumber(value, "timestamp_ms"),
+    share_price: readNumber(value, "share_price"),
+    vault_value: readNumber(value, "vault_value"),
+    total_shares: readNumber(value, "total_shares"),
+  }
+}
+
+function parseVaultPerformanceResponse(
+  value: unknown
+): VaultPerformanceResponse {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: vault performance must be an object"
+    )
+  }
+
+  const points = value.points
+
+  if (!Array.isArray(points)) {
+    throw new PredictServerError(
+      "Invalid Predict response: vault performance points must be an array"
+    )
+  }
+
+  return {
+    predict_id: readString(value, "predict_id"),
+    range: readString(value, "range"),
+    points: points.map(parseVaultPerformancePoint),
   }
 }
 
@@ -312,6 +397,54 @@ function parseRangeRedeemEvent(value: unknown): RangeRedeemEvent {
     payout: readNumber(value, "payout"),
     bid_price: readNumber(value, "bid_price"),
     is_settled: readBoolean(value, "is_settled"),
+  }
+}
+
+function parseLpSupplyEvent(value: unknown): LpSupplyEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: LP supply must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    supplier: readString(value, "supplier"),
+    quote_asset: readString(value, "quote_asset"),
+    amount: readNumber(value, "amount"),
+    shares_minted: readNumber(value, "shares_minted"),
+  }
+}
+
+function parseLpWithdrawalEvent(value: unknown): LpWithdrawalEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: LP withdrawal must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    predict_id: readString(value, "predict_id"),
+    withdrawer: readString(value, "withdrawer"),
+    quote_asset: readString(value, "quote_asset"),
+    amount: readNumber(value, "amount"),
+    shares_burned: readNumber(value, "shares_burned"),
   }
 }
 
@@ -460,6 +593,26 @@ function parseManagerPositionSummaryArray(
   return value.map(parseManagerPositionSummary)
 }
 
+function parseLpSupplyEventArray(value: unknown): LpSupplyEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected LP supply array"
+    )
+  }
+
+  return value.map(parseLpSupplyEvent)
+}
+
+function parseLpWithdrawalEventArray(value: unknown): LpWithdrawalEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected LP withdrawal array"
+    )
+  }
+
+  return value.map(parseLpWithdrawalEvent)
+}
+
 async function readPredictJson<T>(
   path: string,
   parse: (value: unknown) => T
@@ -496,6 +649,22 @@ export function getOraclePrices(oracleId: string, limit: number) {
   return readPredictJson(
     `/oracles/${encodeURIComponent(oracleId)}/prices?${params.toString()}`,
     parseOraclePriceUpdateArray
+  )
+}
+
+export function getPredictVaultSummary() {
+  return readPredictJson(
+    `/predicts/${PREDICT_OBJECT_ID}/vault/summary`,
+    parseVaultSummary
+  )
+}
+
+export function getPredictVaultPerformance(range = "ALL") {
+  const params = new URLSearchParams({ range })
+
+  return readPredictJson(
+    `/predicts/${PREDICT_OBJECT_ID}/vault/performance?${params.toString()}`,
+    parseVaultPerformanceResponse
   )
 }
 
@@ -551,6 +720,24 @@ export function getRangeRedeems(limit: number, oracleId?: string) {
   return readPredictJson(
     `/ranges/redeemed?${params.toString()}`,
     parseRangeRedeemEventArray
+  )
+}
+
+export function getLpSupplies(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+
+  return readPredictJson(
+    `/lp/supplies?${params.toString()}`,
+    parseLpSupplyEventArray
+  )
+}
+
+export function getLpWithdrawals(limit: number) {
+  const params = new URLSearchParams({ limit: limit.toString() })
+
+  return readPredictJson(
+    `/lp/withdrawals?${params.toString()}`,
+    parseLpWithdrawalEventArray
   )
 }
 
