@@ -22,11 +22,15 @@ import {
   executeSuiTransaction,
   findCreatedManagerId,
   prepareDirectionalMintTransaction,
-  quoteDirectionalTrade,
   type DirectionalTradeParams,
-  type DirectionalTradeQuote,
   type SuiTransactionSigner,
 } from "~/lib/deepbook/predict-transactions"
+import {
+  formatPredictTradeError,
+  formatPredictQuoteMessage,
+  quoteDirectionalTradeSafe,
+  type PredictQuoteResult,
+} from "~/lib/deepbook/predict-quotes"
 import {
   getManagerPositionSummaries,
   getPredictManagers,
@@ -232,7 +236,7 @@ function OrderTicketClient({
     openQuantity: 0n,
   })
   const [isLoadingManager, setIsLoadingManager] = useState(false)
-  const [quote, setQuote] = useState<DirectionalTradeQuote>()
+  const [quote, setQuote] = useState<PredictQuoteResult>()
   const [isQuoting, setIsQuoting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string>()
@@ -240,6 +244,7 @@ function OrderTicketClient({
   const walletAddress = primaryWallet?.address
   const selectedQuantity = parseDecimalUnits(size, PREDICT_QUOTE_DECIMALS)
   const isAbove = contractSide === "above"
+  const quotedQuote = quote?.status === "quoted" ? quote : undefined
   const chance =
     market.fairUpProbability === undefined
       ? "--"
@@ -253,8 +258,8 @@ function OrderTicketClient({
     isLoadingManager ||
     isQuoting ||
     !selectedQuantity ||
-    (tradeAction === "sell" && !canSell) ||
-    (tradeAction === "buy" && !quote)
+    !quotedQuote ||
+    (tradeAction === "sell" && !canSell)
   const actionButtonLabel = !walletAddress
     ? "Sign in to trade"
     : isSubmitting
@@ -324,7 +329,7 @@ function OrderTicketClient({
         setIsQuoting(true)
 
         try {
-          const nextQuote = await quoteDirectionalTrade(
+          const nextQuote = await quoteDirectionalTradeSafe(
             getTradeParams({
               contractSide,
               market,
@@ -336,14 +341,7 @@ function OrderTicketClient({
 
           if (!isStale) {
             setQuote(nextQuote)
-            setErrorMessage(undefined)
-          }
-        } catch (error) {
-          if (!isStale) {
-            setQuote(undefined)
-            setErrorMessage(
-              error instanceof Error ? error.message : "Failed to quote trade"
-            )
+            setErrorMessage(formatPredictQuoteMessage(nextQuote))
           }
         } finally {
           if (!isStale) {
@@ -383,7 +381,7 @@ function OrderTicketClient({
       return
     }
 
-    if (tradeAction === "buy" && !quote) {
+    if (!quotedQuote) {
       setErrorMessage("Wait for an executable quote")
       return
     }
@@ -433,16 +431,11 @@ function OrderTicketClient({
 
       if (tradeAction === "buy") {
         setStatusMessage("Preparing funding and buy")
-        const tradeQuote = quote
-
-        if (!tradeQuote) {
-          throw new Error("Executable quote expired")
-        }
 
         const preparedMint = await prepareDirectionalMintTransaction({
           managerId,
           params,
-          quotedCost: tradeQuote.mintCost,
+          quotedCost: quotedQuote.mintCost,
         })
 
         setStatusMessage(
@@ -465,7 +458,7 @@ function OrderTicketClient({
       window.setTimeout(() => revalidator.revalidate(), 1_500)
     } catch (error) {
       setStatusMessage(undefined)
-      setErrorMessage(error instanceof Error ? error.message : "Trade failed")
+      setErrorMessage(formatPredictTradeError(error, "Trade failed"))
     } finally {
       setIsSubmitting(false)
     }
@@ -547,23 +540,25 @@ function OrderTicketClient({
             <TicketRow
               label="Price"
               value={
-                quote && selectedQuantity
+                quotedQuote && selectedQuantity
                   ? `${formatUnitPrice(
                       tradeAction === "buy"
-                        ? quote.mintCost
-                        : quote.redeemPayout,
+                        ? quotedQuote.mintCost
+                        : quotedQuote.redeemPayout,
                       selectedQuantity
                     )} DUSDC`
-                  : isQuoting
-                    ? "Quoting"
-                    : "--"
+                  : quote?.status === "no_quote"
+                    ? "No quote"
+                    : isQuoting
+                      ? "Quoting"
+                      : "--"
               }
             />
             <TicketRow label="Chance" value={chance} />
             {tradeAction === "buy" ? (
               <TicketRow
                 label="Cost"
-                value={quote ? formatDusdc(quote.mintCost) : "--"}
+                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
               />
             ) : (
               <>
@@ -573,14 +568,23 @@ function OrderTicketClient({
                 />
                 <TicketRow
                   label="Receive"
-                  value={quote ? formatDusdc(quote.redeemPayout) : "--"}
+                  value={
+                    quotedQuote ? formatDusdc(quotedQuote.redeemPayout) : "--"
+                  }
                 />
               </>
             )}
           </TicketSection>
 
           {(errorMessage || statusMessage) && (
-            <p className="rounded-md bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+            <p
+              className={cn(
+                "rounded-md px-3 py-2 text-xs leading-5",
+                errorMessage
+                  ? "bg-destructive/10 text-destructive"
+                  : "bg-muted text-muted-foreground"
+              )}
+            >
               {errorMessage ?? statusMessage}
             </p>
           )}

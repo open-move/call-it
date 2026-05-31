@@ -4,7 +4,7 @@ import { Page as MarketDetailPage } from "~/components/market-detail/page"
 import { AppMode } from "~/lib/callit/app-mode"
 import { loadMarketSnapshot } from "~/lib/callit/market/loaders"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
-import { quoteDirectionalTrade } from "~/lib/deepbook/predict-transactions"
+import { quoteDirectionalTradeSafe } from "~/lib/deepbook/predict-quotes"
 import {
   filterProRangeRedemptions,
   filterProRangeTrades,
@@ -43,24 +43,25 @@ async function loadToolbarQuote({
   oracleId: string
   selectedStrikePriceUsd: number
 }): Promise<ProToolbarQuote | null> {
-  try {
-    const quote = await quoteDirectionalTrade({
-      expiryMs,
-      isUp: true,
-      oracleId,
-      quantity: TOOLBAR_QUOTE_QUANTITY,
-      strikePriceUsd: selectedStrikePriceUsd,
-      walletAddress: TOOLBAR_QUOTE_SENDER,
-    })
-    const spread = quote.mintCost - quote.redeemPayout
+  const quote = await quoteDirectionalTradeSafe({
+    expiryMs,
+    isUp: true,
+    oracleId,
+    quantity: TOOLBAR_QUOTE_QUANTITY,
+    strikePriceUsd: selectedStrikePriceUsd,
+    walletAddress: TOOLBAR_QUOTE_SENDER,
+  })
 
-    return {
-      aboveAsk: Number(quote.mintCost),
-      aboveBid: Number(quote.redeemPayout),
-      spread: Number(spread > 0n ? spread : 0n),
-    }
-  } catch {
+  if (quote.status !== "quoted") {
     return null
+  }
+
+  const spread = quote.mintCost - quote.redeemPayout
+
+  return {
+    aboveAsk: Number(quote.mintCost),
+    aboveBid: Number(quote.redeemPayout),
+    spread: Number(spread > 0n ? spread : 0n),
   }
 }
 

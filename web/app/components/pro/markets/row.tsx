@@ -76,16 +76,6 @@ function formatSignedPercent(value: number) {
   return `${displayValue >= 0 ? "+" : ""}${displayValue.toFixed(2)}%`
 }
 
-function getStrikePositionLabel(ladderOffset: number) {
-  const absoluteOffset = Math.abs(ladderOffset)
-
-  if (ladderOffset === 0) {
-    return "At spot"
-  }
-
-  return `${absoluteOffset} ${ladderOffset > 0 ? "above" : "below"} spot`
-}
-
 export function Row({ market }: RowProps) {
   const distance = getDistance(market)
   const isAboveStrike = distance.distanceUsd >= 0
@@ -95,10 +85,7 @@ export function Row({ market }: RowProps) {
   return (
     <Link
       aria-label={`Open pro ${market.assetName} market`}
-      className={cn(
-        "group block border-b border-l-2 border-b-border/25 border-l-transparent transition-colors last:border-b-0 hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-none",
-        market.ladderOffset === 0 && "border-l-primary/60 bg-primary/5"
-      )}
+      className="group block border-b border-l-2 border-b-border/25 border-l-transparent transition-colors last:border-b-0 hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-none"
       to={`/pro/markets/${market.oracleId}?strike=${market.strikePriceUsd}`}
     >
       <div className="grid gap-2 px-3 py-3 sm:px-4 lg:grid-cols-[minmax(15rem,1.45fr)_0.8fr_0.8fr_0.95fr_0.9fr_0.75fr] lg:items-center lg:gap-0 lg:py-2.5">
@@ -115,7 +102,7 @@ export function Row({ market }: RowProps) {
                 {market.assetSymbol} Above {formatUsd(market.strikePriceUsd, 0)}
               </div>
               <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                {getStrikePositionLabel(market.ladderOffset)}
+                Oracle market
               </div>
             </div>
           </div>
