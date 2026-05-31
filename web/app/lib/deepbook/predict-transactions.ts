@@ -8,6 +8,7 @@ import { fromBase64 } from "@mysten/sui/utils"
 
 import {
   PREDICT_CLOCK_ID,
+  PREDICT_LP_ASSET,
   PREDICT_OBJECT_ID,
   PREDICT_PACKAGE_ID,
   PREDICT_PRICE_SCALE,
@@ -34,6 +35,11 @@ export interface DirectionalTradeParams {
 export interface DirectionalTradeQuote {
   mintCost: bigint
   redeemPayout: bigint
+}
+
+export interface LiquidityTransactionParams {
+  amount: bigint
+  walletAddress: string
 }
 
 export interface PreparedDirectionalMintTransaction {
@@ -121,13 +127,15 @@ function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {
   return { selectedBalance, selectedCoins }
 }
 
-async function buildQuoteCoin(
+async function buildCoin(
   tx: Transaction,
   owner: string,
-  amount: bigint
+  amount: bigint,
+  coinType: string,
+  insufficientBalanceMessage: string
 ): Promise<TransactionObjectArgument> {
   const { objects } = await getSuiGrpcClient().listCoins({
-    coinType: PREDICT_QUOTE_ASSET,
+    coinType,
     limit: 50,
     owner,
   })
@@ -135,7 +143,7 @@ async function buildQuoteCoin(
   const [primaryCoin, ...sourceCoins] = selectedCoins
 
   if (!primaryCoin || selectedBalance < amount) {
-    throw new Error("Insufficient DUSDC balance")
+    throw new Error(insufficientBalanceMessage)
   }
 
   const paymentCoin = tx.object(primaryCoin.objectId)
@@ -154,6 +162,26 @@ async function buildQuoteCoin(
   const [depositCoin] = tx.splitCoins(paymentCoin, [tx.pure.u64(amount)])
 
   return depositCoin
+}
+
+function buildQuoteCoin(tx: Transaction, owner: string, amount: bigint) {
+  return buildCoin(
+    tx,
+    owner,
+    amount,
+    PREDICT_QUOTE_ASSET,
+    "Insufficient DUSDC balance"
+  )
+}
+
+function buildLpCoin(tx: Transaction, owner: string, amount: bigint) {
+  return buildCoin(
+    tx,
+    owner,
+    amount,
+    PREDICT_LP_ASSET,
+    "Insufficient PLP balance"
+  )
 }
 
 export function buildCreateManagerTransaction(walletAddress: string) {
@@ -244,6 +272,52 @@ export function buildDirectionalRedeemTransaction({
       tx.object(PREDICT_CLOCK_ID),
     ],
   })
+
+  return tx
+}
+
+export async function buildSupplyLiquidityTransaction({
+  amount,
+  walletAddress,
+}: LiquidityTransactionParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
+
+  const lpCoin = tx.moveCall({
+    target: target("predict", "supply"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      paymentCoin,
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  tx.transferObjects([lpCoin], walletAddress)
+
+  return tx
+}
+
+export async function buildWithdrawLiquidityTransaction({
+  amount,
+  walletAddress,
+}: LiquidityTransactionParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const lpCoin = await buildLpCoin(tx, walletAddress, amount)
+
+  const quoteCoin = tx.moveCall({
+    target: target("predict", "withdraw"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      lpCoin,
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  tx.transferObjects([quoteCoin], walletAddress)
 
   return tx
 }

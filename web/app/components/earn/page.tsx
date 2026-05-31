@@ -1,5 +1,6 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useState } from "react"
+import { useRevalidator } from "react-router"
 import {
   Area,
   AreaChart,
@@ -20,17 +21,28 @@ import {
   formatUsd,
 } from "~/lib/callit/format"
 import {
+  formatDecimalUnits,
+  parseDecimalUnits,
+} from "~/lib/callit/trading/amounts"
+import {
   PREDICT_LP_ASSET,
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
 } from "~/lib/deepbook/config"
-import { getSuiGrpcClient } from "~/lib/deepbook/sui-client"
+import {
+  buildSupplyLiquidityTransaction,
+  buildWithdrawLiquidityTransaction,
+  executeSuiTransaction,
+  type SuiTransactionSigner,
+} from "~/lib/deepbook/predict-transactions"
+import { formatPredictTradeError } from "~/lib/deepbook/predict-quotes"
 import {
   type LpSupplyEvent,
   type LpWithdrawalEvent,
   type VaultPerformanceResponse,
   type VaultSummary,
 } from "~/lib/deepbook/predict-types"
+import { getSuiGrpcClient } from "~/lib/deepbook/sui-client"
 import { cn } from "~/lib/utils"
 
 export interface PageProps {
@@ -98,28 +110,6 @@ function formatQuoteAmount(value: number, symbol = "DUSDC") {
     maximumFractionDigits: 4,
     minimumFractionDigits: 0,
   })} ${symbol}`
-}
-
-function formatDecimalUnits(
-  value: bigint,
-  decimals: number,
-  maximumFractionDigits = 4
-) {
-  const scale = 10n ** BigInt(decimals)
-  const whole = value / scale
-  const fraction = value % scale
-
-  if (fraction === 0n || maximumFractionDigits === 0) {
-    return whole.toString()
-  }
-
-  const fractionText = fraction
-    .toString()
-    .padStart(decimals, "0")
-    .slice(0, maximumFractionDigits)
-    .replace(/0+$/, "")
-
-  return fractionText ? `${whole}.${fractionText}` : whole.toString()
 }
 
 function formatSharePrice(value: number) {
@@ -438,16 +428,296 @@ function PerformanceCard({
 }
 
 function LiquidityPanel({ summary }: { summary: VaultSummary }) {
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  if (!isClient) {
+    return <LiquidityPanelFallback summary={summary} />
+  }
+
+  return <LiquidityPanelClient summary={summary} />
+}
+
+function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
   const [action, setAction] = useState<EarnAction>("supply")
   const [amount, setAmount] = useState("")
-  const numericAmount = Number(amount)
-  const isValidAmount = Number.isFinite(numericAmount) && numericAmount > 0
-  const estimatedOutput = isValidAmount
-    ? action === "supply"
-      ? numericAmount / summary.plp_share_price
-      : numericAmount * summary.plp_share_price
-    : undefined
+  const estimatedOutput = getEstimatedOutput({ action, amount, summary })
 
+  return (
+    <LiquidityPanelFrame
+      action={action}
+      amount={amount}
+      buttonDisabled
+      buttonLabel={action === "supply" ? "Supply DUSDC" : "Withdraw DUSDC"}
+      estimatedOutput={estimatedOutput}
+      message="Connect wallet to view balances."
+      messageTone="muted"
+      onActionChange={setAction}
+      onAmountChange={setAmount}
+      onSubmit={() => undefined}
+      summary={summary}
+      walletBlock={
+        <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+          Connect wallet to view balances.
+        </div>
+      }
+    />
+  )
+}
+
+function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const revalidator = useRevalidator()
+  const [action, setAction] = useState<EarnAction>("supply")
+  const [amount, setAmount] = useState("")
+  const [balances, setBalances] = useState<WalletBalances>()
+  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string>()
+  const [errorMessage, setErrorMessage] = useState<string>()
+  const walletAddress = primaryWallet?.address
+  const selectedAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
+  const estimatedOutput = getEstimatedOutput({ action, amount, summary })
+  const estimatedWithdrawAmount = selectedAmount
+    ? getEstimatedWithdrawAmount(selectedAmount, summary)
+    : undefined
+  const canSupply =
+    action === "supply" &&
+    !!selectedAmount &&
+    !!balances &&
+    selectedAmount <= balances.dusdc
+  const canWithdraw =
+    action === "withdraw" &&
+    !!selectedAmount &&
+    !!balances &&
+    selectedAmount <= balances.plp &&
+    !!estimatedWithdrawAmount &&
+    estimatedWithdrawAmount <= BigInt(Math.floor(summary.available_withdrawal))
+  const canSubmit = action === "supply" ? canSupply : canWithdraw
+  const buttonDisabled =
+    isSubmitting || isLoadingBalances || (!!walletAddress && !canSubmit)
+  const buttonLabel = !walletAddress
+    ? "Sign in"
+    : isSubmitting
+      ? action === "supply"
+        ? "Supplying"
+        : "Withdrawing"
+      : action === "supply"
+        ? "Supply DUSDC"
+        : "Withdraw DUSDC"
+
+  async function loadBalances(address: string) {
+    const [dusdcBalance, plpBalance] = await Promise.all([
+      getSuiGrpcClient().getBalance({
+        coinType: PREDICT_QUOTE_ASSET,
+        owner: address,
+      }),
+      getSuiGrpcClient().getBalance({
+        coinType: PREDICT_LP_ASSET,
+        owner: address,
+      }),
+    ])
+
+    return {
+      dusdc: BigInt(dusdcBalance.balance.balance),
+      plp: BigInt(plpBalance.balance.balance),
+    } satisfies WalletBalances
+  }
+
+  useEffect(() => {
+    let isStale = false
+
+    async function refreshBalances() {
+      if (!walletAddress) {
+        setBalances(undefined)
+        return
+      }
+
+      setIsLoadingBalances(true)
+
+      try {
+        const nextBalances = await loadBalances(walletAddress)
+
+        if (!isStale) {
+          setBalances(nextBalances)
+          setErrorMessage(undefined)
+        }
+      } catch (error) {
+        if (!isStale) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Failed to load wallet balances"
+          )
+        }
+      } finally {
+        if (!isStale) {
+          setIsLoadingBalances(false)
+        }
+      }
+    }
+
+    void refreshBalances()
+
+    return () => {
+      isStale = true
+    }
+  }, [walletAddress])
+
+  async function handleSubmit() {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!isSuiTransactionSigner(primaryWallet)) {
+      setErrorMessage("Connected wallet cannot sign Sui transactions")
+      return
+    }
+
+    if (!selectedAmount) {
+      setErrorMessage("Enter a positive amount")
+      return
+    }
+
+    if (action === "supply" && balances && selectedAmount > balances.dusdc) {
+      setErrorMessage("Supply amount exceeds DUSDC balance")
+      return
+    }
+
+    if (action === "withdraw") {
+      if (balances && selectedAmount > balances.plp) {
+        setErrorMessage("Withdraw amount exceeds PLP balance")
+        return
+      }
+
+      if (
+        estimatedWithdrawAmount &&
+        estimatedWithdrawAmount >
+          BigInt(Math.floor(summary.available_withdrawal))
+      ) {
+        setErrorMessage("Withdraw amount exceeds available vault liquidity")
+        return
+      }
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage(undefined)
+
+    try {
+      setStatusMessage(
+        action === "supply" ? "Preparing supply" : "Preparing withdrawal"
+      )
+      const transaction =
+        action === "supply"
+          ? await buildSupplyLiquidityTransaction({
+              amount: selectedAmount,
+              walletAddress,
+            })
+          : await buildWithdrawLiquidityTransaction({
+              amount: selectedAmount,
+              walletAddress,
+            })
+
+      setStatusMessage(
+        action === "supply" ? "Supplying DUSDC" : "Withdrawing DUSDC"
+      )
+      await executeSuiTransaction(primaryWallet, transaction)
+      setStatusMessage(
+        action === "supply" ? "Supply confirmed" : "Withdrawal confirmed"
+      )
+      setAmount("")
+      setBalances(await loadBalances(walletAddress))
+      revalidator.revalidate()
+      window.setTimeout(() => revalidator.revalidate(), 1_500)
+    } catch (error) {
+      setStatusMessage(undefined)
+      setErrorMessage(formatPredictTradeError(error, "Transaction failed"))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const plpBalance = balances?.plp ?? 0n
+  const plpValue =
+    (Number(plpBalance) / 10 ** PREDICT_QUOTE_DECIMALS) *
+    summary.plp_share_price
+
+  return (
+    <LiquidityPanelFrame
+      action={action}
+      amount={amount}
+      buttonDisabled={buttonDisabled}
+      buttonLabel={buttonLabel}
+      estimatedOutput={estimatedOutput}
+      message={errorMessage ?? statusMessage}
+      messageTone={errorMessage ? "error" : "muted"}
+      onActionChange={setAction}
+      onAmountChange={setAmount}
+      onSubmit={handleSubmit}
+      summary={summary}
+      walletBlock={
+        walletAddress ? (
+          <div className="space-y-2 rounded-md bg-muted p-3">
+            <PanelRow
+              label="DUSDC balance"
+              value={`${formatDecimalUnits(balances?.dusdc ?? 0n, PREDICT_QUOTE_DECIMALS)} DUSDC`}
+            />
+            <PanelRow
+              label="PLP balance"
+              value={`${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`}
+            />
+            <PanelRow label="PLP value" value={formatUsd(plpValue)} />
+          </div>
+        ) : (
+          <div className="rounded-md bg-muted p-3 text-sm">
+            <p className="text-muted-foreground">
+              Connect wallet to view balances.
+            </p>
+            <Button
+              className="mt-3 h-9 w-full"
+              onClick={() => setShowAuthFlow(true)}
+              type="button"
+            >
+              Sign in
+            </Button>
+          </div>
+        )
+      }
+    />
+  )
+}
+
+function LiquidityPanelFrame({
+  action,
+  amount,
+  buttonDisabled,
+  buttonLabel,
+  estimatedOutput,
+  message,
+  messageTone,
+  onActionChange,
+  onAmountChange,
+  onSubmit,
+  summary,
+  walletBlock,
+}: {
+  action: EarnAction
+  amount: string
+  buttonDisabled: boolean
+  buttonLabel: string
+  estimatedOutput?: number
+  message?: string
+  messageTone: "error" | "muted"
+  onActionChange: (action: EarnAction) => void
+  onAmountChange: (amount: string) => void
+  onSubmit: () => void
+  summary: VaultSummary
+  walletBlock: React.ReactNode
+}) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
       <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
@@ -455,7 +725,7 @@ function LiquidityPanel({ summary }: { summary: VaultSummary }) {
           className="gap-0"
           onValueChange={(value) => {
             if (isEarnAction(value)) {
-              setAction(value)
+              onActionChange(value)
             }
           }}
           value={action}
@@ -481,7 +751,7 @@ function LiquidityPanel({ summary }: { summary: VaultSummary }) {
             <Input
               className="h-11 border-0 pr-20 font-mono shadow-none ring-0 focus-visible:ring-1"
               inputMode="decimal"
-              onChange={(event) => setAmount(event.target.value)}
+              onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
               value={amount}
             />
@@ -491,7 +761,7 @@ function LiquidityPanel({ summary }: { summary: VaultSummary }) {
           </div>
         </label>
 
-        <WalletBalanceBlock summary={summary} />
+        {walletBlock}
 
         <div className="space-y-2 rounded-md bg-muted p-3">
           <PanelRow
@@ -519,125 +789,71 @@ function LiquidityPanel({ summary }: { summary: VaultSummary }) {
           by vault risk and available liquidity.
         </p>
 
-        <Button className="mt-auto h-11 w-full" disabled type="button">
-          {action === "supply" ? "Supply DUSDC" : "Withdraw DUSDC"}
+        {message && (
+          <p
+            className={cn(
+              "rounded-md px-3 py-2 text-xs leading-5",
+              messageTone === "error"
+                ? "bg-destructive/10 text-destructive"
+                : "bg-muted text-muted-foreground"
+            )}
+          >
+            {message}
+          </p>
+        )}
+
+        <Button
+          className="mt-auto h-11 w-full"
+          disabled={buttonDisabled}
+          onClick={onSubmit}
+          type="button"
+        >
+          {buttonLabel}
         </Button>
-        <p className="text-center text-[11px] text-muted-foreground">
-          Wallet transactions are next; this panel is quote-ready.
-        </p>
       </CardContent>
     </Card>
   )
 }
 
-function WalletBalanceBlock({ summary }: { summary: VaultSummary }) {
-  const [isClient, setIsClient] = useState(false)
+function getEstimatedOutput({
+  action,
+  amount,
+  summary,
+}: {
+  action: EarnAction
+  amount: string
+  summary: VaultSummary
+}) {
+  const numericAmount = Number(amount)
+  const isValidAmount = Number.isFinite(numericAmount) && numericAmount > 0
 
-  useEffect(() => {
-    setIsClient(true)
-  }, [])
-
-  if (!isClient) {
-    return (
-      <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-        Connect wallet to view balances.
-      </div>
-    )
+  if (!isValidAmount) {
+    return undefined
   }
 
-  return <WalletBalanceBlockClient summary={summary} />
+  return action === "supply"
+    ? numericAmount / summary.plp_share_price
+    : numericAmount * summary.plp_share_price
 }
 
-function WalletBalanceBlockClient({ summary }: { summary: VaultSummary }) {
-  const { primaryWallet, setShowAuthFlow } = useDynamicContext()
-  const [balances, setBalances] = useState<WalletBalances>()
-  const [errorMessage, setErrorMessage] = useState<string>()
-  const walletAddress = primaryWallet?.address
+function getEstimatedWithdrawAmount(amount: bigint, summary: VaultSummary) {
+  const totalSupply = BigInt(Math.floor(summary.plp_total_supply))
 
-  useEffect(() => {
-    let isStale = false
-
-    async function loadBalances() {
-      if (!walletAddress) {
-        setBalances(undefined)
-        return
-      }
-
-      try {
-        const [dusdcBalance, plpBalance] = await Promise.all([
-          getSuiGrpcClient().getBalance({
-            coinType: PREDICT_QUOTE_ASSET,
-            owner: walletAddress,
-          }),
-          getSuiGrpcClient().getBalance({
-            coinType: PREDICT_LP_ASSET,
-            owner: walletAddress,
-          }),
-        ])
-
-        if (!isStale) {
-          setBalances({
-            dusdc: BigInt(dusdcBalance.balance.balance),
-            plp: BigInt(plpBalance.balance.balance),
-          })
-          setErrorMessage(undefined)
-        }
-      } catch (error) {
-        if (!isStale) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to load wallet balances"
-          )
-        }
-      }
-    }
-
-    void loadBalances()
-
-    return () => {
-      isStale = true
-    }
-  }, [walletAddress])
-
-  if (!walletAddress) {
-    return (
-      <div className="rounded-md bg-muted p-3 text-sm">
-        <p className="text-muted-foreground">
-          Connect wallet to view balances.
-        </p>
-        <Button
-          className="mt-3 h-9 w-full"
-          onClick={() => setShowAuthFlow(true)}
-          type="button"
-        >
-          Sign in
-        </Button>
-      </div>
-    )
+  if (totalSupply === 0n) {
+    return 0n
   }
 
-  const plpBalance = balances?.plp ?? 0n
-  const plpValue =
-    (Number(plpBalance) / 10 ** PREDICT_QUOTE_DECIMALS) *
-    summary.plp_share_price
+  return (amount * BigInt(Math.floor(summary.vault_value))) / totalSupply
+}
 
-  return (
-    <div className="space-y-2 rounded-md bg-muted p-3">
-      <PanelRow
-        label="DUSDC balance"
-        value={`${formatDecimalUnits(balances?.dusdc ?? 0n, PREDICT_QUOTE_DECIMALS)} DUSDC`}
-      />
-      <PanelRow
-        label="PLP balance"
-        value={`${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`}
-      />
-      <PanelRow label="PLP value" value={formatUsd(plpValue)} />
-      {errorMessage && (
-        <p className="text-xs text-destructive">{errorMessage}</p>
-      )}
-    </div>
-  )
+function isSuiTransactionSigner(value: unknown): value is SuiTransactionSigner {
+  if (typeof value !== "object" || value === null) {
+    return false
+  }
+
+  const candidate = value as { signTransaction?: unknown }
+
+  return typeof candidate.signTransaction === "function"
 }
 
 function VaultHealthCard({ summary }: { summary: VaultSummary }) {
