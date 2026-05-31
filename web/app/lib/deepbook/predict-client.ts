@@ -6,6 +6,8 @@ import {
   type OraclePriceUpdate,
   type OracleStateResponse,
   type OracleSviUpdate,
+  type ManagerPositionSummary,
+  type PredictManagerCreatedEvent,
   type RangeMintEvent,
   type RangeRedeemEvent,
 } from "./predict-types"
@@ -67,6 +69,22 @@ function readNullableNumber(record: Record<string, unknown>, key: string) {
   if (typeof value !== "number") {
     throw new PredictServerError(
       `Invalid Predict response: ${key} must be a number or null`
+    )
+  }
+
+  return value
+}
+
+function readNullableString(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+
+  if (value === null) {
+    return null
+  }
+
+  if (typeof value !== "string") {
+    throw new PredictServerError(
+      `Invalid Predict response: ${key} must be a string or null`
     )
   }
 
@@ -297,6 +315,63 @@ function parseRangeRedeemEvent(value: unknown): RangeRedeemEvent {
   }
 }
 
+function parsePredictManagerCreatedEvent(
+  value: unknown
+): PredictManagerCreatedEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager event must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    manager_id: readString(value, "manager_id"),
+    owner: readString(value, "owner"),
+  }
+}
+
+function parseManagerPositionSummary(value: unknown): ManagerPositionSummary {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: position summary must be an object"
+    )
+  }
+
+  return {
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    underlying_asset: readNullableString(value, "underlying_asset"),
+    expiry: readNumber(value, "expiry"),
+    strike: readNumber(value, "strike"),
+    is_up: readBoolean(value, "is_up"),
+    minted_quantity: readNumber(value, "minted_quantity"),
+    redeemed_quantity: readNumber(value, "redeemed_quantity"),
+    open_quantity: readNumber(value, "open_quantity"),
+    total_cost: readNumber(value, "total_cost"),
+    total_payout: readNumber(value, "total_payout"),
+    realized_pnl: readNumber(value, "realized_pnl"),
+    unrealized_pnl: readNumber(value, "unrealized_pnl"),
+    open_cost_basis: readNumber(value, "open_cost_basis"),
+    average_entry_price: readNullableNumber(value, "average_entry_price"),
+    average_exit_price: readNullableNumber(value, "average_exit_price"),
+    mark_price: readNullableNumber(value, "mark_price"),
+    mark_value: readNullableNumber(value, "mark_value"),
+    status: readString(value, "status"),
+    first_minted_at: readNumber(value, "first_minted_at"),
+    last_activity_at: readNumber(value, "last_activity_at"),
+  }
+}
+
 function parseOracleInfoArray(value: unknown): OracleInfo[] {
   if (!Array.isArray(value)) {
     throw new PredictServerError(
@@ -361,6 +436,30 @@ function parseRangeRedeemEventArray(value: unknown): RangeRedeemEvent[] {
   return value.map(parseRangeRedeemEvent)
 }
 
+function parsePredictManagerCreatedEventArray(
+  value: unknown
+): PredictManagerCreatedEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected manager event array"
+    )
+  }
+
+  return value.map(parsePredictManagerCreatedEvent)
+}
+
+function parseManagerPositionSummaryArray(
+  value: unknown
+): ManagerPositionSummary[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected position summary array"
+    )
+  }
+
+  return value.map(parseManagerPositionSummary)
+}
+
 async function readPredictJson<T>(
   path: string,
   parse: (value: unknown) => T
@@ -400,34 +499,79 @@ export function getOraclePrices(oracleId: string, limit: number) {
   )
 }
 
-export function getDirectionalPositionMints(limit: number) {
+export function getDirectionalPositionMints(limit: number, oracleId?: string) {
   const params = new URLSearchParams({ limit: limit.toString() })
+
+  if (oracleId) {
+    params.set("oracle_id", oracleId)
+  }
+
   return readPredictJson(
     `/positions/minted?${params.toString()}`,
     parseDirectionalPositionMintEventArray
   )
 }
 
-export function getDirectionalPositionRedeems(limit: number) {
+export function getDirectionalPositionRedeems(
+  limit: number,
+  oracleId?: string
+) {
   const params = new URLSearchParams({ limit: limit.toString() })
+
+  if (oracleId) {
+    params.set("oracle_id", oracleId)
+  }
+
   return readPredictJson(
     `/positions/redeemed?${params.toString()}`,
     parseDirectionalPositionRedeemEventArray
   )
 }
 
-export function getRangeMints(limit: number) {
+export function getRangeMints(limit: number, oracleId?: string) {
   const params = new URLSearchParams({ limit: limit.toString() })
+
+  if (oracleId) {
+    params.set("oracle_id", oracleId)
+  }
+
   return readPredictJson(
     `/ranges/minted?${params.toString()}`,
     parseRangeMintEventArray
   )
 }
 
-export function getRangeRedeems(limit: number) {
+export function getRangeRedeems(limit: number, oracleId?: string) {
   const params = new URLSearchParams({ limit: limit.toString() })
+
+  if (oracleId) {
+    params.set("oracle_id", oracleId)
+  }
+
   return readPredictJson(
     `/ranges/redeemed?${params.toString()}`,
     parseRangeRedeemEventArray
+  )
+}
+
+export function getPredictManagers(owner?: string) {
+  const params = new URLSearchParams()
+
+  if (owner) {
+    params.set("owner", owner)
+  }
+
+  const query = params.toString()
+
+  return readPredictJson(
+    `/managers${query ? `?${query}` : ""}`,
+    parsePredictManagerCreatedEventArray
+  )
+}
+
+export function getManagerPositionSummaries(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/positions/summary`,
+    parseManagerPositionSummaryArray
   )
 }

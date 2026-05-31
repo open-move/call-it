@@ -16,29 +16,10 @@ const QUOTE_SCALE = 1_000_000
 export interface FilterProActivityOptions {
   oracleId: string
   expiryMs: number
-  selectedStrikePriceUsd: number
 }
 
 function toUsdPrice(value: number) {
   return value / PRICE_SCALE
-}
-
-function isSameStrike(strike: number, selectedStrikePriceUsd: number) {
-  return Math.abs(toUsdPrice(strike) - selectedStrikePriceUsd) < 0.000001
-}
-
-function includesStrike(
-  lowerStrike: number,
-  higherStrike: number,
-  selectedStrikePriceUsd: number
-) {
-  const lowerStrikePriceUsd = toUsdPrice(lowerStrike)
-  const higherStrikePriceUsd = toUsdPrice(higherStrike)
-
-  return (
-    selectedStrikePriceUsd >= lowerStrikePriceUsd &&
-    selectedStrikePriceUsd <= higherStrikePriceUsd
-  )
 }
 
 function sortNewestFirst<T extends { timestampMs: number }>(rows: T[]) {
@@ -49,15 +30,12 @@ function sortNewestFirst<T extends { timestampMs: number }>(rows: T[]) {
 
 export function filterProRedemptions(
   events: DirectionalPositionRedeemEvent[],
-  { expiryMs, oracleId, selectedStrikePriceUsd }: FilterProActivityOptions
+  { expiryMs, oracleId }: FilterProActivityOptions
 ): ProRedemption[] {
   return sortNewestFirst(
     events
       .filter(
-        (event) =>
-          event.oracle_id === oracleId &&
-          event.expiry === expiryMs &&
-          isSameStrike(event.strike, selectedStrikePriceUsd)
+        (event) => event.oracle_id === oracleId && event.expiry === expiryMs
       )
       .map((event) => ({
         bidPrice: event.bid_price / PRICE_SCALE,
@@ -68,6 +46,7 @@ export function filterProRedemptions(
         payoutUsd: event.payout / QUOTE_SCALE,
         quantity: event.quantity / QUOTE_SCALE,
         side: event.is_up ? ("above" as const) : ("below" as const),
+        strikePriceUsd: toUsdPrice(event.strike),
         timestampMs: event.checkpoint_timestamp_ms,
       }))
   )
@@ -75,19 +54,12 @@ export function filterProRedemptions(
 
 export function filterProRangeTrades(
   events: RangeMintEvent[],
-  { expiryMs, oracleId, selectedStrikePriceUsd }: FilterProActivityOptions
+  { expiryMs, oracleId }: FilterProActivityOptions
 ): ProRangeTrade[] {
   return sortNewestFirst(
     events
       .filter(
-        (event) =>
-          event.oracle_id === oracleId &&
-          event.expiry === expiryMs &&
-          includesStrike(
-            event.lower_strike,
-            event.higher_strike,
-            selectedStrikePriceUsd
-          )
+        (event) => event.oracle_id === oracleId && event.expiry === expiryMs
       )
       .map((event) => ({
         costUsd: event.cost / QUOTE_SCALE,
@@ -104,19 +76,12 @@ export function filterProRangeTrades(
 
 export function filterProRangeRedemptions(
   events: RangeRedeemEvent[],
-  { expiryMs, oracleId, selectedStrikePriceUsd }: FilterProActivityOptions
+  { expiryMs, oracleId }: FilterProActivityOptions
 ): ProRangeRedemption[] {
   return sortNewestFirst(
     events
       .filter(
-        (event) =>
-          event.oracle_id === oracleId &&
-          event.expiry === expiryMs &&
-          includesStrike(
-            event.lower_strike,
-            event.higher_strike,
-            selectedStrikePriceUsd
-          )
+        (event) => event.oracle_id === oracleId && event.expiry === expiryMs
       )
       .map((event) => ({
         bidPrice: event.bid_price / PRICE_SCALE,

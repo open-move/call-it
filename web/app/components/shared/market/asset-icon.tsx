@@ -23,7 +23,7 @@ export function AssetIcon({
 
   return (
     <span
-      className={`${className} flex shrink-0 items-center justify-center rounded-full bg-surface-muted text-[10px] font-semibold text-muted-foreground`}
+      className={`${className} flex shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground`}
     >
       {assetSymbol.slice(0, 3)}
     </span>

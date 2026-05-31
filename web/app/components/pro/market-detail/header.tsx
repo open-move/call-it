@@ -5,6 +5,9 @@ import { Card } from "~/components/ui/card"
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
+import { type ProToolbarQuote } from "~/lib/callit/pro/types"
+import { formatUnitPrice } from "~/lib/callit/trading/amounts"
+import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import { cn } from "~/lib/utils"
 
 import {
@@ -17,9 +20,22 @@ import {
 export interface HeaderProps {
   market: MarketSnapshot
   selectedStrikePriceUsd: number
+  toolbarQuote: ProToolbarQuote | null
 }
 
-export function Header({ market, selectedStrikePriceUsd }: HeaderProps) {
+const TOOLBAR_QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
+
+function formatToolbarPrice(value: number | undefined) {
+  return value === undefined
+    ? "--"
+    : formatUnitPrice(BigInt(value), TOOLBAR_QUOTE_QUANTITY)
+}
+
+export function Header({
+  market,
+  selectedStrikePriceUsd,
+  toolbarQuote,
+}: HeaderProps) {
   const distance = getStrikeDistance(market, selectedStrikePriceUsd)
   const distanceClassName = distance.isAboveStrike
     ? "text-outcome-up"
@@ -29,10 +45,10 @@ export function Header({ market, selectedStrikePriceUsd }: HeaderProps) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <div className="h-16 overflow-x-auto">
-        <div className="flex h-16 min-w-[860px] items-center gap-7 px-3">
+        <div className="flex h-16 min-w-[840px] items-center gap-7 px-3">
           <Button
             aria-label="Select market"
-            className="h-9 max-w-[21rem] shrink-0 justify-start gap-2 overflow-hidden rounded-md px-2 text-left font-normal shadow-none ring-0 hover:bg-surface-muted/45 focus-visible:ring-0"
+            className="h-9 max-w-[21rem] shrink-0 justify-start gap-2 overflow-hidden rounded-md px-2 text-left font-normal shadow-none ring-0 hover:bg-muted/45 focus-visible:ring-0"
             type="button"
             variant="ghost"
           >
@@ -63,8 +79,14 @@ export function Header({ market, selectedStrikePriceUsd }: HeaderProps) {
               label="Strike"
               value={formatUsd(selectedStrikePriceUsd, 0)}
             />
-            <ToolbarMetric label="Chance" value="--" />
-            <ToolbarMetric label="Price (Yes)" value="--" />
+            <ToolbarMetric
+              label="Price (Above)"
+              value={formatToolbarPrice(toolbarQuote?.aboveAsk)}
+            />
+            <ToolbarMetric
+              label="Spread"
+              value={formatToolbarPrice(toolbarQuote?.spread)}
+            />
             <ToolbarMetric
               className={distanceClassName}
               label="Distance"

@@ -49,7 +49,7 @@ export function OutcomeRail({
         aria-valuemin={0}
         aria-valuenow={firstPercent}
         className={cn(
-          "flex h-1.5 overflow-hidden rounded-md bg-surface-muted shadow-inner ring-1 ring-border/40",
+          "flex h-1.5 overflow-hidden rounded-md bg-muted shadow-inner ring-1 ring-border/40",
           barClassName
         )}
         role="meter"

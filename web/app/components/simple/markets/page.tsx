@@ -91,7 +91,7 @@ export function Page({ markets }: PageProps) {
               <div className="relative sm:w-60">
                 <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  className="h-9 border-border/70 bg-surface-raised pl-9 shadow-none ring-0 focus-visible:ring-1"
+                  className="h-9 border-border/70 bg-card pl-9 shadow-none ring-0 focus-visible:ring-1"
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search"
                   value={query}
@@ -121,13 +121,13 @@ export function Page({ markets }: PageProps) {
           {visibleMarkets.length > 0 ? (
             <Grid markets={visibleMarkets} />
           ) : (
-            <div className="rounded-md border border-border/70 bg-surface-raised px-4 py-8 text-center text-sm text-muted-foreground">
+            <div className="rounded-md border border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
               No live markets match those filters.
             </div>
           )}
         </>
       ) : (
-        <div className="rounded-md border border-border/70 bg-surface-raised px-4 py-8 text-center text-sm text-muted-foreground">
+        <div className="rounded-md border border-border/70 bg-card px-4 py-8 text-center text-sm text-muted-foreground">
           No live markets are available right now.
         </div>
       )}
@@ -150,7 +150,7 @@ function FilterButton({
         "h-9 rounded-md px-3 shadow-none ring-0",
         isActive
           ? "bg-foreground text-background hover:bg-foreground/90"
-          : "border-border/70 bg-surface-raised text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+          : "border-border/70 bg-card text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
       onClick={onClick}
       type="button"
@@ -175,8 +175,8 @@ function SortButton({
       className={cn(
         "h-9 rounded-md px-3 shadow-none ring-0",
         isActive
-          ? "bg-surface-muted text-foreground"
-          : "bg-transparent text-muted-foreground hover:bg-surface-hover hover:text-foreground"
+          ? "bg-muted text-foreground"
+          : "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground"
       )}
       onClick={onClick}
       type="button"

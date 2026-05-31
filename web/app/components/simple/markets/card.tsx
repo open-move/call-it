@@ -48,7 +48,7 @@ export function MarketCard({ market }: MarketCardProps) {
       to={`/markets/${market.id}`}
     >
       <Card
-        className="relative min-h-40 cursor-pointer justify-between rounded-md bg-surface-raised py-4 shadow-none ring-0 transition-colors hover:bg-surface-hover"
+        className="relative min-h-40 cursor-pointer justify-between rounded-md bg-card py-4 shadow-none ring-0 transition-colors hover:bg-accent"
         size="sm"
       >
         <CardHeader className="px-4">
@@ -109,8 +109,8 @@ function OutcomeButton({
       className={cn(
         "flex h-10 items-center justify-center rounded-md text-sm font-semibold transition-colors",
         tone === "up"
-          ? "bg-outcome-up-surface/55 text-outcome-up-foreground group-hover:bg-outcome-up-surface/75"
-          : "bg-outcome-down-surface/50 text-outcome-down-foreground group-hover:bg-outcome-down-surface/70"
+          ? "bg-outcome-up/10 text-outcome-up group-hover:bg-outcome-up/15"
+          : "bg-outcome-down/10 text-outcome-down group-hover:bg-outcome-down/15"
       )}
     >
       {label}
@@ -141,7 +141,7 @@ function OutcomeGauge({ label, percent }: { label: string; percent?: number }) {
             d="M8 24 A14 14 0 0 1 36 24"
             fill="none"
             pathLength={100}
-            stroke="var(--surface-muted)"
+            stroke="var(--muted)"
             strokeLinecap="round"
             strokeWidth="4"
           />

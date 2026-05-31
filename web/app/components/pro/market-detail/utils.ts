@@ -42,7 +42,7 @@ export function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
   const remainingMs = expiryMs - nowMs
 
   if (remainingMs <= 0) {
-    return "Now"
+    return "Expired"
   }
 
   const totalSeconds = Math.round(remainingMs / 1_000)

@@ -6,6 +6,7 @@ import {
   type ProRangeRedemption,
   type ProRangeTrade,
   type ProRedemption,
+  type ProToolbarQuote,
   type ProTrade,
 } from "~/lib/callit/pro/types"
 import { type SimpleMarket } from "~/lib/callit/simple/types"
@@ -22,6 +23,7 @@ export type PageProps =
       rangeTrades: ProRangeTrade[]
       redemptions: ProRedemption[]
       selectedStrikePriceUsd: number
+      toolbarQuote: ProToolbarQuote | null
       trades: ProTrade[]
     }
 
@@ -37,6 +39,7 @@ export function Page(props: PageProps) {
       rangeTrades={props.rangeTrades}
       redemptions={props.redemptions}
       selectedStrikePriceUsd={props.selectedStrikePriceUsd}
+      toolbarQuote={props.toolbarQuote}
       trades={props.trades}
     />
   )

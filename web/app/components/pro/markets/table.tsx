@@ -94,7 +94,7 @@ function GroupHeader({ markets }: { markets: ProMarket[] }) {
   }
 
   return (
-    <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/35 bg-surface/95 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:px-4">
+    <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/35 bg-background/95 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:px-4">
       <span>
         {market.assetSymbol} · {formatExpiryTime(market.expiryMs)} ·{" "}
         {markets.length} strikes

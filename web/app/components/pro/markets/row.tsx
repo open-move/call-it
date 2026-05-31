@@ -24,7 +24,7 @@ function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
   const remainingMs = expiryMs - nowMs
 
   if (remainingMs <= 0) {
-    return "Now"
+    return "Expired"
   }
 
   const minutes = Math.round(remainingMs / 60_000)
@@ -96,7 +96,7 @@ export function Row({ market }: RowProps) {
     <Link
       aria-label={`Open pro ${market.assetName} market`}
       className={cn(
-        "group block border-b border-l-2 border-b-border/25 border-l-transparent transition-colors last:border-b-0 hover:bg-surface-hover/35 focus-visible:bg-surface-hover/35 focus-visible:outline-none",
+        "group block border-b border-l-2 border-b-border/25 border-l-transparent transition-colors last:border-b-0 hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-none",
         market.ladderOffset === 0 && "border-l-primary/60 bg-primary/5"
       )}
       to={`/pro/markets/${market.oracleId}?strike=${market.strikePriceUsd}`}

@@ -1,5 +1,4 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { formatRelativeTime } from "~/lib/callit/format"
 import { type ProTrade } from "~/lib/callit/pro/types"
 import { cn } from "~/lib/utils"
 
@@ -17,13 +16,13 @@ function formatQuantity(quantity: number) {
   })
 }
 
-function formatCostUsd(costUsd: number) {
-  return costUsd.toLocaleString("en-US", {
-    currency: "USD",
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-    style: "currency",
-  })
+function formatTradeTime(timestampMs: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    minute: "2-digit",
+    second: "2-digit",
+  }).format(timestampMs)
 }
 
 export function Trades({ trades }: TradesProps) {
@@ -34,44 +33,44 @@ export function Trades({ trades }: TradesProps) {
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2">
         {trades.length > 0 ? (
-          <div className="divide-y divide-border/35">
-            <div className="grid grid-cols-[3.5rem_3.5rem_3.75rem_1fr] gap-2 px-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-              <span>Time</span>
-              <span>Side</span>
+          <div className="space-y-1 px-3">
+            <div className="grid grid-cols-[1fr_1fr_4.75rem] gap-3 px-2 pb-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
               <span>Price</span>
               <span className="text-right">Size</span>
+              <span className="text-right">Time</span>
             </div>
-            {trades.slice(0, 12).map((trade) => (
+            {trades.slice(0, 24).map((trade) => (
               <div
-                className="grid grid-cols-[3.5rem_3.5rem_3.75rem_1fr] gap-2 px-4 py-2 text-xs"
+                className={cn(
+                  "grid grid-cols-[1fr_1fr_4.75rem] gap-3 rounded-sm px-2 py-1.5 text-xs tabular-nums",
+                  trade.side === "above"
+                    ? "bg-outcome-up/10"
+                    : "bg-outcome-down/10"
+                )}
                 key={trade.id}
               >
-                <span className="truncate font-mono text-muted-foreground tabular-nums">
-                  {formatRelativeTime(trade.timestampMs)}
-                </span>
                 <span
                   className={cn(
-                    "font-medium capitalize",
+                    "font-mono font-medium",
                     trade.side === "above"
                       ? "text-outcome-up"
                       : "text-outcome-down"
                   )}
                 >
-                  {trade.side}
-                </span>
-                <span className="font-mono text-foreground tabular-nums">
                   {formatPriceCents(trade.price)}
                 </span>
-                <span className="truncate text-right font-mono text-muted-foreground tabular-nums">
-                  {formatQuantity(trade.quantity)} ·{" "}
-                  {formatCostUsd(trade.costUsd)}
+                <span className="truncate text-right font-mono text-foreground">
+                  {formatQuantity(trade.quantity)}
+                </span>
+                <span className="text-right font-mono text-foreground">
+                  {formatTradeTime(trade.timestampMs)}
                 </span>
               </div>
             ))}
           </div>
         ) : (
           <div className="flex h-full min-h-64 items-center justify-center px-4 pb-4 text-center text-xs leading-5 text-muted-foreground">
-            No trades for this contract yet.
+            No trades for this market yet.
           </div>
         )}
       </CardContent>

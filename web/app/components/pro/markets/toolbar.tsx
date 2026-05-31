@@ -86,7 +86,7 @@ function ToolbarDropdown({
         render={
           <button
             aria-label={`${label}: ${selectedLabel}`}
-            className="flex h-8 items-center gap-2 rounded-md border border-border/45 bg-surface/45 px-3 text-sm font-medium text-foreground transition-colors hover:bg-surface-hover/55 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+            className="flex h-8 items-center gap-2 rounded-md border border-border/45 bg-background/45 px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/55 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
             type="button"
           />
         }

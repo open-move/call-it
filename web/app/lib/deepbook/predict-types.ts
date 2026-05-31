@@ -145,3 +145,42 @@ export interface RangeRedeemEvent {
   bid_price: number
   is_settled: boolean
 }
+
+export interface PredictManagerCreatedEvent {
+  event_digest: string
+  digest: string
+  sender: string
+  checkpoint: number
+  checkpoint_timestamp_ms: number
+  tx_index: number
+  event_index: number
+  package: string
+  manager_id: string
+  owner: string
+}
+
+export interface ManagerPositionSummary {
+  predict_id: string
+  manager_id: string
+  quote_asset: string
+  oracle_id: string
+  underlying_asset: string | null
+  expiry: number
+  strike: number
+  is_up: boolean
+  minted_quantity: number
+  redeemed_quantity: number
+  open_quantity: number
+  total_cost: number
+  total_payout: number
+  realized_pnl: number
+  unrealized_pnl: number
+  open_cost_basis: number
+  average_entry_price: number | null
+  average_exit_price: number | null
+  mark_price: number | null
+  mark_value: number | null
+  status: string
+  first_minted_at: number
+  last_activity_at: number
+}

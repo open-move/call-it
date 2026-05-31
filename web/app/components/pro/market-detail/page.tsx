@@ -3,6 +3,7 @@ import {
   type ProRangeRedemption,
   type ProRangeTrade,
   type ProRedemption,
+  type ProToolbarQuote,
   type ProTrade,
 } from "~/lib/callit/pro/types"
 
@@ -18,6 +19,7 @@ export interface PageProps {
   rangeTrades: ProRangeTrade[]
   redemptions: ProRedemption[]
   selectedStrikePriceUsd: number
+  toolbarQuote: ProToolbarQuote | null
   trades: ProTrade[]
 }
 
@@ -27,6 +29,7 @@ export function Page({
   rangeTrades,
   redemptions,
   selectedStrikePriceUsd,
+  toolbarQuote,
   trades,
 }: PageProps) {
   return (
@@ -38,6 +41,7 @@ export function Page({
               <Header
                 market={market}
                 selectedStrikePriceUsd={selectedStrikePriceUsd}
+                toolbarQuote={toolbarQuote}
               />
               <ChartPanel
                 assetName={market.assetName}
@@ -53,9 +57,11 @@ export function Page({
             </div>
 
             <ActivityTabs
+              market={market}
               rangeRedemptions={rangeRedemptions}
               rangeTrades={rangeTrades}
               redemptions={redemptions}
+              selectedStrikePriceUsd={selectedStrikePriceUsd}
               trades={trades}
             />
           </div>
