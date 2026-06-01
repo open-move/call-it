@@ -3,5 +3,12 @@ export type {
   MarketSnapshot,
   MarketTradeEvent,
 } from "./market/types"
-export { PredictionMarketKind, PredictionOutcome } from "./simple/types"
-export type { PredictionOutcomeOption, SimpleMarket } from "./simple/types"
+export type {
+  Position,
+  RangeRedemption,
+  RangeTrade,
+  Redemption,
+  ToolbarQuote,
+  Trade,
+  TradeMarket,
+} from "./trade/types"

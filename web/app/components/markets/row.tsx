@@ -3,11 +3,11 @@ import { Link } from "react-router"
 import { Badge, BadgeTone } from "~/components/primitives/badge"
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
-import { type ProMarket } from "~/lib/callit/pro/types"
+import { type TradeMarket } from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
 
 export interface RowProps {
-  market: ProMarket
+  market: TradeMarket
 }
 
 const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -54,7 +54,7 @@ function getStatusTone(status: string) {
   return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
 }
 
-function getDistance(market: ProMarket) {
+function getDistance(market: TradeMarket) {
   const distanceUsd = market.currentPriceUsd - market.strikePriceUsd
   const distancePercent =
     market.strikePriceUsd === 0
@@ -84,9 +84,9 @@ export function Row({ market }: RowProps) {
 
   return (
     <Link
-      aria-label={`Open pro ${market.assetName} market`}
+      aria-label={`Open ${market.assetName} market`}
       className="group block border-b border-l-2 border-b-border/25 border-l-transparent transition-colors last:border-b-0 hover:bg-accent/35 focus-visible:bg-accent/35 focus-visible:outline-none"
-      to={`/pro/markets/${market.oracleId}?strike=${market.strikePriceUsd}`}
+      to={`/markets/${market.oracleId}?strike=${market.strikePriceUsd}`}
     >
       <div className="grid gap-2 px-3 py-3 sm:px-4 lg:grid-cols-[minmax(15rem,1.45fr)_0.8fr_0.8fr_0.95fr_0.9fr_0.75fr] lg:items-center lg:gap-0 lg:py-2.5">
         <div className="flex min-w-0 items-center justify-between gap-3 lg:justify-start">

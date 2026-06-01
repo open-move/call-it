@@ -1,8 +1,10 @@
 import { type MarketSnapshot } from "~/lib/callit/market/types"
 
-import { type ProMarket } from "./types"
+import { type TradeMarket } from "./types"
 
-export function presentProMarkets(snapshots: MarketSnapshot[]): ProMarket[] {
+export function presentTradeMarkets(
+  snapshots: MarketSnapshot[]
+): TradeMarket[] {
   return snapshots.map((snapshot) => ({
     id: snapshot.oracleId,
     oracleId: snapshot.oracleId,
@@ -14,6 +16,5 @@ export function presentProMarkets(snapshots: MarketSnapshot[]): ProMarket[] {
     priceUpdatedMs: snapshot.priceUpdatedMs,
     status: snapshot.status,
     strikePriceUsd: snapshot.strikePriceUsd,
-    ladderOffset: 0,
   }))
 }

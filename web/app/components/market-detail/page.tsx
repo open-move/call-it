@@ -1,46 +1,79 @@
-import { Page as ProPage } from "~/components/pro/market-detail/page"
-import { Page as SimplePage } from "~/components/simple/market-detail/page"
-import { AppMode } from "~/lib/callit/app-mode"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
 import {
-  type ProRangeRedemption,
-  type ProRangeTrade,
-  type ProRedemption,
-  type ProToolbarQuote,
-  type ProTrade,
-} from "~/lib/callit/pro/types"
-import { type SimpleMarket } from "~/lib/callit/simple/types"
+  type RangeRedemption,
+  type RangeTrade,
+  type Redemption,
+  type ToolbarQuote,
+  type Trade,
+} from "~/lib/callit/trade/types"
 
-export type PageProps =
-  | {
-      mode: AppMode.Simple
-      market: SimpleMarket
-    }
-  | {
-      mode: AppMode.Pro
-      market: MarketSnapshot
-      rangeRedemptions: ProRangeRedemption[]
-      rangeTrades: ProRangeTrade[]
-      redemptions: ProRedemption[]
-      selectedStrikePriceUsd: number
-      toolbarQuote: ProToolbarQuote | null
-      trades: ProTrade[]
-    }
+import { ActivityTabs } from "./activity-tabs"
+import { ChartPanel } from "./chart-panel"
+import { Header } from "./header"
+import { OrderTicket } from "./order-ticket"
+import { Trades } from "./trades"
 
-export function Page(props: PageProps) {
-  if (props.mode === AppMode.Simple) {
-    return <SimplePage market={props.market} />
-  }
+export interface PageProps {
+  market: MarketSnapshot
+  rangeRedemptions: RangeRedemption[]
+  rangeTrades: RangeTrade[]
+  redemptions: Redemption[]
+  selectedStrikePriceUsd: number
+  toolbarQuote: ToolbarQuote | null
+  trades: Trade[]
+}
 
+export function Page({
+  market,
+  rangeRedemptions,
+  rangeTrades,
+  redemptions,
+  selectedStrikePriceUsd,
+  toolbarQuote,
+  trades,
+}: PageProps) {
   return (
-    <ProPage
-      market={props.market}
-      rangeRedemptions={props.rangeRedemptions}
-      rangeTrades={props.rangeTrades}
-      redemptions={props.redemptions}
-      selectedStrikePriceUsd={props.selectedStrikePriceUsd}
-      toolbarQuote={props.toolbarQuote}
-      trades={props.trades}
-    />
+    <main className="mx-auto w-full max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
+      <div className="space-y-3">
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
+            <div className="flex min-h-[36rem] flex-col gap-3">
+              <Header
+                market={market}
+                selectedStrikePriceUsd={selectedStrikePriceUsd}
+                toolbarQuote={toolbarQuote}
+              />
+              <ChartPanel
+                assetName={market.assetName}
+                assetSymbol={market.assetSymbol}
+                oracleId={market.oracleId}
+                points={market.priceHistory}
+                selectedStrikePriceUsd={selectedStrikePriceUsd}
+              />
+            </div>
+
+            <div className="w-full">
+              <Trades trades={trades} />
+            </div>
+
+            <ActivityTabs
+              market={market}
+              rangeRedemptions={rangeRedemptions}
+              rangeTrades={rangeTrades}
+              redemptions={redemptions}
+              selectedStrikePriceUsd={selectedStrikePriceUsd}
+              trades={trades}
+            />
+          </div>
+
+          <div className="h-full w-full">
+            <OrderTicket
+              market={market}
+              selectedStrikePriceUsd={selectedStrikePriceUsd}
+            />
+          </div>
+        </div>
+      </div>
+    </main>
   )
 }

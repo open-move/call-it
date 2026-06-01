@@ -1,9 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { type ProTrade } from "~/lib/callit/pro/types"
+import { type Trade } from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
 
 export interface TradesProps {
-  trades: ProTrade[]
+  trades: Trade[]
 }
 
 function formatPriceCents(price: number) {

@@ -1,11 +1,11 @@
 import { type ManagerPositionSummary } from "~/lib/deepbook/predict-types"
 
-import { type ProPosition } from "./types"
+import { type Position } from "./types"
 
 const PRICE_SCALE = 1_000_000_000
 const QUOTE_SCALE = 1_000_000
 
-export interface FilterProPositionsOptions {
+export interface FilterPositionsOptions {
   oracleId: string
   expiryMs: number
 }
@@ -22,10 +22,10 @@ function toNullablePrice(value: number | null) {
   return value === null ? null : toUsdPrice(value)
 }
 
-export function filterProPositions(
+export function filterPositions(
   summaries: ManagerPositionSummary[],
-  { expiryMs, oracleId }: FilterProPositionsOptions
-): ProPosition[] {
+  { expiryMs, oracleId }: FilterPositionsOptions
+): Position[] {
   return summaries
     .filter(
       (summary) =>

@@ -1,13 +1,13 @@
 import { type ReactNode } from "react"
 
-import { type ProMarket } from "~/lib/callit/pro/types"
+import { type TradeMarket } from "~/lib/callit/trade/types"
 import { formatUsd } from "~/lib/callit/format"
 import { cn } from "~/lib/utils"
 
 import { Row } from "./row"
 
 export interface TableProps {
-  markets: ProMarket[]
+  markets: TradeMarket[]
   toolbar?: ReactNode
 }
 
@@ -32,14 +32,14 @@ const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
 
 interface MarketGroup {
   groupKey: string
-  markets: ProMarket[]
+  markets: TradeMarket[]
 }
 
 function formatExpiryTime(expiryMs: number) {
   return expiryTimeFormatter.format(new Date(expiryMs))
 }
 
-function groupMarketsByExpiry(markets: ProMarket[]): MarketGroup[] {
+function groupMarketsByExpiry(markets: TradeMarket[]): MarketGroup[] {
   return markets.reduce<MarketGroup[]>((groups, market) => {
     const groupKey = `${market.oracleId}:${market.expiryMs}`
     const existingGroup = groups.find((group) => group.groupKey === groupKey)
@@ -86,7 +86,7 @@ export function Table({ markets, toolbar }: TableProps) {
   )
 }
 
-function GroupHeader({ markets }: { markets: ProMarket[] }) {
+function GroupHeader({ markets }: { markets: TradeMarket[] }) {
   const [market] = markets
 
   if (!market) {
@@ -96,8 +96,8 @@ function GroupHeader({ markets }: { markets: ProMarket[] }) {
   return (
     <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border/35 bg-background/95 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:px-4">
       <span>
-        {market.assetSymbol} · {formatExpiryTime(market.expiryMs)} ·{" "}
-        {markets.length} strikes
+        {market.assetSymbol} · {formatExpiryTime(market.expiryMs)} · Oracle
+        market
       </span>
       <span className="tabular-nums">
         Spot {formatUsd(market.currentPriceUsd, 0)}

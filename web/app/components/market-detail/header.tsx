@@ -5,7 +5,7 @@ import { Card } from "~/components/ui/card"
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
-import { type ProToolbarQuote } from "~/lib/callit/pro/types"
+import { type ToolbarQuote } from "~/lib/callit/trade/types"
 import { formatUnitPrice } from "~/lib/callit/trading/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import { cn } from "~/lib/utils"
@@ -20,7 +20,7 @@ import {
 export interface HeaderProps {
   market: MarketSnapshot
   selectedStrikePriceUsd: number
-  toolbarQuote: ProToolbarQuote | null
+  toolbarQuote: ToolbarQuote | null
 }
 
 const TOOLBAR_QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)

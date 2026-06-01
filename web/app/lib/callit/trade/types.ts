@@ -1,4 +1,4 @@
-export interface ProMarket {
+export interface TradeMarket {
   id: string
   oracleId: string
   assetSymbol: string
@@ -9,16 +9,15 @@ export interface ProMarket {
   priceUpdatedMs: number
   status: string
   strikePriceUsd: number
-  ladderOffset: number
 }
 
-export interface ProToolbarQuote {
+export interface ToolbarQuote {
   aboveAsk: number
   aboveBid: number
   spread: number
 }
 
-export interface ProTrade {
+export interface Trade {
   id: string
   trader: string
   timestampMs: number
@@ -29,7 +28,7 @@ export interface ProTrade {
   costUsd: number
 }
 
-export interface ProRedemption {
+export interface Redemption {
   id: string
   owner: string
   executor: string
@@ -42,7 +41,7 @@ export interface ProRedemption {
   isSettled: boolean
 }
 
-export interface ProPosition {
+export interface Position {
   id: string
   strikePriceUsd: number
   side: "above" | "below"
@@ -57,7 +56,7 @@ export interface ProPosition {
   lastActivityAt: number
 }
 
-export interface ProRangeTrade {
+export interface RangeTrade {
   id: string
   trader: string
   timestampMs: number
@@ -68,7 +67,7 @@ export interface ProRangeTrade {
   costUsd: number
 }
 
-export interface ProRangeRedemption {
+export interface RangeRedemption {
   id: string
   trader: string
   timestampMs: number

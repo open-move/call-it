@@ -61,7 +61,7 @@ export function Toolbar({
         />
       </div>
       <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:text-right">
-        {visibleCount} / {totalCount} strikes
+        {visibleCount} / {totalCount} markets
       </div>
     </div>
   )

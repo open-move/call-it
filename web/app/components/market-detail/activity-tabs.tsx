@@ -6,14 +6,14 @@ import { Card } from "~/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
-import { filterProPositions } from "~/lib/callit/pro/positions"
+import { filterPositions } from "~/lib/callit/trade/positions"
 import {
-  type ProPosition,
-  type ProRangeRedemption,
-  type ProRangeTrade,
-  type ProRedemption,
-  type ProTrade,
-} from "~/lib/callit/pro/types"
+  type Position,
+  type RangeRedemption,
+  type RangeTrade,
+  type Redemption,
+  type Trade,
+} from "~/lib/callit/trade/types"
 import {
   getManagerPositionSummaries,
   getPredictManagers,
@@ -25,16 +25,16 @@ type ActivityScope = "strike" | "oracle"
 interface PositionLoadState {
   errorMessage?: string
   isLoading: boolean
-  positions: ProPosition[]
+  positions: Position[]
 }
 
 export interface ActivityTabsProps {
   market: MarketSnapshot
-  rangeRedemptions: ProRangeRedemption[]
-  rangeTrades: ProRangeTrade[]
-  redemptions: ProRedemption[]
+  rangeRedemptions: RangeRedemption[]
+  rangeTrades: RangeTrade[]
+  redemptions: Redemption[]
   selectedStrikePriceUsd: number
-  trades: ProTrade[]
+  trades: Trade[]
 }
 
 interface ActivityTabsFrameProps extends ActivityTabsProps {
@@ -146,11 +146,11 @@ function includesSelectedStrike(
   )
 }
 
-function getPositionContract(position: ProPosition) {
+function getPositionContract(position: Position) {
   return `${formatUsd(position.strikePriceUsd, 0)} ${position.side}`
 }
 
-function getTradeContract(trade: ProTrade) {
+function getTradeContract(trade: Trade) {
   return `${formatUsd(trade.strikePriceUsd, 0)} ${trade.side}`
 }
 
@@ -295,7 +295,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         }
 
         const summaries = await getManagerPositionSummaries(manager.manager_id)
-        const positions = filterProPositions(summaries, {
+        const positions = filterPositions(summaries, {
           expiryMs: market.expiryMs,
           oracleId: market.oracleId,
         })
@@ -547,7 +547,7 @@ function PositionsPanel({
   errorMessage?: string
   isLoading: boolean
   positionScope: ActivityScope
-  positions: ProPosition[]
+  positions: Position[]
   selectedStrikePriceUsd: number
   setPositionScope: (scope: ActivityScope) => void
   totalPositions: number
@@ -626,7 +626,7 @@ function PositionsTable({
   positions,
   selectedStrikePriceUsd,
 }: {
-  positions: ProPosition[]
+  positions: Position[]
   selectedStrikePriceUsd: number
 }) {
   return (
@@ -704,7 +704,7 @@ function TradesPanel({
   setTradeScope: (scope: ActivityScope) => void
   totalTrades: number
   tradeScope: ActivityScope
-  trades: ProTrade[]
+  trades: Trade[]
 }) {
   const emptyMessage =
     totalTrades === 0
@@ -765,7 +765,7 @@ function RangesPanel({
   selectedStrikePriceUsd: number
   setRangeScope: (scope: ActivityScope) => void
   totalRanges: number
-  trades: ProRangeTrade[]
+  trades: RangeTrade[]
 }) {
   const emptyMessage =
     totalRanges === 0
@@ -800,9 +800,9 @@ function RedemptionsPanel({
   setRedemptionScope,
   totalRedemptions,
 }: {
-  rangeRedemptions: ProRangeRedemption[]
+  rangeRedemptions: RangeRedemption[]
   redemptionScope: ActivityScope
-  redemptions: ProRedemption[]
+  redemptions: Redemption[]
   selectedStrikePriceUsd: number
   setRedemptionScope: (scope: ActivityScope) => void
   totalRedemptions: number
@@ -891,7 +891,7 @@ function TradesTable({
   trades,
 }: {
   selectedStrikePriceUsd: number
-  trades: ProTrade[]
+  trades: Trade[]
 }) {
   return (
     <div className="min-w-[48rem] flex-1 divide-y divide-border/35 overflow-auto">
@@ -945,7 +945,7 @@ function RangeTradesTable({
   trades,
 }: {
   selectedStrikePriceUsd: number
-  trades: ProRangeTrade[]
+  trades: RangeTrade[]
 }) {
   return (
     <div className="min-w-[44rem] flex-1 divide-y divide-border/35 overflow-auto">
@@ -998,8 +998,8 @@ function RedemptionsTable({
   redemptions,
   selectedStrikePriceUsd,
 }: {
-  rangeRedemptions: ProRangeRedemption[]
-  redemptions: ProRedemption[]
+  rangeRedemptions: RangeRedemption[]
+  redemptions: Redemption[]
   selectedStrikePriceUsd: number
 }) {
   const rows: RedemptionRow[] = [

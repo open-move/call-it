@@ -4,16 +4,12 @@ import {
   type RangeRedeemEvent,
 } from "~/lib/deepbook/predict-types"
 
-import {
-  type ProRangeRedemption,
-  type ProRangeTrade,
-  type ProRedemption,
-} from "./types"
+import { type RangeRedemption, type RangeTrade, type Redemption } from "./types"
 
 const PRICE_SCALE = 1_000_000_000
 const QUOTE_SCALE = 1_000_000
 
-export interface FilterProActivityOptions {
+export interface FilterActivityOptions {
   oracleId: string
   expiryMs: number
 }
@@ -28,10 +24,10 @@ function sortNewestFirst<T extends { timestampMs: number }>(rows: T[]) {
   )
 }
 
-export function filterProRedemptions(
+export function filterRedemptions(
   events: DirectionalPositionRedeemEvent[],
-  { expiryMs, oracleId }: FilterProActivityOptions
-): ProRedemption[] {
+  { expiryMs, oracleId }: FilterActivityOptions
+): Redemption[] {
   return sortNewestFirst(
     events
       .filter(
@@ -52,10 +48,10 @@ export function filterProRedemptions(
   )
 }
 
-export function filterProRangeTrades(
+export function filterRangeTrades(
   events: RangeMintEvent[],
-  { expiryMs, oracleId }: FilterProActivityOptions
-): ProRangeTrade[] {
+  { expiryMs, oracleId }: FilterActivityOptions
+): RangeTrade[] {
   return sortNewestFirst(
     events
       .filter(
@@ -74,10 +70,10 @@ export function filterProRangeTrades(
   )
 }
 
-export function filterProRangeRedemptions(
+export function filterRangeRedemptions(
   events: RangeRedeemEvent[],
-  { expiryMs, oracleId }: FilterProActivityOptions
-): ProRangeRedemption[] {
+  { expiryMs, oracleId }: FilterActivityOptions
+): RangeRedemption[] {
   return sortNewestFirst(
     events
       .filter(

@@ -1,11 +1,11 @@
 import { type DirectionalPositionMintEvent } from "~/lib/deepbook/predict-types"
 
-import { type ProTrade } from "./types"
+import { type Trade } from "./types"
 
 const PRICE_SCALE = 1_000_000_000
 const QUOTE_SCALE = 1_000_000
 
-export interface FilterProTradesOptions {
+export interface FilterTradesOptions {
   oracleId: string
   expiryMs: number
 }
@@ -14,10 +14,10 @@ function toUsdPrice(value: number) {
   return value / PRICE_SCALE
 }
 
-export function filterProTrades(
+export function filterTrades(
   events: DirectionalPositionMintEvent[],
-  { expiryMs, oracleId }: FilterProTradesOptions
-): ProTrade[] {
+  { expiryMs, oracleId }: FilterTradesOptions
+): Trade[] {
   return events
     .filter(
       (event) => event.oracle_id === oracleId && event.expiry === expiryMs
