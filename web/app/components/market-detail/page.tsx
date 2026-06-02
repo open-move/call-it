@@ -9,6 +9,10 @@ import {
   type ToolbarQuote,
   type Trade,
 } from "~/lib/callit/trade/types"
+import {
+  getRedemptionActivityRows,
+  getTradeActivityRows,
+} from "~/lib/callit/trade/activity"
 
 import { ActivityTabs } from "./activity-tabs"
 import { ChartPanel } from "./chart-panel"
@@ -39,6 +43,12 @@ export function Page({
   toolbarQuote,
   trades,
 }: PageProps) {
+  const tradeActivityRows = getTradeActivityRows(trades, rangeTrades)
+  const redemptionActivityRows = getRedemptionActivityRows(
+    redemptions,
+    rangeRedemptions
+  )
+
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
@@ -68,15 +78,13 @@ export function Page({
           </div>
 
           <div className="h-[30rem] min-w-0">
-            <Trades trades={trades} />
+            <Trades trades={tradeActivityRows} />
           </div>
 
           <ActivityTabs
             market={market}
-            rangeRedemptions={rangeRedemptions}
-            rangeTrades={rangeTrades}
-            redemptions={redemptions}
-            trades={trades}
+            redemptions={redemptionActivityRows}
+            trades={tradeActivityRows}
           />
         </section>
 

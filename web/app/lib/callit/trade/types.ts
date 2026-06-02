@@ -56,6 +56,25 @@ export interface Position {
   lastActivityAt: number
 }
 
+export interface RangePosition {
+  id: string
+  lowerStrikePriceUsd: number
+  higherStrikePriceUsd: number
+  openQuantity: number
+  averageEntryPrice: number | null
+  markPrice: null
+  openCostBasisUsd: number
+  markValueUsd: null
+  realizedPnlUsd: number
+  unrealizedPnlUsd: null
+  status: string
+  lastActivityAt: number
+}
+
+export type DirectionalPositionRow = { kind: "directional" } & Position
+export type RangePositionRow = { kind: "range" } & RangePosition
+export type PositionRow = DirectionalPositionRow | RangePositionRow
+
 export interface RangeTrade {
   id: string
   trader: string
@@ -78,3 +97,17 @@ export interface RangeRedemption {
   payoutUsd: number
   isSettled: boolean
 }
+
+export type DirectionalTradeActivityRow = { kind: "directional" } & Trade
+export type RangeTradeActivityRow = { kind: "range" } & RangeTrade
+export type TradeActivityRow =
+  | DirectionalTradeActivityRow
+  | RangeTradeActivityRow
+
+export type DirectionalRedemptionActivityRow = {
+  kind: "directional"
+} & Redemption
+export type RangeRedemptionActivityRow = { kind: "range" } & RangeRedemption
+export type RedemptionActivityRow =
+  | DirectionalRedemptionActivityRow
+  | RangeRedemptionActivityRow

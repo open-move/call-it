@@ -6,15 +6,18 @@ import { Card } from "~/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
+import {
+  getPositionRows,
+  getRangePositionsFromActivity,
+} from "~/lib/callit/trade/activity"
 import { filterPositions } from "~/lib/callit/trade/positions"
 import {
-  type Position,
-  type RangeRedemption,
-  type RangeTrade,
-  type Redemption,
-  type Trade,
+  type PositionRow,
+  type RedemptionActivityRow,
+  type TradeActivityRow,
 } from "~/lib/callit/trade/types"
 import {
+  getManagerRanges,
   getManagerPositionSummaries,
   getPredictManagers,
 } from "~/lib/deepbook/predict-client"
@@ -23,15 +26,13 @@ import { cn } from "~/lib/utils"
 interface PositionLoadState {
   errorMessage?: string
   isLoading: boolean
-  positions: Position[]
+  positions: PositionRow[]
 }
 
 export interface ActivityTabsProps {
   market: MarketSnapshot
-  rangeRedemptions: RangeRedemption[]
-  rangeTrades: RangeTrade[]
-  redemptions: Redemption[]
-  trades: Trade[]
+  redemptions: RedemptionActivityRow[]
+  trades: TradeActivityRow[]
 }
 
 interface ActivityTabsFrameProps {
@@ -55,34 +56,6 @@ function getActivityTabIcon(value: ActivityTabValue) {
       return RotateCcwIcon
   }
 }
-
-type ActivityTradeRow =
-  | ({ kind: "directional" } & Trade)
-  | ({ kind: "range" } & RangeTrade)
-
-type RedemptionRow =
-  | {
-      bidPrice: number
-      id: string
-      kind: "directional"
-      owner: string
-      payoutUsd: number
-      quantity: number
-      side: "above" | "below"
-      strikePriceUsd: number
-      timestampMs: number
-    }
-  | {
-      bidPrice: number
-      higherStrikePriceUsd: number
-      id: string
-      kind: "range"
-      lowerStrikePriceUsd: number
-      owner: string
-      payoutUsd: number
-      quantity: number
-      timestampMs: number
-    }
 
 function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
@@ -142,15 +115,20 @@ function getSideLabel(side: "above" | "below") {
   return side === "above" ? "Up" : "Down"
 }
 
-function getPositionContract(position: Position) {
-  return `${formatUsd(position.strikePriceUsd, 0)} ${getSideLabel(position.side)}`
+function getPositionContract(position: PositionRow) {
+  return position.kind === "directional"
+    ? `${formatUsd(position.strikePriceUsd, 0)} ${getSideLabel(position.side)}`
+    : `${formatRange(position.lowerStrikePriceUsd, position.higherStrikePriceUsd)} Range`
 }
 
-function getTradeContract(trade: Trade) {
+function getTradeContract(trade: {
+  side: "above" | "below"
+  strikePriceUsd: number
+}) {
   return `${formatUsd(trade.strikePriceUsd, 0)} ${getSideLabel(trade.side)}`
 }
 
-function getActivityTradeContract(trade: ActivityTradeRow) {
+function getActivityTradeContract(trade: TradeActivityRow) {
   return trade.kind === "directional"
     ? getTradeContract(trade)
     : `${formatRange(trade.lowerStrikePriceUsd, trade.higherStrikePriceUsd)} Range`
@@ -163,33 +141,8 @@ function getRedemptionContract(redemption: {
   return `${formatUsd(redemption.strikePriceUsd, 0)} ${getSideLabel(redemption.side)}`
 }
 
-function sortPositionsNewestFirst(positions: Position[]) {
-  return positions
-    .slice()
-    .sort(
-      (firstPosition, secondPosition) =>
-        secondPosition.lastActivityAt - firstPosition.lastActivityAt ||
-        firstPosition.id.localeCompare(secondPosition.id)
-    )
-}
-
-function getTradeRows(
-  trades: Trade[],
-  rangeTrades: RangeTrade[]
-): ActivityTradeRow[] {
-  return [
-    ...trades.map((trade) => ({ ...trade, kind: "directional" as const })),
-    ...rangeTrades.map((trade) => ({ ...trade, kind: "range" as const })),
-  ].sort(
-    (firstTrade, secondTrade) =>
-      secondTrade.timestampMs - firstTrade.timestampMs ||
-      firstTrade.id.localeCompare(secondTrade.id)
-  )
-}
-
 export function ActivityTabs(props: ActivityTabsProps) {
   const [isClient, setIsClient] = useState(false)
-  const tradeRows = getTradeRows(props.trades, props.rangeTrades)
 
   useEffect(() => {
     setIsClient(true)
@@ -203,24 +156,21 @@ export function ActivityTabs(props: ActivityTabsProps) {
         }
         positionsLabel="Positions"
         redemptionsContent={
-          props.redemptions.length > 0 || props.rangeRedemptions.length > 0 ? (
-            <RedemptionsTable
-              rangeRedemptions={props.rangeRedemptions}
-              redemptions={props.redemptions}
-            />
+          props.redemptions.length > 0 ? (
+            <RedemptionsTable redemptions={props.redemptions} />
           ) : (
             <EmptyState message="No redemptions for this market." />
           )
         }
-        redemptionsLabel={`Redemptions (${props.redemptions.length + props.rangeRedemptions.length})`}
+        redemptionsLabel={`Redemptions (${props.redemptions.length})`}
         tradesContent={
-          tradeRows.length > 0 ? (
-            <TradesTable trades={tradeRows} />
+          props.trades.length > 0 ? (
+            <TradesTable trades={props.trades} />
           ) : (
             <EmptyState message="No trades for this market." />
           )
         }
-        tradesLabel={`Trades (${tradeRows.length})`}
+        tradesLabel={`Trades (${props.trades.length})`}
       />
     )
   }
@@ -229,14 +179,14 @@ export function ActivityTabs(props: ActivityTabsProps) {
 }
 
 function ActivityTabsClient(props: ActivityTabsProps) {
-  const { market, rangeRedemptions, rangeTrades, redemptions, trades } = props
+  const { market, redemptions, trades } = props
   const { primaryWallet } = useDynamicContext()
   const [positionState, setPositionState] = useState<PositionLoadState>({
     isLoading: false,
     positions: [],
   })
   const walletAddress = primaryWallet?.address
-  const publicActivityVersion = `${trades.length}:${rangeTrades.length}:${redemptions.length}:${rangeRedemptions.length}`
+  const publicActivityVersion = `${trades.length}:${redemptions.length}`
 
   useEffect(() => {
     let isStale = false
@@ -264,11 +214,23 @@ function ActivityTabsClient(props: ActivityTabsProps) {
           return
         }
 
-        const summaries = await getManagerPositionSummaries(manager.manager_id)
-        const positions = filterPositions(summaries, {
+        const [summaries, rangeActivity] = await Promise.all([
+          getManagerPositionSummaries(manager.manager_id),
+          getManagerRanges(manager.manager_id),
+        ])
+        const directionalPositions = filterPositions(summaries, {
           expiryMs: market.expiryMs,
           oracleId: market.oracleId,
         })
+        const rangePositions = getRangePositionsFromActivity(
+          rangeActivity.minted,
+          rangeActivity.redeemed,
+          {
+            expiryMs: market.expiryMs,
+            oracleId: market.oracleId,
+          }
+        )
+        const positions = getPositionRows(directionalPositions, rangePositions)
 
         if (!isStale) {
           setPositionState({ isLoading: false, positions })
@@ -294,13 +256,12 @@ function ActivityTabsClient(props: ActivityTabsProps) {
     }
   }, [market.expiryMs, market.oracleId, publicActivityVersion, walletAddress])
 
-  const visiblePositions = sortPositionsNewestFirst(positionState.positions)
-  const tradeRows = getTradeRows(trades, rangeTrades)
+  const visiblePositions = positionState.positions
   const positionsLabel = positionState.isLoading
     ? "Positions"
     : `Positions (${visiblePositions.length})`
-  const tradesLabel = `Trades (${tradeRows.length})`
-  const redemptionsLabel = `Redemptions (${redemptions.length + rangeRedemptions.length})`
+  const tradesLabel = `Trades (${trades.length})`
+  const redemptionsLabel = `Redemptions (${redemptions.length})`
 
   return (
     <ActivityTabsFrame
@@ -316,14 +277,13 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       positionsLabel={positionsLabel}
       redemptionsContent={
         <RedemptionsPanel
-          rangeRedemptions={rangeRedemptions}
           redemptions={redemptions}
-          totalRedemptions={redemptions.length + rangeRedemptions.length}
+          totalRedemptions={redemptions.length}
         />
       }
       redemptionsLabel={redemptionsLabel}
       tradesContent={
-        <TradesPanel totalTrades={tradeRows.length} trades={tradeRows} />
+        <TradesPanel totalTrades={trades.length} trades={trades} />
       }
       tradesLabel={tradesLabel}
     />
@@ -414,7 +374,7 @@ function PositionsPanel({
 }: {
   errorMessage?: string
   isLoading: boolean
-  positions: Position[]
+  positions: PositionRow[]
   totalPositions: number
   walletAddress?: string
 }) {
@@ -459,14 +419,17 @@ function PositionHeaderRow({ columns }: { columns: string[] }) {
   )
 }
 
-function PositionsTable({ positions }: { positions: Position[] }) {
+function PositionsTable({ positions }: { positions: PositionRow[] }) {
   return (
     <div className="min-w-[56rem] flex-1 divide-y divide-border/35 overflow-auto">
       <PositionHeaderRow
         columns={["Contract", "Qty", "Entry", "Mark", "Cost", "PnL", "Status"]}
       />
       {positions.map((position) => {
-        const pnl = position.unrealizedPnlUsd + position.realizedPnlUsd
+        const pnl =
+          position.kind === "directional"
+            ? position.unrealizedPnlUsd + position.realizedPnlUsd
+            : null
 
         return (
           <div
@@ -476,9 +439,11 @@ function PositionsTable({ positions }: { positions: Position[] }) {
             <span
               className={cn(
                 "truncate font-medium capitalize",
-                position.side === "above"
-                  ? "text-outcome-up"
-                  : "text-outcome-down"
+                position.kind === "range"
+                  ? "text-primary"
+                  : position.side === "above"
+                    ? "text-outcome-up"
+                    : "text-outcome-down"
               )}
             >
               {getPositionContract(position)}
@@ -498,14 +463,16 @@ function PositionsTable({ positions }: { positions: Position[] }) {
             <span
               className={cn(
                 "font-mono tabular-nums",
-                pnl > 0
-                  ? "text-outcome-up"
-                  : pnl < 0
-                    ? "text-outcome-down"
-                    : "text-muted-foreground"
+                pnl === null
+                  ? "text-muted-foreground"
+                  : pnl > 0
+                    ? "text-outcome-up"
+                    : pnl < 0
+                      ? "text-outcome-down"
+                      : "text-muted-foreground"
               )}
             >
-              {formatPnlUsd(pnl)}
+              {pnl === null ? "--" : formatPnlUsd(pnl)}
             </span>
             <span className="truncate text-right font-mono text-muted-foreground uppercase">
               {position.status}
@@ -522,7 +489,7 @@ function TradesPanel({
   trades,
 }: {
   totalTrades: number
-  trades: ActivityTradeRow[]
+  trades: TradeActivityRow[]
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
@@ -542,12 +509,10 @@ function TradesPanel({
 }
 
 function RedemptionsPanel({
-  rangeRedemptions,
   redemptions,
   totalRedemptions,
 }: {
-  rangeRedemptions: RangeRedemption[]
-  redemptions: Redemption[]
+  redemptions: RedemptionActivityRow[]
   totalRedemptions: number
 }) {
   return (
@@ -558,11 +523,8 @@ function RedemptionsPanel({
         </div>
       </div>
 
-      {redemptions.length > 0 || rangeRedemptions.length > 0 ? (
-        <RedemptionsTable
-          rangeRedemptions={rangeRedemptions}
-          redemptions={redemptions}
-        />
+      {redemptions.length > 0 ? (
+        <RedemptionsTable redemptions={redemptions} />
       ) : (
         <EmptyState message="No redemptions for this market." />
       )}
@@ -582,7 +544,7 @@ function HeaderRow({ columns }: { columns: string[] }) {
   )
 }
 
-function TradesTable({ trades }: { trades: ActivityTradeRow[] }) {
+function TradesTable({ trades }: { trades: TradeActivityRow[] }) {
   return (
     <div className="min-w-[48rem] flex-1 divide-y divide-border/35 overflow-auto">
       <HeaderRow
@@ -627,47 +589,16 @@ function TradesTable({ trades }: { trades: ActivityTradeRow[] }) {
 }
 
 function RedemptionsTable({
-  rangeRedemptions,
   redemptions,
 }: {
-  rangeRedemptions: RangeRedemption[]
-  redemptions: Redemption[]
+  redemptions: RedemptionActivityRow[]
 }) {
-  const rows: RedemptionRow[] = [
-    ...redemptions.map((redemption) => ({
-      bidPrice: redemption.bidPrice,
-      id: redemption.id,
-      kind: "directional" as const,
-      owner: redemption.owner,
-      payoutUsd: redemption.payoutUsd,
-      quantity: redemption.quantity,
-      side: redemption.side,
-      strikePriceUsd: redemption.strikePriceUsd,
-      timestampMs: redemption.timestampMs,
-    })),
-    ...rangeRedemptions.map((redemption) => ({
-      bidPrice: redemption.bidPrice,
-      higherStrikePriceUsd: redemption.higherStrikePriceUsd,
-      id: redemption.id,
-      kind: "range" as const,
-      lowerStrikePriceUsd: redemption.lowerStrikePriceUsd,
-      owner: redemption.trader,
-      payoutUsd: redemption.payoutUsd,
-      quantity: redemption.quantity,
-      timestampMs: redemption.timestampMs,
-    })),
-  ].sort(
-    (firstRedemption, secondRedemption) =>
-      secondRedemption.timestampMs - firstRedemption.timestampMs ||
-      firstRedemption.id.localeCompare(secondRedemption.id)
-  )
-
   return (
     <div className="min-w-[44rem] flex-1 divide-y divide-border/35 overflow-auto">
       <HeaderRow
         columns={["Time", "Type", "Price", "Owner", "Size", "Payout"]}
       />
-      {rows.map((redemption) => (
+      {redemptions.map((redemption) => (
         <div
           className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs"
           key={redemption.id}
@@ -697,7 +628,13 @@ function RedemptionsTable({
           <span className="font-mono tabular-nums">
             {formatPriceCents(redemption.bidPrice)}
           </span>
-          <AddressText address={redemption.owner} />
+          <AddressText
+            address={
+              redemption.kind === "directional"
+                ? redemption.owner
+                : redemption.trader
+            }
+          />
           <span className="font-mono text-muted-foreground tabular-nums">
             {formatQuantity(redemption.quantity)}
           </span>

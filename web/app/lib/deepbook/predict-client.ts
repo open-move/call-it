@@ -9,6 +9,7 @@ import {
   type OracleStateResponse,
   type OracleSviUpdate,
   type ManagerPositionSummary,
+  type ManagerRangeActivityResponse,
   type PredictManagerCreatedEvent,
   type RangeMintEvent,
   type RangeRedeemEvent,
@@ -593,6 +594,21 @@ function parseManagerPositionSummaryArray(
   return value.map(parseManagerPositionSummary)
 }
 
+function parseManagerRangeActivityResponse(
+  value: unknown
+): ManagerRangeActivityResponse {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected manager range activity"
+    )
+  }
+
+  return {
+    minted: parseRangeMintEventArray(value.minted),
+    redeemed: parseRangeRedeemEventArray(value.redeemed),
+  }
+}
+
 function parseLpSupplyEventArray(value: unknown): LpSupplyEvent[] {
   if (!Array.isArray(value)) {
     throw new PredictServerError(
@@ -760,5 +776,12 @@ export function getManagerPositionSummaries(managerId: string) {
   return readPredictJson(
     `/managers/${encodeURIComponent(managerId)}/positions/summary`,
     parseManagerPositionSummaryArray
+  )
+}
+
+export function getManagerRanges(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/ranges`,
+    parseManagerRangeActivityResponse
   )
 }

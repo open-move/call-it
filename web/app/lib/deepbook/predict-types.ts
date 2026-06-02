@@ -177,6 +177,11 @@ export interface RangeRedeemEvent {
   is_settled: boolean
 }
 
+export interface ManagerRangeActivityResponse {
+  minted: RangeMintEvent[]
+  redeemed: RangeRedeemEvent[]
+}
+
 export interface LpSupplyEvent {
   event_digest: string
   digest: string
