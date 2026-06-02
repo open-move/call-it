@@ -41,7 +41,7 @@ export function Page({
 }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+      <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
           <div className="h-120 min-w-0">
             <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -81,7 +81,7 @@ export function Page({
           />
         </section>
 
-        <aside className="min-w-0">
+        <aside className="h-full min-w-0">
           <OrderTicket
             market={market}
             selectedStrikePriceUsd={selectedStrikePriceUsd}

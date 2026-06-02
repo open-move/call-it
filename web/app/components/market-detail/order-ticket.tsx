@@ -1,4 +1,10 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+import {
+  ArrowDownIcon,
+  ArrowUpDownIcon,
+  ArrowUpIcon,
+  MoveHorizontalIcon,
+} from "lucide-react"
 import { useEffect, useState, type ReactNode } from "react"
 import { useNavigate, useRevalidator } from "react-router"
 
@@ -47,12 +53,20 @@ function getModeLabel(mode: TicketMode) {
   return mode === "binary" ? "Up/Down" : "Range"
 }
 
+function getModeIcon(mode: TicketMode) {
+  return mode === "binary" ? ArrowUpDownIcon : MoveHorizontalIcon
+}
+
 function isTicketMode(value: unknown): value is TicketMode {
   return value === "binary" || value === "range"
 }
 
 function getSideLabel(side: ContractSide) {
   return side === "above" ? "Up" : "Down"
+}
+
+function getSideIcon(side: ContractSide) {
+  return side === "above" ? ArrowUpIcon : ArrowDownIcon
 }
 
 function formatStrikeValue(value: number, tickSizeUsd: number) {
@@ -461,13 +475,7 @@ function OrderTicketClient({
       >
         <TabsList className="h-9 w-full overflow-hidden rounded-md bg-muted p-0">
           {(["binary", "range"] satisfies TicketMode[]).map((mode) => (
-            <TabsTrigger
-              className="!h-full rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
-              key={mode}
-              value={mode}
-            >
-              {getModeLabel(mode)}
-            </TabsTrigger>
+            <TicketModeTab key={mode} mode={mode} />
           ))}
         </TabsList>
       </Tabs>
@@ -479,6 +487,7 @@ function OrderTicketClient({
               <div aria-label="Direction" className="grid grid-cols-2 gap-2">
                 {(["above", "below"] satisfies ContractSide[]).map((side) => {
                   const isSelected = contractSide === side
+                  const SideIcon = getSideIcon(side)
 
                   return (
                     <Button
@@ -495,6 +504,7 @@ function OrderTicketClient({
                       type="button"
                       variant="secondary"
                     >
+                      <SideIcon className="size-3" />
                       {getSideLabel(side)}
                     </Button>
                   )
@@ -618,6 +628,20 @@ function OrderTicketClient({
   )
 }
 
+function TicketModeTab({ mode }: { mode: TicketMode }) {
+  const ModeIcon = getModeIcon(mode)
+
+  return (
+    <TabsTrigger
+      className="!h-full rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
+      value={mode}
+    >
+      <ModeIcon className="size-3.5" />
+      {getModeLabel(mode)}
+    </TabsTrigger>
+  )
+}
+
 function StrikeInput({
   customStrike,
   onCommitStrike,
@@ -631,7 +655,7 @@ function StrikeInput({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-xs text-muted-foreground">Strike</span>
+      <span className="text-xs text-muted-foreground">Strike (USD)</span>
       <Input
         className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
         inputMode="decimal"
@@ -699,7 +723,9 @@ function RangeSelector({
   return (
     <div className="grid grid-cols-2 gap-2">
       <label className="space-y-2">
-        <span className="text-xs text-muted-foreground">Lower Strike</span>
+        <span className="text-xs text-muted-foreground">
+          Lower Strike (USD)
+        </span>
         <Input
           className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
           inputMode="decimal"
@@ -714,7 +740,9 @@ function RangeSelector({
         />
       </label>
       <label className="space-y-2">
-        <span className="text-xs text-muted-foreground">Upper Strike</span>
+        <span className="text-xs text-muted-foreground">
+          Upper Strike (USD)
+        </span>
         <Input
           className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
           inputMode="decimal"

@@ -1,3 +1,5 @@
+import { ActivityIcon } from "lucide-react"
+
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
 import { type Trade } from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
@@ -29,7 +31,10 @@ export function Trades({ trades }: TradesProps) {
   return (
     <Card className="flex h-full w-full flex-col rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-3 py-2.5">
-        <CardTitle className="text-sm font-medium">Trades</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
+          <ActivityIcon className="size-3.5 text-muted-foreground" />
+          Trades
+        </CardTitle>
       </CardHeader>
       <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2.5">
         {trades.length > 0 ? (

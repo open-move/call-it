@@ -1,5 +1,11 @@
 import { type ReactNode, useEffect, useState } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+import {
+  ActivityIcon,
+  BriefcaseIcon,
+  MoveHorizontalIcon,
+  RotateCcwIcon,
+} from "lucide-react"
 
 import { Button } from "~/components/ui/button"
 import { Card } from "~/components/ui/card"
@@ -46,6 +52,21 @@ interface ActivityTabsFrameProps extends ActivityTabsProps {
   redemptionsLabel: string
   tradesContent: ReactNode
   tradesLabel: string
+}
+
+type ActivityTabValue = "positions" | "trades" | "ranges" | "redemptions"
+
+function getActivityTabIcon(value: ActivityTabValue) {
+  switch (value) {
+    case "positions":
+      return BriefcaseIcon
+    case "trades":
+      return ActivityIcon
+    case "ranges":
+      return MoveHorizontalIcon
+    case "redemptions":
+      return RotateCcwIcon
+  }
 }
 
 type RedemptionRow =
@@ -474,30 +495,10 @@ function ActivityTabsFrame({
             className="h-full w-full justify-start gap-6 overflow-x-auto rounded-none p-0"
             variant="line"
           >
-            <TabsTrigger
-              className="h-full flex-none rounded-none px-0"
-              value="positions"
-            >
-              {positionsLabel}
-            </TabsTrigger>
-            <TabsTrigger
-              className="h-full flex-none rounded-none px-0"
-              value="trades"
-            >
-              {tradesLabel}
-            </TabsTrigger>
-            <TabsTrigger
-              className="h-full flex-none rounded-none px-0"
-              value="ranges"
-            >
-              {rangesLabel}
-            </TabsTrigger>
-            <TabsTrigger
-              className="h-full flex-none rounded-none px-0"
-              value="redemptions"
-            >
-              {redemptionsLabel}
-            </TabsTrigger>
+            <ActivityTabTrigger label={positionsLabel} value="positions" />
+            <ActivityTabTrigger label={tradesLabel} value="trades" />
+            <ActivityTabTrigger label={rangesLabel} value="ranges" />
+            <ActivityTabTrigger label={redemptionsLabel} value="redemptions" />
           </TabsList>
           <div className="hidden shrink-0 text-xs text-muted-foreground lg:block">
             Predict activity
@@ -527,6 +528,23 @@ function ActivityTabsFrame({
         </TabsContent>
       </Tabs>
     </Card>
+  )
+}
+
+function ActivityTabTrigger({
+  label,
+  value,
+}: {
+  label: string
+  value: ActivityTabValue
+}) {
+  const TabIcon = getActivityTabIcon(value)
+
+  return (
+    <TabsTrigger className="h-full flex-none rounded-none px-0" value={value}>
+      <TabIcon className="size-3.5" />
+      {label}
+    </TabsTrigger>
   )
 }
 
