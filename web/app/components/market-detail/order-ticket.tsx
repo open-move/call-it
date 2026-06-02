@@ -24,14 +24,14 @@ import {
   buildCreateManagerTransaction,
   executeSuiTransaction,
   findCreatedManagerId,
-  prepareDirectionalMintTransaction,
-  type DirectionalTradeParams,
+  preparePredictMintTransaction,
+  type PredictTradeParams,
   type SuiTransactionSigner,
 } from "~/lib/deepbook/predict-transactions"
 import {
   formatPredictTradeError,
   formatPredictQuoteMessage,
-  quoteDirectionalTradeSafe,
+  quotePredictTradeSafe,
   type PredictQuoteResult,
 } from "~/lib/deepbook/predict-quotes"
 import { getPredictManagers } from "~/lib/deepbook/predict-client"
@@ -47,6 +47,11 @@ export interface OrderTicketProps {
 
 interface ManagerState {
   managerId?: string
+}
+
+interface RangeStrikeState {
+  higher: number
+  lower: number
 }
 
 function getModeLabel(mode: TicketMode) {
@@ -105,10 +110,14 @@ function getRangeStrikeDefaults(
   selectedStrikePriceUsd: number
 ) {
   const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
+  const rangeWidthUsd = tickSizeUsd * 5
 
   return {
-    higher: normalizeStrikePrice(selectedStrikePriceUsd + tickSizeUsd, market),
-    lower: normalizeStrikePrice(selectedStrikePriceUsd - tickSizeUsd, market),
+    higher: normalizeStrikePrice(
+      selectedStrikePriceUsd + rangeWidthUsd,
+      market
+    ),
+    lower: normalizeStrikePrice(selectedStrikePriceUsd - rangeWidthUsd, market),
   }
 }
 
@@ -178,15 +187,31 @@ function getTradeParams({
   contractSide,
   market,
   quantity,
+  rangeStrikes,
   selectedStrikePriceUsd,
+  ticketMode,
   walletAddress,
 }: {
   contractSide: ContractSide
   market: MarketSnapshot
   quantity: bigint
+  rangeStrikes: RangeStrikeState
   selectedStrikePriceUsd: number
+  ticketMode: TicketMode
   walletAddress: string
-}): DirectionalTradeParams {
+}): PredictTradeParams {
+  if (ticketMode === "range") {
+    return {
+      expiryMs: market.expiryMs,
+      higherStrikePriceUsd: rangeStrikes.higher,
+      kind: "range",
+      lowerStrikePriceUsd: rangeStrikes.lower,
+      oracleId: market.oracleId,
+      quantity,
+      walletAddress,
+    }
+  }
+
   return {
     expiryMs: market.expiryMs,
     isUp: contractSide === "above",
@@ -249,26 +274,26 @@ function OrderTicketClient({
   const walletAddress = primaryWallet?.address
   const selectedQuantity = parseDecimalUnits(size, PREDICT_QUOTE_DECIMALS)
   const isAbove = contractSide === "above"
+  const isRangeValid = rangeStrikes.lower < rangeStrikes.higher
   const quotedQuote = quote?.status === "quoted" ? quote : undefined
   const chance =
     market.fairUpProbability === undefined
       ? "--"
       : `${Math.round((isAbove ? market.fairUpProbability : 1 - market.fairUpProbability) * 100)}%`
   const isTradeDisabled =
-    ticketMode === "range" ||
     isSubmitting ||
     isLoadingManager ||
     isQuoting ||
     !selectedQuantity ||
-    !quotedQuote
-  const actionButtonLabel =
-    ticketMode === "range"
-      ? "Range coming soon"
-      : !walletAddress
-        ? "Sign in to trade"
-        : isSubmitting
-          ? "Submitting"
-          : `Buy ${getSideLabel(contractSide)}`
+    !quotedQuote ||
+    (ticketMode === "range" && !isRangeValid)
+  const actionButtonLabel = !walletAddress
+    ? "Sign in to trade"
+    : isSubmitting
+      ? "Submitting"
+      : ticketMode === "range"
+        ? "Buy Range"
+        : `Buy ${getSideLabel(contractSide)}`
 
   useEffect(() => {
     setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
@@ -331,7 +356,11 @@ function OrderTicketClient({
     let isStale = false
     const timeoutId = window.setTimeout(() => {
       async function loadQuote() {
-        if (ticketMode !== "binary" || !walletAddress || !selectedQuantity) {
+        if (
+          !walletAddress ||
+          !selectedQuantity ||
+          (ticketMode === "range" && !isRangeValid)
+        ) {
           setQuote(undefined)
           setIsQuoting(false)
           return
@@ -340,12 +369,14 @@ function OrderTicketClient({
         setIsQuoting(true)
 
         try {
-          const nextQuote = await quoteDirectionalTradeSafe(
+          const nextQuote = await quotePredictTradeSafe(
             getTradeParams({
               contractSide,
               market,
               quantity: selectedQuantity,
+              rangeStrikes,
               selectedStrikePriceUsd,
+              ticketMode,
               walletAddress,
             })
           )
@@ -370,7 +401,9 @@ function OrderTicketClient({
     }
   }, [
     contractSide,
+    isRangeValid,
     market,
+    rangeStrikes,
     selectedQuantity,
     selectedStrikePriceUsd,
     ticketMode,
@@ -378,11 +411,6 @@ function OrderTicketClient({
   ])
 
   async function handleTrade() {
-    if (ticketMode === "range") {
-      setErrorMessage("Range trading is not wired yet")
-      return
-    }
-
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -395,6 +423,11 @@ function OrderTicketClient({
 
     if (!selectedQuantity) {
       setErrorMessage("Enter a positive size")
+      return
+    }
+
+    if (ticketMode === "range" && !isRangeValid) {
+      setErrorMessage("Lower strike must be below upper strike")
       return
     }
 
@@ -411,7 +444,9 @@ function OrderTicketClient({
         contractSide,
         market,
         quantity: selectedQuantity,
+        rangeStrikes,
         selectedStrikePriceUsd,
+        ticketMode,
         walletAddress,
       })
       let managerId = managerState.managerId
@@ -437,7 +472,7 @@ function OrderTicketClient({
 
       setStatusMessage("Preparing funding and buy")
 
-      const preparedMint = await prepareDirectionalMintTransaction({
+      const preparedMint = await preparePredictMintTransaction({
         managerId,
         params,
         quotedCost: quotedQuote.mintCost,
@@ -449,7 +484,9 @@ function OrderTicketClient({
       await executeSuiTransaction(primaryWallet, preparedMint.transaction)
 
       setStatusMessage("Trade confirmed")
-      pinStrikeSearchParam(selectedStrikePriceUsd)
+      if (ticketMode === "binary") {
+        pinStrikeSearchParam(selectedStrikePriceUsd)
+      }
       const nextManagerState = await loadManagerState(walletAddress)
       setManagerState(nextManagerState)
       revalidator.revalidate()
@@ -593,8 +630,27 @@ function OrderTicketClient({
                     market.tickSizeUsd
                   )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
                 />
-                <TicketRow label="Price" value="--" />
-                <TicketRow label="Status" value="Coming soon" />
+                <TicketRow
+                  label="Price"
+                  value={
+                    !isRangeValid
+                      ? "Invalid range"
+                      : quotedQuote && selectedQuantity
+                        ? `${formatUnitPrice(
+                            quotedQuote.mintCost,
+                            selectedQuantity
+                          )} DUSDC`
+                        : quote?.status === "no_quote"
+                          ? "No quote"
+                          : isQuoting
+                            ? "Quoting"
+                            : "--"
+                  }
+                />
+                <TicketRow
+                  label="Cost"
+                  value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+                />
               </>
             )}
           </TicketSection>
@@ -614,9 +670,7 @@ function OrderTicketClient({
 
           <Button
             className="h-9 w-full"
-            disabled={
-              ticketMode === "range" || (isTradeDisabled && !!walletAddress)
-            }
+            disabled={isTradeDisabled && !!walletAddress}
             onClick={handleTrade}
             type="button"
           >

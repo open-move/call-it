@@ -21,7 +21,7 @@ import {
   getRangeMints,
   getRangeRedeems,
 } from "~/lib/deepbook/predict-client"
-import { quoteDirectionalTradeSafe } from "~/lib/deepbook/predict-quotes"
+import { quotePredictTradeSafe } from "~/lib/deepbook/predict-quotes"
 
 function parseSelectedStrikePriceUsd(value: string | null) {
   if (!value) {
@@ -70,9 +70,10 @@ async function loadToolbarQuote({
   oracleId: string
   selectedStrikePriceUsd: number
 }): Promise<ToolbarQuote | null> {
-  const quote = await quoteDirectionalTradeSafe({
+  const quote = await quotePredictTradeSafe({
     expiryMs,
     isUp: true,
+    kind: "binary",
     oracleId,
     quantity: TOOLBAR_QUOTE_QUANTITY,
     strikePriceUsd: selectedStrikePriceUsd,

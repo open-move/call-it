@@ -26,13 +26,26 @@ export interface SuiTransactionSigner {
 export interface DirectionalTradeParams {
   expiryMs: number
   isUp: boolean
+  kind?: "binary"
   oracleId: string
   quantity: bigint
   strikePriceUsd: number
   walletAddress: string
 }
 
-export interface DirectionalTradeQuote {
+export interface RangeTradeParams {
+  expiryMs: number
+  higherStrikePriceUsd: number
+  kind: "range"
+  lowerStrikePriceUsd: number
+  oracleId: string
+  quantity: bigint
+  walletAddress: string
+}
+
+export type PredictTradeParams = DirectionalTradeParams | RangeTradeParams
+
+export interface PredictTradeQuote {
   mintCost: bigint
   redeemPayout: bigint
 }
@@ -42,7 +55,7 @@ export interface LiquidityTransactionParams {
   walletAddress: string
 }
 
-export interface PreparedDirectionalMintTransaction {
+export interface PreparedPredictMintTransaction {
   actualCost: bigint
   reserveAmount: bigint
   transaction: Transaction
@@ -71,6 +84,24 @@ function buildMarketKey(tx: Transaction, params: DirectionalTradeParams) {
       tx.pure.bool(params.isUp),
     ],
   })
+}
+
+function buildRangeKey(tx: Transaction, params: RangeTradeParams) {
+  return tx.moveCall({
+    target: target("range_key", "new"),
+    arguments: [
+      tx.pure.id(params.oracleId),
+      tx.pure.u64(BigInt(params.expiryMs)),
+      tx.pure.u64(toOnchainPrice(params.lowerStrikePriceUsd)),
+      tx.pure.u64(toOnchainPrice(params.higherStrikePriceUsd)),
+    ],
+  })
+}
+
+function isRangeTradeParams(
+  params: PredictTradeParams
+): params is RangeTradeParams {
+  return params.kind === "range"
 }
 
 function readU64Output(output: SuiClientTypes.CommandOutput) {
@@ -103,8 +134,19 @@ function addBasisPoints(value: bigint, basisPoints: bigint) {
 
 function findMintCost(events: SuiClientTypes.Event[]) {
   for (const event of events) {
-    if (event.eventType.endsWith("::predict::PositionMinted")) {
+    if (
+      event.eventType.endsWith("::predict::PositionMinted") ||
+      event.eventType.endsWith("::predict::RangeMinted")
+    ) {
       return getEventBigInt(event, "cost")
+    }
+  }
+
+  for (const event of events) {
+    const cost = getEventBigInt(event, "cost")
+
+    if (cost !== undefined) {
+      return cost
     }
   }
 
@@ -192,11 +234,27 @@ export function buildCreateManagerTransaction(walletAddress: string) {
   return tx
 }
 
-export function buildDirectionalQuoteTransaction(
-  params: DirectionalTradeParams
-) {
+export function buildPredictQuoteTransaction(params: PredictTradeParams) {
   const tx = new Transaction()
   tx.setSender(params.walletAddress)
+
+  if (isRangeTradeParams(params)) {
+    const key = buildRangeKey(tx, params)
+
+    tx.moveCall({
+      target: target("predict", "get_range_trade_amounts"),
+      arguments: [
+        tx.object(PREDICT_OBJECT_ID),
+        tx.object(params.oracleId),
+        key,
+        tx.pure.u64(params.quantity),
+        tx.object(PREDICT_CLOCK_ID),
+      ],
+    })
+
+    return tx
+  }
+
   const key = buildMarketKey(tx, params)
 
   tx.moveCall({
@@ -213,14 +271,14 @@ export function buildDirectionalQuoteTransaction(
   return tx
 }
 
-export async function buildDirectionalMintTransaction({
+export async function buildPredictMintTransaction({
   managerId,
   maxCost,
   params,
 }: {
   managerId: string
   maxCost: bigint
-  params: DirectionalTradeParams
+  params: PredictTradeParams
 }) {
   const tx = new Transaction()
   tx.setSender(params.walletAddress)
@@ -232,36 +290,28 @@ export async function buildDirectionalMintTransaction({
     arguments: [tx.object(managerId), paymentCoin],
   })
 
+  if (isRangeTradeParams(params)) {
+    const key = buildRangeKey(tx, params)
+
+    tx.moveCall({
+      target: target("predict", "mint_range"),
+      typeArguments: [PREDICT_QUOTE_ASSET],
+      arguments: [
+        tx.object(PREDICT_OBJECT_ID),
+        tx.object(managerId),
+        tx.object(params.oracleId),
+        key,
+        tx.pure.u64(params.quantity),
+        tx.object(PREDICT_CLOCK_ID),
+      ],
+    })
+
+    return tx
+  }
+
   const key = buildMarketKey(tx, params)
   tx.moveCall({
     target: target("predict", "mint"),
-    typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [
-      tx.object(PREDICT_OBJECT_ID),
-      tx.object(managerId),
-      tx.object(params.oracleId),
-      key,
-      tx.pure.u64(params.quantity),
-      tx.object(PREDICT_CLOCK_ID),
-    ],
-  })
-
-  return tx
-}
-
-export function buildDirectionalRedeemTransaction({
-  managerId,
-  params,
-}: {
-  managerId: string
-  params: DirectionalTradeParams
-}) {
-  const tx = new Transaction()
-  tx.setSender(params.walletAddress)
-  const key = buildMarketKey(tx, params)
-
-  tx.moveCall({
-    target: target("predict", "redeem"),
     typeArguments: [PREDICT_QUOTE_ASSET],
     arguments: [
       tx.object(PREDICT_OBJECT_ID),
@@ -322,11 +372,11 @@ export async function buildWithdrawLiquidityTransaction({
   return tx
 }
 
-export async function quoteDirectionalTrade(params: DirectionalTradeParams) {
+export async function quotePredictTrade(params: PredictTradeParams) {
   const result = await getSuiGrpcClient().simulateTransaction({
     checksEnabled: false,
     include: { commandResults: true },
-    transaction: buildDirectionalQuoteTransaction(params),
+    transaction: buildPredictQuoteTransaction(params),
   })
 
   if (result.$kind === "FailedTransaction") {
@@ -346,23 +396,23 @@ export async function quoteDirectionalTrade(params: DirectionalTradeParams) {
   return {
     mintCost: readU64Output(mintCost),
     redeemPayout: readU64Output(redeemPayout),
-  } satisfies DirectionalTradeQuote
+  } satisfies PredictTradeQuote
 }
 
-export async function prepareDirectionalMintTransaction({
+export async function preparePredictMintTransaction({
   managerId,
   params,
   quotedCost,
 }: {
   managerId: string
-  params: DirectionalTradeParams
+  params: PredictTradeParams
   quotedCost: bigint
-}): Promise<PreparedDirectionalMintTransaction> {
+}): Promise<PreparedPredictMintTransaction> {
   let reserveAmount = addBasisPoints(quotedCost, 1_000n)
   let lastError: string | undefined
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const transaction = await buildDirectionalMintTransaction({
+    const transaction = await buildPredictMintTransaction({
       managerId,
       maxCost: reserveAmount,
       params,

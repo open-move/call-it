@@ -1,10 +1,10 @@
 import { bcs } from "@mysten/sui/bcs"
 import { type SuiClientTypes } from "@mysten/sui/client"
 
-import { type DirectionalTradeQuote } from "./predict-transactions"
+import { type PredictTradeQuote } from "./predict-transactions"
 import {
-  buildDirectionalQuoteTransaction,
-  type DirectionalTradeParams,
+  buildPredictQuoteTransaction,
+  type PredictTradeParams,
 } from "./predict-transactions"
 import {
   getSuiFailureMessage,
@@ -13,10 +13,12 @@ import {
 } from "./sui-errors"
 import { simulateSuiTransaction } from "./sui-simulate"
 
+const MIN_EXECUTABLE_MINT_COST = 10_000n
+
 export type PredictQuoteResult =
-  | ({ status: "quoted" } & DirectionalTradeQuote)
+  | ({ status: "quoted" } & PredictTradeQuote)
   | {
-      reason: "saturated_fair_price"
+      reason: "mint_cost_too_low" | "saturated_fair_price"
       status: "no_quote"
     }
   | {
@@ -47,9 +49,22 @@ function isSaturatedFairPriceMoveAbort(failure: SuiFailure) {
   return false
 }
 
+function isMintableAskMoveAbort(failure: SuiFailure) {
+  return (
+    failure.kind === "move_abort" &&
+    failure.abort.moduleName === "predict" &&
+    failure.abort.functionName === "assert_mintable_ask" &&
+    failure.abort.code === 7
+  )
+}
+
 function mapQuoteFailure(failure: SuiFailure): PredictQuoteResult {
   if (isSaturatedFairPriceMoveAbort(failure)) {
     return { reason: "saturated_fair_price", status: "no_quote" }
+  }
+
+  if (isMintableAskMoveAbort(failure)) {
+    return { reason: "mint_cost_too_low", status: "no_quote" }
   }
 
   return {
@@ -67,12 +82,20 @@ export function formatPredictTradeError(error: unknown, fallback: string) {
     return "No quote for this strike. Choose a strike closer to spot."
   }
 
+  if (isMintableAskMoveAbort(failure)) {
+    return "Quote is too small to mint. Increase size or widen the range."
+  }
+
   return message
 }
 
 export function formatPredictQuoteMessage(result: PredictQuoteResult) {
   if (isSaturatedFairPriceFailure(result)) {
     return "No quote for this strike. Choose a strike closer to spot."
+  }
+
+  if (result.status === "no_quote" && result.reason === "mint_cost_too_low") {
+    return "Quote is too small to mint. Increase size or widen the range."
   }
 
   if (result.status === "unavailable") {
@@ -82,13 +105,13 @@ export function formatPredictQuoteMessage(result: PredictQuoteResult) {
   return undefined
 }
 
-export async function quoteDirectionalTradeSafe(
-  params: DirectionalTradeParams
+export async function quotePredictTradeSafe(
+  params: PredictTradeParams
 ): Promise<PredictQuoteResult> {
   const result = await simulateSuiTransaction({
     checksEnabled: false,
     include: { commandResults: true },
-    transaction: buildDirectionalQuoteTransaction(params),
+    transaction: buildPredictQuoteTransaction(params),
   })
 
   if (result.status === "failure") {
@@ -105,8 +128,14 @@ export async function quoteDirectionalTradeSafe(
     }
   }
 
+  const mintCostValue = readU64Output(mintCost)
+
+  if (mintCostValue < MIN_EXECUTABLE_MINT_COST) {
+    return { reason: "mint_cost_too_low", status: "no_quote" }
+  }
+
   return {
-    mintCost: readU64Output(mintCost),
+    mintCost: mintCostValue,
     redeemPayout: readU64Output(redeemPayout),
     status: "quoted",
   }
