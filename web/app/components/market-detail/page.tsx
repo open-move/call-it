@@ -76,7 +76,6 @@ export function Page({
             rangeRedemptions={rangeRedemptions}
             rangeTrades={rangeTrades}
             redemptions={redemptions}
-            selectedStrikePriceUsd={selectedStrikePriceUsd}
             trades={trades}
           />
         </section>
