@@ -1,7 +1,4 @@
-import { ChevronDown } from "lucide-react"
-
-import { Button } from "~/components/ui/button"
-import { Card } from "~/components/ui/card"
+import { Badge, BadgeTone } from "~/components/primitives/badge"
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
@@ -10,12 +7,7 @@ import { formatUnitPrice } from "~/lib/callit/trading/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import { cn } from "~/lib/utils"
 
-import {
-  formatExpiryDistance,
-  formatSignedPercent,
-  formatSignedUsd,
-  getStrikeDistance,
-} from "./utils"
+import { formatExpiryDistance, formatMarketTitleExpiry } from "./utils"
 
 export interface HeaderProps {
   market: MarketSnapshot
@@ -31,79 +23,75 @@ function formatToolbarPrice(value: number | undefined) {
     : formatUnitPrice(BigInt(value), TOOLBAR_QUOTE_QUANTITY)
 }
 
+function getStatusLabel(status: string) {
+  return status === "active" ? "Live" : status
+}
+
+function getStatusTone(status: string) {
+  return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
+}
+
 export function Header({
   market,
   selectedStrikePriceUsd,
   toolbarQuote,
 }: HeaderProps) {
-  const distance = getStrikeDistance(market, selectedStrikePriceUsd)
-  const distanceClassName = distance.isAboveStrike
-    ? "text-outcome-up"
-    : "text-outcome-down"
-  const distanceValue = `${formatSignedUsd(distance.distanceUsd)} / ${formatSignedPercent(distance.distancePercent)}`
+  const quoteValue = formatToolbarPrice(toolbarQuote?.aboveAsk)
+  const spreadValue = formatToolbarPrice(toolbarQuote?.spread)
 
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <div className="h-16 overflow-x-auto">
-        <div className="flex h-16 min-w-[840px] items-center gap-7 px-3">
-          <Button
-            aria-label="Select market"
-            className="h-9 max-w-[21rem] shrink-0 justify-start gap-2 overflow-hidden rounded-md px-2 text-left font-normal shadow-none ring-0 hover:bg-muted/45 focus-visible:ring-0"
-            type="button"
-            variant="ghost"
-          >
+    <header className="border-b border-border/40">
+      <div className="flex min-w-0 flex-col gap-4 px-3 py-2.5">
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
             <AssetIcon
               assetIconUrl={market.assetIconUrl}
               assetName={market.assetName}
               assetSymbol={market.assetSymbol}
               className="size-5"
             />
+            <div className="flex min-w-0 items-center gap-1.5 text-left">
+              <span className="truncate text-sm leading-none font-semibold tracking-tight text-foreground">
+                {market.assetSymbol} Prediction ·{" "}
+                {formatMarketTitleExpiry(market.expiryMs)}
+              </span>
+            </div>
+          </div>
 
-            <span className="min-w-0 truncate text-sm font-medium text-foreground">
-              {market.assetSymbol} Above {formatUsd(selectedStrikePriceUsd, 0)}
-            </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <Badge
+              className="px-2 py-0.5 font-mono text-[10px] uppercase"
+              tone={getStatusTone(market.status)}
+            >
+              {getStatusLabel(market.status)}
+            </Badge>
+          </div>
+        </div>
 
-            <ChevronDown
-              aria-hidden="true"
-              className="size-3.5 shrink-0 text-muted-foreground"
-              strokeWidth={2.2}
-            />
-          </Button>
-
-          <div className="flex shrink-0 items-center gap-7 font-medium tabular-nums">
-            <ToolbarMetric
+        <div className="overflow-x-auto pb-1">
+          <div className="flex min-w-150 items-end gap-6">
+            <HeaderMetric label="Price (Up)" value={quoteValue} />
+            <HeaderMetric label="Spread" value={spreadValue} />
+            <HeaderMetric
               label="Spot"
               value={formatUsd(market.currentPriceUsd, 0)}
             />
-            <ToolbarMetric
-              label="Strike"
+            <HeaderMetric
+              label="Selected Strike"
               value={formatUsd(selectedStrikePriceUsd, 0)}
             />
-            <ToolbarMetric
-              label="Price (Above)"
-              value={formatToolbarPrice(toolbarQuote?.aboveAsk)}
-            />
-            <ToolbarMetric
-              label="Spread"
-              value={formatToolbarPrice(toolbarQuote?.spread)}
-            />
-            <ToolbarMetric
-              className={distanceClassName}
-              label="Distance"
-              value={distanceValue}
-            />
-            <ToolbarMetric
+            <HeaderMetric
               label="Expires"
               value={formatExpiryDistance(market.expiryMs)}
             />
           </div>
         </div>
       </div>
-    </Card>
+    </header>
   )
 }
 
-function ToolbarMetric({
+function HeaderMetric({
   className,
   label,
   value,
@@ -114,12 +102,11 @@ function ToolbarMetric({
 }) {
   return (
     <div className="min-w-0 whitespace-nowrap">
-      <div className="inline-block text-xs leading-none font-medium text-muted-foreground underline decoration-dotted underline-offset-4">
-        {label}
-      </div>
+      <div className="text-[11px] text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-2.5 truncate font-mono text-xs leading-none font-medium text-foreground tabular-nums",
+          "mt-1 truncate font-mono text-xs leading-none font-medium text-foreground tabular-nums",
+          value === "--" && "text-muted-foreground",
           className
         )}
       >

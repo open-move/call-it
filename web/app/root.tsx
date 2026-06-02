@@ -8,7 +8,7 @@ import {
 } from "react-router"
 
 import type { Route } from "./+types/root"
-import { DynamicProvider } from "~/providers/dynamic-provider"
+import { DynamicProvider } from "~/providers/dynamic"
 import "./app.css"
 
 export function Layout({ children }: { children: React.ReactNode }) {

@@ -1,11 +1,12 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useState, type ReactNode } from "react"
-import { useRevalidator } from "react-router"
+import { useNavigate, useRevalidator } from "react-router"
 
 import { Button } from "~/components/ui/button"
 import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
+import { formatUsd } from "~/lib/callit/format"
 import {
   formatDecimalUnits,
   formatUnitPrice,
@@ -18,7 +19,6 @@ import {
 } from "~/lib/deepbook/config"
 import {
   buildCreateManagerTransaction,
-  buildDirectionalRedeemTransaction,
   executeSuiTransaction,
   findCreatedManagerId,
   prepareDirectionalMintTransaction,
@@ -32,13 +32,11 @@ import {
   type PredictQuoteResult,
 } from "~/lib/deepbook/predict-quotes"
 import {
-  getManagerPositionSummaries,
   getPredictManagers,
 } from "~/lib/deepbook/predict-client"
-import { type ManagerPositionSummary } from "~/lib/deepbook/predict-types"
 import { cn } from "~/lib/utils"
 
-type TradeAction = "buy" | "sell"
+type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
 
 export interface OrderTicketProps {
@@ -48,19 +46,84 @@ export interface OrderTicketProps {
 
 interface ManagerState {
   managerId?: string
-  openQuantity: bigint
 }
 
-function getActionLabel(action: TradeAction) {
-  return action === "buy" ? "Buy" : "Sell"
+function getModeLabel(mode: TicketMode) {
+  return mode === "binary" ? "Up/Down" : "Range"
 }
 
-function isTradeAction(value: unknown): value is TradeAction {
-  return value === "buy" || value === "sell"
+function isTicketMode(value: unknown): value is TicketMode {
+  return value === "binary" || value === "range"
 }
 
 function getSideLabel(side: ContractSide) {
-  return side === "above" ? "Above" : "Below"
+  return side === "above" ? "Up" : "Down"
+}
+
+function formatStrikeValue(value: number, tickSizeUsd: number) {
+  return formatUsd(value, tickSizeUsd < 1 ? 2 : 0)
+}
+
+function formatStrikeInput(value: number) {
+  return Number.isInteger(value) ? value.toString() : value.toFixed(2)
+}
+
+function parseStrikeInput(value: string) {
+  const normalizedValue = value.replaceAll(",", "").replace("$", "").trim()
+
+  if (!normalizedValue) {
+    return undefined
+  }
+
+  const parsedValue = Number(normalizedValue)
+
+  return Number.isFinite(parsedValue) && parsedValue > 0
+    ? parsedValue
+    : undefined
+}
+
+function normalizeStrikePrice(value: number, market: MarketSnapshot) {
+  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
+  const minStrikeUsd = Math.max(market.minStrikeUsd, tickSizeUsd)
+  const roundedValue = Math.round(value / tickSizeUsd) * tickSizeUsd
+  const normalizedValue = Math.max(roundedValue, minStrikeUsd)
+
+  return Number(normalizedValue.toFixed(8))
+}
+
+function getNearbyStrikes(
+  market: MarketSnapshot,
+  selectedStrikePriceUsd: number
+) {
+  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
+  const centerStrike = normalizeStrikePrice(selectedStrikePriceUsd, market)
+  const strikes = new Set<number>()
+
+  for (let offset = -3; offset <= 3; offset += 1) {
+    strikes.add(
+      normalizeStrikePrice(centerStrike + offset * tickSizeUsd, market)
+    )
+  }
+
+  return Array.from(strikes).sort((firstStrike, secondStrike) => {
+    return firstStrike - secondStrike
+  })
+}
+
+function getRangeStrikeDefaults(
+  market: MarketSnapshot,
+  selectedStrikePriceUsd: number
+) {
+  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
+
+  return {
+    higher: normalizeStrikePrice(selectedStrikePriceUsd + tickSizeUsd, market),
+    lower: normalizeStrikePrice(selectedStrikePriceUsd - tickSizeUsd, market),
+  }
+}
+
+function isSelectedStrike(value: number, selectedStrikePriceUsd: number) {
+  return Math.abs(value - selectedStrikePriceUsd) < 0.000001
 }
 
 function formatStrikeSearchParam(strikePriceUsd: number) {
@@ -97,62 +160,21 @@ function toOnchainStrike(valueUsd: number) {
   return Math.round(valueUsd * PREDICT_PRICE_SCALE)
 }
 
-function getOpenQuantity(
-  summaries: ManagerPositionSummary[],
-  params: {
-    expiryMs: number
-    isUp: boolean
-    oracleId: string
-    strikePriceUsd: number
-  }
-) {
-  const strike = toOnchainStrike(params.strikePriceUsd)
-
-  return summaries.reduce((total, summary) => {
-    const isMatchingPosition =
-      summary.oracle_id === params.oracleId &&
-      summary.expiry === params.expiryMs &&
-      summary.strike === strike &&
-      summary.is_up === params.isUp
-
-    return isMatchingPosition ? total + BigInt(summary.open_quantity) : total
-  }, 0n)
-}
-
-async function loadManagerState(
-  walletAddress: string,
-  params: {
-    expiryMs: number
-    isUp: boolean
-    oracleId: string
-    strikePriceUsd: number
-  }
-): Promise<ManagerState> {
+async function loadManagerState(walletAddress: string): Promise<ManagerState> {
   const [manager] = await getPredictManagers(walletAddress)
 
   if (!manager) {
-    return { openQuantity: 0n }
+    return {}
   }
-
-  const summaries = await getManagerPositionSummaries(manager.manager_id)
 
   return {
     managerId: manager.manager_id,
-    openQuantity: getOpenQuantity(summaries, params),
   }
 }
 
-async function waitForManagerState(
-  walletAddress: string,
-  params: {
-    expiryMs: number
-    isUp: boolean
-    oracleId: string
-    strikePriceUsd: number
-  }
-) {
+async function waitForManagerState(walletAddress: string) {
   for (let attempt = 0; attempt < 8; attempt += 1) {
-    const managerState = await loadManagerState(walletAddress, params)
+    const managerState = await loadManagerState(walletAddress)
 
     if (managerState.managerId) {
       return managerState
@@ -228,13 +250,18 @@ function OrderTicketClient({
   selectedStrikePriceUsd,
 }: OrderTicketProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const navigate = useNavigate()
   const revalidator = useRevalidator()
-  const [tradeAction, setTradeAction] = useState<TradeAction>("buy")
+  const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
   const [contractSide, setContractSide] = useState<ContractSide>("above")
   const [size, setSize] = useState("")
-  const [managerState, setManagerState] = useState<ManagerState>({
-    openQuantity: 0n,
-  })
+  const [customStrike, setCustomStrike] = useState(() =>
+    formatStrikeInput(selectedStrikePriceUsd)
+  )
+  const [rangeStrikes, setRangeStrikes] = useState(() =>
+    getRangeStrikeDefaults(market, selectedStrikePriceUsd)
+  )
+  const [managerState, setManagerState] = useState<ManagerState>({})
   const [isLoadingManager, setIsLoadingManager] = useState(false)
   const [quote, setQuote] = useState<PredictQuoteResult>()
   const [isQuoting, setIsQuoting] = useState(false)
@@ -249,31 +276,47 @@ function OrderTicketClient({
     market.fairUpProbability === undefined
       ? "--"
       : `${Math.round((isAbove ? market.fairUpProbability : 1 - market.fairUpProbability) * 100)}%`
-  const canSell =
-    tradeAction === "sell" &&
-    !!selectedQuantity &&
-    selectedQuantity <= managerState.openQuantity
   const isTradeDisabled =
+    ticketMode === "range" ||
     isSubmitting ||
     isLoadingManager ||
     isQuoting ||
     !selectedQuantity ||
-    !quotedQuote ||
-    (tradeAction === "sell" && !canSell)
-  const actionButtonLabel = !walletAddress
+    !quotedQuote
+  const actionButtonLabel =
+    ticketMode === "range"
+      ? "Range coming soon"
+      : !walletAddress
     ? "Sign in to trade"
     : isSubmitting
       ? "Submitting"
-      : tradeAction === "buy"
-        ? `Buy ${getSideLabel(contractSide)}`
-        : `Sell ${getSideLabel(contractSide)}`
+      : `Buy ${getSideLabel(contractSide)}`
+
+  useEffect(() => {
+    setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
+    setRangeStrikes(getRangeStrikeDefaults(market, selectedStrikePriceUsd))
+  }, [market, selectedStrikePriceUsd])
+
+  function applyStrike(nextStrikePriceUsd: number) {
+    const normalizedStrikePriceUsd = normalizeStrikePrice(
+      nextStrikePriceUsd,
+      market
+    )
+    const searchParams = new URLSearchParams(window.location.search)
+
+    searchParams.set(
+      "strike",
+      formatStrikeSearchParam(normalizedStrikePriceUsd)
+    )
+    navigate({ search: `?${searchParams.toString()}` })
+  }
 
   useEffect(() => {
     let isStale = false
 
     async function load() {
       if (!walletAddress) {
-        setManagerState({ openQuantity: 0n })
+        setManagerState({})
         return
       }
 
@@ -281,12 +324,7 @@ function OrderTicketClient({
       setErrorMessage(undefined)
 
       try {
-        const nextManagerState = await loadManagerState(walletAddress, {
-          expiryMs: market.expiryMs,
-          isUp: isAbove,
-          oracleId: market.oracleId,
-          strikePriceUsd: selectedStrikePriceUsd,
-        })
+        const nextManagerState = await loadManagerState(walletAddress)
 
         if (!isStale) {
           setManagerState(nextManagerState)
@@ -309,19 +347,13 @@ function OrderTicketClient({
     return () => {
       isStale = true
     }
-  }, [
-    isAbove,
-    market.expiryMs,
-    market.oracleId,
-    selectedStrikePriceUsd,
-    walletAddress,
-  ])
+  }, [walletAddress])
 
   useEffect(() => {
     let isStale = false
     const timeoutId = window.setTimeout(() => {
       async function loadQuote() {
-        if (!walletAddress || !selectedQuantity) {
+        if (ticketMode !== "binary" || !walletAddress || !selectedQuantity) {
           setQuote(undefined)
           return
         }
@@ -362,6 +394,7 @@ function OrderTicketClient({
     market,
     selectedQuantity,
     selectedStrikePriceUsd,
+    ticketMode,
     walletAddress,
   ])
 
@@ -495,7 +528,7 @@ function OrderTicketClient({
 
       <Card className="w-full flex-1 rounded-md border-0 bg-card py-0 shadow-none ring-0">
         <CardContent className="flex flex-1 flex-col gap-4 px-4 py-4">
-          <div className="grid grid-cols-2 gap-2">
+          <div aria-label="Direction" className="grid grid-cols-2 gap-2">
             {(["above", "below"] satisfies ContractSide[]).map((side) => {
               const isSelected = contractSide === side
 
@@ -517,6 +550,25 @@ function OrderTicketClient({
               )
             })}
           </div>
+
+          <p className="text-xs leading-5 text-muted-foreground">
+            Up wins above strike. Down wins at or below strike.
+          </p>
+
+          <StrikeSelector
+            customStrike={customStrike}
+            market={market}
+            onApplyCustomStrike={() => {
+              const parsedStrike = parseStrikeInput(customStrike)
+
+              if (parsedStrike) {
+                applyStrike(parsedStrike)
+              }
+            }}
+            onCustomStrikeChange={setCustomStrike}
+            onSelectStrike={applyStrike}
+            selectedStrikePriceUsd={selectedStrikePriceUsd}
+          />
 
           <label className="block space-y-2">
             <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
@@ -599,6 +651,99 @@ function OrderTicketClient({
           </Button>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function StrikeSelector({
+  customStrike,
+  market,
+  onApplyCustomStrike,
+  onCustomStrikeChange,
+  onSelectStrike,
+  selectedStrikePriceUsd,
+}: {
+  customStrike: string
+  market: MarketSnapshot
+  onApplyCustomStrike: () => void
+  onCustomStrikeChange: (value: string) => void
+  onSelectStrike: (strikePriceUsd: number) => void
+  selectedStrikePriceUsd: number
+}) {
+  const nearbyStrikes = getNearbyStrikes(market, selectedStrikePriceUsd)
+  const parsedCustomStrike = parseStrikeInput(customStrike)
+  const normalizedCustomStrike = parsedCustomStrike
+    ? normalizeStrikePrice(parsedCustomStrike, market)
+    : undefined
+  const canApplyCustomStrike =
+    normalizedCustomStrike !== undefined &&
+    !isSelectedStrike(normalizedCustomStrike, selectedStrikePriceUsd)
+  const helperText =
+    parsedCustomStrike && normalizedCustomStrike !== undefined
+      ? normalizedCustomStrike !== parsedCustomStrike
+        ? `Applies as ${formatStrikeValue(normalizedCustomStrike, market.tickSizeUsd)}`
+        : "Custom strike"
+      : "Enter a positive USD strike"
+
+  return (
+    <div className="space-y-2 rounded-md bg-muted p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+          Strike
+        </span>
+        <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+          {formatStrikeValue(selectedStrikePriceUsd, market.tickSizeUsd)}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-3 gap-1.5">
+        {nearbyStrikes.map((strikePriceUsd) => {
+          const isSelected = isSelectedStrike(
+            strikePriceUsd,
+            selectedStrikePriceUsd
+          )
+
+          return (
+            <Button
+              aria-pressed={isSelected}
+              className={cn(
+                "h-8 border-0 bg-background/60 px-2 font-mono text-[11px] text-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1",
+                isSelected &&
+                  "bg-primary text-primary-foreground hover:bg-primary"
+              )}
+              key={strikePriceUsd}
+              onClick={() => onSelectStrike(strikePriceUsd)}
+              type="button"
+              variant="secondary"
+            >
+              {formatStrikeValue(strikePriceUsd, market.tickSizeUsd)}
+            </Button>
+          )
+        })}
+      </div>
+
+      <div className="space-y-1.5">
+        <div className="flex gap-2">
+          <Input
+            className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+            inputMode="decimal"
+            onChange={(event) => onCustomStrikeChange(event.target.value)}
+            placeholder={formatStrikeInput(selectedStrikePriceUsd)}
+            value={customStrike}
+          />
+          <Button
+            className="h-9 shrink-0 px-3 text-xs"
+            disabled={!canApplyCustomStrike}
+            onClick={onApplyCustomStrike}
+            type="button"
+          >
+            Apply
+          </Button>
+        </div>
+        <p className="text-[11px] leading-4 text-muted-foreground">
+          {helperText}
+        </p>
+      </div>
     </div>
   )
 }

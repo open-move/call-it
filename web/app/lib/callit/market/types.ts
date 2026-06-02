@@ -3,6 +3,13 @@ export interface MarketPricePoint {
   valueUsd: number
 }
 
+export interface ExpiryOption {
+  assetSymbol: string
+  expiryMs: number
+  oracleId: string
+  status: string
+}
+
 export type MarketTradeEvent =
   | {
       type: "mint"

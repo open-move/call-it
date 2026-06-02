@@ -27,7 +27,7 @@ function formatTradeTime(timestampMs: number) {
 
 export function Trades({ trades }: TradesProps) {
   return (
-    <Card className="flex h-full w-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
+    <Card className="flex h-full w-full flex-col rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 py-3">
         <CardTitle className="text-sm font-semibold">Trades</CardTitle>
       </CardHeader>
@@ -39,7 +39,7 @@ export function Trades({ trades }: TradesProps) {
               <span className="text-right">Size</span>
               <span className="text-right">Time</span>
             </div>
-            {trades.slice(0, 24).map((trade) => (
+            {trades.map((trade) => (
               <div
                 className={cn(
                   "grid grid-cols-[1fr_1fr_4.75rem] gap-3 rounded-sm px-2 py-1.5 text-xs tabular-nums",

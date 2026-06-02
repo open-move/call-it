@@ -17,6 +17,16 @@ const expiryFormatter = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 })
 
+const marketTitleExpiryFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "numeric",
+  hour: "2-digit",
+  hour12: false,
+  minute: "2-digit",
+  month: "short",
+  timeZone: "UTC",
+  timeZoneName: "short",
+})
+
 export function getStrikeDistance(
   market: MarketSnapshot,
   selectedStrikePriceUsd: number
@@ -36,6 +46,10 @@ export function getStrikeDistance(
 
 export function formatExpiry(expiryMs: number) {
   return expiryFormatter.format(new Date(expiryMs))
+}
+
+export function formatMarketTitleExpiry(expiryMs: number) {
+  return marketTitleExpiryFormatter.format(new Date(expiryMs))
 }
 
 export function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {

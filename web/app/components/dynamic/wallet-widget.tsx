@@ -1,15 +1,7 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useState } from "react"
-
+import { formatAddress } from "@mysten/sui/utils"
 import { Button } from "~/components/ui/button"
-
-function formatWalletAddress(address: string) {
-  if (address.length <= 12) {
-    return address
-  }
-
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
 
 function DynamicWalletButton() {
   const {
@@ -36,7 +28,7 @@ function DynamicWalletButton() {
         variant="outline"
         onClick={() => setShowDynamicUserProfile(true)}
       >
-        {formatWalletAddress(primaryWallet.address)}
+        {formatAddress(primaryWallet.address)}
       </Button>
     )
   }

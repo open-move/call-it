@@ -6,6 +6,8 @@ import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type TradeMarket } from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
 
+import { formatMarketTitleExpiry } from "../market-detail/utils"
+
 export interface RowProps {
   market: TradeMarket
 }
@@ -99,10 +101,11 @@ export function Row({ market }: RowProps) {
             />
             <div className="min-w-0">
               <div className="truncate text-sm leading-5 font-semibold text-foreground">
-                {market.assetSymbol} Above {formatUsd(market.strikePriceUsd, 0)}
+                {market.assetSymbol} Prediction ·{" "}
+                {formatMarketTitleExpiry(market.expiryMs)}
               </div>
               <div className="mt-0.5 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                Oracle market
+                DeepBook Predict
               </div>
             </div>
           </div>
@@ -113,7 +116,10 @@ export function Row({ market }: RowProps) {
 
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-4 lg:contents">
           <Metric label="Spot" value={formatUsd(market.currentPriceUsd, 0)} />
-          <Metric label="Strike" value={formatUsd(market.strikePriceUsd, 0)} />
+          <Metric
+            label="Default Strike"
+            value={formatUsd(market.strikePriceUsd, 0)}
+          />
           <Metric
             className={isAboveStrike ? "text-outcome-up" : "text-outcome-down"}
             label="Distance"

@@ -1,4 +1,7 @@
-import { type MarketSnapshot } from "~/lib/callit/market/types"
+import {
+  type ExpiryOption,
+  type MarketSnapshot,
+} from "~/lib/callit/market/types"
 import {
   type RangeRedemption,
   type RangeTrade,
@@ -9,11 +12,14 @@ import {
 
 import { ActivityTabs } from "./activity-tabs"
 import { ChartPanel } from "./chart-panel"
+import { ExpiryStrip } from "./expiry-strip"
 import { Header } from "./header"
 import { OrderTicket } from "./order-ticket"
 import { Trades } from "./trades"
+import { Card } from "~/components/ui/card"
 
 export interface PageProps {
+  expiryOptions: ExpiryOption[]
   market: MarketSnapshot
   rangeRedemptions: RangeRedemption[]
   rangeTrades: RangeTrade[]
@@ -24,6 +30,7 @@ export interface PageProps {
 }
 
 export function Page({
+  expiryOptions,
   market,
   rangeRedemptions,
   rangeTrades,
@@ -33,16 +40,23 @@ export function Page({
   trades,
 }: PageProps) {
   return (
-    <main className="mx-auto w-full max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
-      <div className="space-y-3">
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
-            <div className="flex min-h-[36rem] flex-col gap-3">
+    <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
+        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
+          <div className="h-120 min-w-0">
+            <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
               <Header
                 market={market}
                 selectedStrikePriceUsd={selectedStrikePriceUsd}
                 toolbarQuote={toolbarQuote}
               />
+
+              <ExpiryStrip
+                expiryOptions={expiryOptions}
+                selectedOracleId={market.oracleId}
+                selectedStrikePriceUsd={selectedStrikePriceUsd}
+              />
+
               <ChartPanel
                 assetName={market.assetName}
                 assetSymbol={market.assetSymbol}
@@ -50,29 +64,29 @@ export function Page({
                 points={market.priceHistory}
                 selectedStrikePriceUsd={selectedStrikePriceUsd}
               />
-            </div>
-
-            <div className="w-full">
-              <Trades trades={trades} />
-            </div>
-
-            <ActivityTabs
-              market={market}
-              rangeRedemptions={rangeRedemptions}
-              rangeTrades={rangeTrades}
-              redemptions={redemptions}
-              selectedStrikePriceUsd={selectedStrikePriceUsd}
-              trades={trades}
-            />
+            </Card>
           </div>
 
-          <div className="h-full w-full">
-            <OrderTicket
-              market={market}
-              selectedStrikePriceUsd={selectedStrikePriceUsd}
-            />
+          <div className="h-[30rem] min-w-0">
+            <Trades trades={trades} />
           </div>
-        </div>
+
+          <ActivityTabs
+            market={market}
+            rangeRedemptions={rangeRedemptions}
+            rangeTrades={rangeTrades}
+            redemptions={redemptions}
+            selectedStrikePriceUsd={selectedStrikePriceUsd}
+            trades={trades}
+          />
+        </section>
+
+        <aside className="min-w-0">
+          <OrderTicket
+            market={market}
+            selectedStrikePriceUsd={selectedStrikePriceUsd}
+          />
+        </aside>
       </div>
     </main>
   )

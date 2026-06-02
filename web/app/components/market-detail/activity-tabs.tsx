@@ -146,19 +146,23 @@ function includesSelectedStrike(
   )
 }
 
+function getSideLabel(side: "above" | "below") {
+  return side === "above" ? "Up" : "Down"
+}
+
 function getPositionContract(position: Position) {
-  return `${formatUsd(position.strikePriceUsd, 0)} ${position.side}`
+  return `${formatUsd(position.strikePriceUsd, 0)} ${getSideLabel(position.side)}`
 }
 
 function getTradeContract(trade: Trade) {
-  return `${formatUsd(trade.strikePriceUsd, 0)} ${trade.side}`
+  return `${formatUsd(trade.strikePriceUsd, 0)} ${getSideLabel(trade.side)}`
 }
 
 function getRedemptionContract(redemption: {
   side: "above" | "below"
   strikePriceUsd: number
 }) {
-  return `${formatUsd(redemption.strikePriceUsd, 0)} ${redemption.side}`
+  return `${formatUsd(redemption.strikePriceUsd, 0)} ${getSideLabel(redemption.side)}`
 }
 
 export function ActivityTabs(props: ActivityTabsProps) {

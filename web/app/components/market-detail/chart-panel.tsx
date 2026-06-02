@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import {
-  type AreaData,
+  type CandlestickData,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
   type UTCTimestamp,
 } from "lightweight-charts"
 
-import { Card } from "~/components/ui/card"
 import { formatUsd } from "~/lib/callit/format"
 import { type MarketPricePoint } from "~/lib/callit/market/types"
 
@@ -33,27 +32,52 @@ interface PriceSummary {
 interface LightweightPriceChartProps {
   containerRef: RefObject<HTMLDivElement | null>
   selectedStrikePriceUsd: number
-  seriesData: AreaData[]
+  seriesData: CandlestickData[]
   size: ElementSize
 }
 
-function toAreaData(points: MarketPricePoint[]): AreaData[] {
-  const pointsBySecond = new Map<number, number>()
+const CANDLE_DOWN_COLOR = "#ef6a5a"
+const CANDLE_UP_COLOR = "#7fd36b"
+const RIGHT_CANDLE_OFFSET = 6
+const VISIBLE_CANDLE_COUNT = 90
 
-  points
+function sortPricePoints(points: MarketPricePoint[]) {
+  return points
     .slice()
     .sort(
       (firstPoint, secondPoint) =>
         firstPoint.timestampMs - secondPoint.timestampMs
     )
-    .forEach((point) => {
-      pointsBySecond.set(Math.floor(point.timestampMs / 1_000), point.valueUsd)
-    })
+}
 
-  return Array.from(pointsBySecond.entries()).map(([timestamp, value]) => ({
-    time: timestamp as UTCTimestamp,
-    value,
-  }))
+function toCandlestickData(points: MarketPricePoint[]): CandlestickData[] {
+  const sortedPoints = sortPricePoints(points)
+  const pointsBySecond = new Map<number, number>()
+
+  sortedPoints.forEach((point) => {
+    pointsBySecond.set(Math.floor(point.timestampMs / 1_000), point.valueUsd)
+  })
+
+  const dedupedPoints = Array.from(pointsBySecond.entries()).map(
+    ([timestamp, value]) => ({
+      timestamp,
+      value,
+    })
+  )
+
+  return dedupedPoints.map((point, index) => {
+    const previousPoint = dedupedPoints[index - 1]
+    const open = previousPoint?.value ?? point.value
+    const close = point.value
+
+    return {
+      close,
+      high: Math.max(open, close),
+      low: Math.min(open, close),
+      open,
+      time: point.timestamp as UTCTimestamp,
+    }
+  })
 }
 
 function getElementSize(element: HTMLElement): ElementSize {
@@ -127,22 +151,28 @@ function formatPriceSummary(summary: PriceSummary) {
   return `${summary.count} pts · ${formatUsd(summary.min, 0)}-${formatUsd(summary.max, 0)}`
 }
 
+function applyDefaultVisibleRange(chart: IChartApi, candleCount: number) {
+  const rightEdge = candleCount - 1 + RIGHT_CANDLE_OFFSET
+  const leftEdge = rightEdge - VISIBLE_CANDLE_COUNT
+
+  chart.timeScale().setVisibleLogicalRange({
+    from: leftEdge,
+    to: rightEdge,
+  })
+}
+
 export function ChartPanel({
   points,
   selectedStrikePriceUsd,
 }: ChartPanelProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const seriesData = useMemo(() => toAreaData(points), [points])
+  const seriesData = useMemo(() => toCandlestickData(points), [points])
   const size = useElementSize(containerRef)
   const priceSummary = getPriceSummary(points)
 
-  useEffect(() => {
-    console.log("points", points)
-  }, [points])
-
   return (
-    <Card className="relative min-h-[30rem] w-full flex-1 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <div className="absolute inset-0 bg-card" ref={containerRef} />
+    <div className="relative min-h-0 w-full flex-1">
+      <div className="absolute inset-0" ref={containerRef} />
       {seriesData.length > 0 ? (
         <LightweightPriceChart
           containerRef={containerRef}
@@ -153,14 +183,14 @@ export function ChartPanel({
       ) : null}
       {priceSummary ? (
         <div className="pointer-events-none absolute top-3 left-4 z-10 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          {formatPriceSummary(priceSummary)} · {size.width}x{size.height}
+          {formatPriceSummary(priceSummary)}
         </div>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
           No oracle price history is available for this market yet.
         </div>
       )}
-    </Card>
+    </div>
   )
 }
 
@@ -172,7 +202,7 @@ function LightweightPriceChart({
 }: LightweightPriceChartProps) {
   const chartRef = useRef<IChartApi | null>(null)
   const priceLineRef = useRef<IPriceLine | null>(null)
-  const seriesRef = useRef<ISeriesApi<"Area"> | null>(null)
+  const seriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null)
   const canMount = seriesData.length > 0 && size.height > 0 && size.width > 0
 
   useEffect(() => {
@@ -186,7 +216,7 @@ function LightweightPriceChart({
     let isDisposed = false
 
     async function mountChart(chartContainer: HTMLDivElement) {
-      const { AreaSeries, ColorType, LineStyle, createChart } =
+      const { CandlestickSeries, ColorType, LineStyle, createChart } =
         await import("lightweight-charts")
 
       if (isDisposed) {
@@ -233,22 +263,25 @@ function LightweightPriceChart({
           borderColor: "rgba(148, 163, 184, 0.12)",
         },
         timeScale: {
+          barSpacing: 7,
           borderColor: "rgba(148, 163, 184, 0.12)",
           rightOffset: 4,
           timeVisible: true,
         },
         width: size.width,
       })
-      const series = chart.addSeries(AreaSeries, {
-        bottomColor: "rgba(85, 198, 211, 0)",
-        lineColor: "#55c6d3",
-        lineWidth: 2,
+      const series = chart.addSeries(CandlestickSeries, {
+        borderDownColor: CANDLE_DOWN_COLOR,
+        borderUpColor: CANDLE_UP_COLOR,
+        downColor: CANDLE_DOWN_COLOR,
         priceFormat: {
           minMove: 0.01,
           precision: 2,
           type: "price",
         },
-        topColor: "rgba(85, 198, 211, 0.22)",
+        upColor: CANDLE_UP_COLOR,
+        wickDownColor: CANDLE_DOWN_COLOR,
+        wickUpColor: CANDLE_UP_COLOR,
       })
 
       series.setData(seriesData)
@@ -261,7 +294,7 @@ function LightweightPriceChart({
         price: selectedStrikePriceUsd,
         title: "Strike",
       })
-      chart.timeScale().fitContent()
+      applyDefaultVisibleRange(chart, seriesData.length)
 
       chartRef.current = chart
       seriesRef.current = series
@@ -288,7 +321,9 @@ function LightweightPriceChart({
   useEffect(() => {
     if (seriesRef.current) {
       seriesRef.current.setData(seriesData)
-      chartRef.current?.timeScale().fitContent()
+      if (chartRef.current) {
+        applyDefaultVisibleRange(chartRef.current, seriesData.length)
+      }
     }
   }, [seriesData])
 

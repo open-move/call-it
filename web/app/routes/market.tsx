@@ -3,6 +3,10 @@ import { AppFrame } from "~/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "~/components/market-detail/page"
 import { loadMarketSnapshot } from "~/lib/callit/market/loaders"
 import {
+  type ExpiryOption,
+  type MarketSnapshot,
+} from "~/lib/callit/market/types"
+import {
   filterRangeRedemptions,
   filterRangeTrades,
   filterRedemptions,
@@ -13,6 +17,7 @@ import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import {
   getDirectionalPositionMints,
   getDirectionalPositionRedeems,
+  getPredictOracles,
   getRangeMints,
   getRangeRedeems,
 } from "~/lib/deepbook/predict-client"
@@ -32,6 +37,29 @@ function parseSelectedStrikePriceUsd(value: string | null) {
 
 const TOOLBAR_QUOTE_SENDER = "0x797"
 const TOOLBAR_QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
+
+async function loadExpiryOptions(
+  market: MarketSnapshot
+): Promise<ExpiryOption[]> {
+  const oracles = await getPredictOracles()
+
+  return oracles
+    .filter((oracle) => {
+      return (
+        oracle.underlying_asset === market.assetSymbol &&
+        (oracle.status === "active" || oracle.oracle_id === market.oracleId)
+      )
+    })
+    .sort(
+      (firstOracle, secondOracle) => firstOracle.expiry - secondOracle.expiry
+    )
+    .map((oracle) => ({
+      assetSymbol: oracle.underlying_asset,
+      expiryMs: oracle.expiry,
+      oracleId: oracle.oracle_id,
+      status: oracle.status,
+    }))
+}
 
 async function loadToolbarQuote({
   expiryMs,
@@ -78,12 +106,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     market.strikePriceUsd
 
   const [
+    expiryOptions,
     positionMints,
     positionRedeems,
     rangeMints,
     rangeRedeems,
     toolbarQuote,
   ] = await Promise.all([
+    loadExpiryOptions(market),
     getDirectionalPositionMints(250, market.oracleId),
     getDirectionalPositionRedeems(250, market.oracleId),
     getRangeMints(250, market.oracleId),
@@ -100,6 +130,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   return {
+    expiryOptions,
     market,
     rangeRedemptions: filterRangeRedemptions(rangeRedeems, activityOptions),
     rangeTrades: filterRangeTrades(rangeMints, activityOptions),
@@ -114,6 +145,7 @@ export default function Market({ loaderData }: Route.ComponentProps) {
   return (
     <AppFrame>
       <MarketDetailPage
+        expiryOptions={loaderData.expiryOptions}
         market={loaderData.market}
         rangeRedemptions={loaderData.rangeRedemptions}
         rangeTrades={loaderData.rangeTrades}
