@@ -13,10 +13,7 @@ import {
   parseDecimalUnits,
 } from "~/lib/callit/trading/amounts"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
-import {
-  PREDICT_PRICE_SCALE,
-  PREDICT_QUOTE_DECIMALS,
-} from "~/lib/deepbook/config"
+import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import {
   buildCreateManagerTransaction,
   executeSuiTransaction,
@@ -31,9 +28,7 @@ import {
   quoteDirectionalTradeSafe,
   type PredictQuoteResult,
 } from "~/lib/deepbook/predict-quotes"
-import {
-  getPredictManagers,
-} from "~/lib/deepbook/predict-client"
+import { getPredictManagers } from "~/lib/deepbook/predict-client"
 import { cn } from "~/lib/utils"
 
 type TicketMode = "binary" | "range"
@@ -91,25 +86,6 @@ function normalizeStrikePrice(value: number, market: MarketSnapshot) {
   return Number(normalizedValue.toFixed(8))
 }
 
-function getNearbyStrikes(
-  market: MarketSnapshot,
-  selectedStrikePriceUsd: number
-) {
-  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
-  const centerStrike = normalizeStrikePrice(selectedStrikePriceUsd, market)
-  const strikes = new Set<number>()
-
-  for (let offset = -3; offset <= 3; offset += 1) {
-    strikes.add(
-      normalizeStrikePrice(centerStrike + offset * tickSizeUsd, market)
-    )
-  }
-
-  return Array.from(strikes).sort((firstStrike, secondStrike) => {
-    return firstStrike - secondStrike
-  })
-}
-
 function getRangeStrikeDefaults(
   market: MarketSnapshot,
   selectedStrikePriceUsd: number
@@ -120,10 +96,6 @@ function getRangeStrikeDefaults(
     higher: normalizeStrikePrice(selectedStrikePriceUsd + tickSizeUsd, market),
     lower: normalizeStrikePrice(selectedStrikePriceUsd - tickSizeUsd, market),
   }
-}
-
-function isSelectedStrike(value: number, selectedStrikePriceUsd: number) {
-  return Math.abs(value - selectedStrikePriceUsd) < 0.000001
 }
 
 function formatStrikeSearchParam(strikePriceUsd: number) {
@@ -156,10 +128,6 @@ function sleep(ms: number) {
   return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-function toOnchainStrike(valueUsd: number) {
-  return Math.round(valueUsd * PREDICT_PRICE_SCALE)
-}
-
 async function loadManagerState(walletAddress: string): Promise<ManagerState> {
   const [manager] = await getPredictManagers(walletAddress)
 
@@ -186,10 +154,6 @@ async function waitForManagerState(walletAddress: string) {
   throw new Error(
     "Manager creation confirmed, but the indexer has not caught up"
   )
-}
-
-function formatContracts(value: bigint) {
-  return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} Contracts`
 }
 
 function formatDusdc(value: bigint) {
@@ -236,8 +200,8 @@ export function OrderTicket(props: OrderTicketProps) {
 function OrderTicketFallback({}: OrderTicketProps) {
   return (
     <Card className="h-full w-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="flex flex-1 flex-col gap-4 px-4 py-4">
-        <Button className="h-11 w-full" disabled type="button">
+      <CardContent className="flex flex-1 flex-col gap-3 px-3 py-3">
+        <Button className="h-9 w-full" disabled type="button">
           Sign in to trade
         </Button>
       </CardContent>
@@ -287,10 +251,10 @@ function OrderTicketClient({
     ticketMode === "range"
       ? "Range coming soon"
       : !walletAddress
-    ? "Sign in to trade"
-    : isSubmitting
-      ? "Submitting"
-      : `Buy ${getSideLabel(contractSide)}`
+        ? "Sign in to trade"
+        : isSubmitting
+          ? "Submitting"
+          : `Buy ${getSideLabel(contractSide)}`
 
   useEffect(() => {
     setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
@@ -355,6 +319,7 @@ function OrderTicketClient({
       async function loadQuote() {
         if (ticketMode !== "binary" || !walletAddress || !selectedQuantity) {
           setQuote(undefined)
+          setIsQuoting(false)
           return
         }
 
@@ -399,6 +364,11 @@ function OrderTicketClient({
   ])
 
   async function handleTrade() {
+    if (ticketMode === "range") {
+      setErrorMessage("Range trading is not wired yet")
+      return
+    }
+
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -416,14 +386,6 @@ function OrderTicketClient({
 
     if (!quotedQuote) {
       setErrorMessage("Wait for an executable quote")
-      return
-    }
-
-    if (
-      tradeAction === "sell" &&
-      selectedQuantity > managerState.openQuantity
-    ) {
-      setErrorMessage("Sell size exceeds open position")
       return
     }
 
@@ -449,10 +411,7 @@ function OrderTicketClient({
         managerId = findCreatedManagerId(createResult.events)
 
         if (!managerId) {
-          const nextManagerState = await waitForManagerState(
-            walletAddress,
-            params
-          )
+          const nextManagerState = await waitForManagerState(walletAddress)
           managerId = nextManagerState.managerId
           setManagerState(nextManagerState)
         }
@@ -462,30 +421,22 @@ function OrderTicketClient({
         throw new Error("Could not resolve trading account")
       }
 
-      if (tradeAction === "buy") {
-        setStatusMessage("Preparing funding and buy")
+      setStatusMessage("Preparing funding and buy")
 
-        const preparedMint = await prepareDirectionalMintTransaction({
-          managerId,
-          params,
-          quotedCost: quotedQuote.mintCost,
-        })
+      const preparedMint = await prepareDirectionalMintTransaction({
+        managerId,
+        params,
+        quotedCost: quotedQuote.mintCost,
+      })
 
-        setStatusMessage(
-          `Funding ${formatDusdc(preparedMint.reserveAmount)} and buying`
-        )
-        await executeSuiTransaction(primaryWallet, preparedMint.transaction)
-      } else {
-        setStatusMessage("Selling position")
-        await executeSuiTransaction(
-          primaryWallet,
-          buildDirectionalRedeemTransaction({ managerId, params })
-        )
-      }
+      setStatusMessage(
+        `Funding ${formatDusdc(preparedMint.reserveAmount)} and buying`
+      )
+      await executeSuiTransaction(primaryWallet, preparedMint.transaction)
 
       setStatusMessage("Trade confirmed")
       pinStrikeSearchParam(selectedStrikePriceUsd)
-      const nextManagerState = await loadManagerState(walletAddress, params)
+      const nextManagerState = await loadManagerState(walletAddress)
       setManagerState(nextManagerState)
       revalidator.revalidate()
       window.setTimeout(() => revalidator.revalidate(), 1_500)
@@ -502,81 +453,92 @@ function OrderTicketClient({
       <Tabs
         className="gap-0"
         onValueChange={(value) => {
-          if (isTradeAction(value)) {
-            setTradeAction(value)
+          if (isTicketMode(value)) {
+            setTicketMode(value)
           }
         }}
-        value={tradeAction}
+        value={ticketMode}
       >
         <TabsList className="h-9 w-full overflow-hidden rounded-md bg-muted p-0">
-          {(["buy", "sell"] satisfies TradeAction[]).map((action) => (
+          {(["binary", "range"] satisfies TicketMode[]).map((mode) => (
             <TabsTrigger
-              className={cn(
-                "!h-full rounded-none border-0 !border-transparent text-sm font-semibold shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent dark:data-active:!border-transparent",
-                action === "buy"
-                  ? "data-active:!bg-outcome-up/10 data-active:!text-outcome-up"
-                  : "data-active:!bg-outcome-down/10 data-active:!text-outcome-down"
-              )}
-              key={action}
-              value={action}
+              className="!h-full rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
+              key={mode}
+              value={mode}
             >
-              {getActionLabel(action)}
+              {getModeLabel(mode)}
             </TabsTrigger>
           ))}
         </TabsList>
       </Tabs>
 
       <Card className="w-full flex-1 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-        <CardContent className="flex flex-1 flex-col gap-4 px-4 py-4">
-          <div aria-label="Direction" className="grid grid-cols-2 gap-2">
-            {(["above", "below"] satisfies ContractSide[]).map((side) => {
-              const isSelected = contractSide === side
+        <CardContent className="flex flex-1 flex-col gap-3 px-3 py-3">
+          {ticketMode === "binary" ? (
+            <>
+              <div aria-label="Direction" className="grid grid-cols-2 gap-2">
+                {(["above", "below"] satisfies ContractSide[]).map((side) => {
+                  const isSelected = contractSide === side
 
-              return (
-                <Button
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "h-10 border-0 bg-muted text-sm font-semibold text-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
-                    isSelected &&
-                      "bg-primary text-primary-foreground hover:bg-primary"
-                  )}
-                  key={side}
-                  onClick={() => setContractSide(side)}
-                  type="button"
-                  variant="secondary"
-                >
-                  {getSideLabel(side)}
-                </Button>
-              )
-            })}
-          </div>
+                  return (
+                    <Button
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "h-8 border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
+                        isSelected &&
+                          (side === "above"
+                            ? "bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
+                            : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15")
+                      )}
+                      key={side}
+                      onClick={() => setContractSide(side)}
+                      type="button"
+                      variant="secondary"
+                    >
+                      {getSideLabel(side)}
+                    </Button>
+                  )
+                })}
+              </div>
 
-          <p className="text-xs leading-5 text-muted-foreground">
-            Up wins above strike. Down wins at or below strike.
-          </p>
+              <StrikeInput
+                customStrike={customStrike}
+                onCommitStrike={() => {
+                  const parsedStrike = parseStrikeInput(customStrike)
 
-          <StrikeSelector
-            customStrike={customStrike}
-            market={market}
-            onApplyCustomStrike={() => {
-              const parsedStrike = parseStrikeInput(customStrike)
-
-              if (parsedStrike) {
-                applyStrike(parsedStrike)
-              }
-            }}
-            onCustomStrikeChange={setCustomStrike}
-            onSelectStrike={applyStrike}
-            selectedStrikePriceUsd={selectedStrikePriceUsd}
-          />
+                  if (parsedStrike) {
+                    applyStrike(parsedStrike)
+                  }
+                }}
+                onCustomStrikeChange={setCustomStrike}
+                selectedStrikePriceUsd={selectedStrikePriceUsd}
+              />
+            </>
+          ) : (
+            <RangeSelector
+              higherStrike={rangeStrikes.higher}
+              lowerStrike={rangeStrikes.lower}
+              market={market}
+              onHigherStrikeChange={(value) => {
+                setRangeStrikes((currentStrikes) => ({
+                  ...currentStrikes,
+                  higher: value,
+                }))
+              }}
+              onLowerStrikeChange={(value) => {
+                setRangeStrikes((currentStrikes) => ({
+                  ...currentStrikes,
+                  lower: value,
+                }))
+              }}
+            />
+          )}
 
           <label className="block space-y-2">
-            <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-              Contracts
-            </span>
+            <span className="text-xs text-muted-foreground">Contracts</span>
             <div className="relative">
               <Input
-                className="h-11 border-0 pr-24 font-mono shadow-none ring-0 focus-visible:ring-1"
+                className="h-9 border-0 pr-24 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
                 inputMode="decimal"
                 onChange={(event) => setSize(event.target.value)}
                 placeholder="0.00"
@@ -589,41 +551,40 @@ function OrderTicketClient({
           </label>
 
           <TicketSection title="Order">
-            <TicketRow
-              label="Price"
-              value={
-                quotedQuote && selectedQuantity
-                  ? `${formatUnitPrice(
-                      tradeAction === "buy"
-                        ? quotedQuote.mintCost
-                        : quotedQuote.redeemPayout,
-                      selectedQuantity
-                    )} DUSDC`
-                  : quote?.status === "no_quote"
-                    ? "No quote"
-                    : isQuoting
-                      ? "Quoting"
-                      : "--"
-              }
-            />
-            <TicketRow label="Chance" value={chance} />
-            {tradeAction === "buy" ? (
-              <TicketRow
-                label="Cost"
-                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
-              />
+            {ticketMode === "binary" ? (
+              <>
+                <TicketRow
+                  label="Price"
+                  value={
+                    quotedQuote && selectedQuantity
+                      ? `${formatUnitPrice(
+                          quotedQuote.mintCost,
+                          selectedQuantity
+                        )} DUSDC`
+                      : quote?.status === "no_quote"
+                        ? "No quote"
+                        : isQuoting
+                          ? "Quoting"
+                          : "--"
+                  }
+                />
+                <TicketRow label="Chance" value={chance} />
+                <TicketRow
+                  label="Cost"
+                  value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+                />
+              </>
             ) : (
               <>
                 <TicketRow
-                  label="Open"
-                  value={formatContracts(managerState.openQuantity)}
+                  label="Range"
+                  value={`${formatStrikeValue(
+                    rangeStrikes.lower,
+                    market.tickSizeUsd
+                  )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
                 />
-                <TicketRow
-                  label="Receive"
-                  value={
-                    quotedQuote ? formatDusdc(quotedQuote.redeemPayout) : "--"
-                  }
-                />
+                <TicketRow label="Price" value="--" />
+                <TicketRow label="Status" value="Coming soon" />
               </>
             )}
           </TicketSection>
@@ -642,8 +603,10 @@ function OrderTicketClient({
           )}
 
           <Button
-            className="h-11 w-full"
-            disabled={isTradeDisabled && !!walletAddress}
+            className="h-9 w-full"
+            disabled={
+              ticketMode === "range" || (isTradeDisabled && !!walletAddress)
+            }
             onClick={handleTrade}
             type="button"
           >
@@ -655,95 +618,116 @@ function OrderTicketClient({
   )
 }
 
-function StrikeSelector({
+function StrikeInput({
   customStrike,
-  market,
-  onApplyCustomStrike,
+  onCommitStrike,
   onCustomStrikeChange,
-  onSelectStrike,
   selectedStrikePriceUsd,
 }: {
   customStrike: string
-  market: MarketSnapshot
-  onApplyCustomStrike: () => void
+  onCommitStrike: () => void
   onCustomStrikeChange: (value: string) => void
-  onSelectStrike: (strikePriceUsd: number) => void
   selectedStrikePriceUsd: number
 }) {
-  const nearbyStrikes = getNearbyStrikes(market, selectedStrikePriceUsd)
-  const parsedCustomStrike = parseStrikeInput(customStrike)
-  const normalizedCustomStrike = parsedCustomStrike
-    ? normalizeStrikePrice(parsedCustomStrike, market)
-    : undefined
-  const canApplyCustomStrike =
-    normalizedCustomStrike !== undefined &&
-    !isSelectedStrike(normalizedCustomStrike, selectedStrikePriceUsd)
-  const helperText =
-    parsedCustomStrike && normalizedCustomStrike !== undefined
-      ? normalizedCustomStrike !== parsedCustomStrike
-        ? `Applies as ${formatStrikeValue(normalizedCustomStrike, market.tickSizeUsd)}`
-        : "Custom strike"
-      : "Enter a positive USD strike"
+  return (
+    <label className="block space-y-2">
+      <span className="text-xs text-muted-foreground">Strike</span>
+      <Input
+        className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+        inputMode="decimal"
+        onBlur={onCommitStrike}
+        onChange={(event) => onCustomStrikeChange(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.currentTarget.blur()
+          }
+        }}
+        placeholder={formatStrikeInput(selectedStrikePriceUsd)}
+        value={customStrike}
+      />
+    </label>
+  )
+}
+
+function RangeSelector({
+  higherStrike,
+  lowerStrike,
+  market,
+  onHigherStrikeChange,
+  onLowerStrikeChange,
+}: {
+  higherStrike: number
+  lowerStrike: number
+  market: MarketSnapshot
+  onHigherStrikeChange: (strikePriceUsd: number) => void
+  onLowerStrikeChange: (strikePriceUsd: number) => void
+}) {
+  const [lowerInput, setLowerInput] = useState(() =>
+    formatStrikeInput(lowerStrike)
+  )
+  const [higherInput, setHigherInput] = useState(() =>
+    formatStrikeInput(higherStrike)
+  )
+
+  useEffect(() => {
+    setLowerInput(formatStrikeInput(lowerStrike))
+    setHigherInput(formatStrikeInput(higherStrike))
+  }, [higherStrike, lowerStrike])
+
+  function commitLowerStrike() {
+    const parsedStrike = parseStrikeInput(lowerInput)
+
+    if (!parsedStrike) {
+      setLowerInput(formatStrikeInput(lowerStrike))
+      return
+    }
+
+    onLowerStrikeChange(normalizeStrikePrice(parsedStrike, market))
+  }
+
+  function commitHigherStrike() {
+    const parsedStrike = parseStrikeInput(higherInput)
+
+    if (!parsedStrike) {
+      setHigherInput(formatStrikeInput(higherStrike))
+      return
+    }
+
+    onHigherStrikeChange(normalizeStrikePrice(parsedStrike, market))
+  }
 
   return (
-    <div className="space-y-2 rounded-md bg-muted p-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Strike
-        </span>
-        <span className="font-mono text-xs font-medium text-foreground tabular-nums">
-          {formatStrikeValue(selectedStrikePriceUsd, market.tickSizeUsd)}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-3 gap-1.5">
-        {nearbyStrikes.map((strikePriceUsd) => {
-          const isSelected = isSelectedStrike(
-            strikePriceUsd,
-            selectedStrikePriceUsd
-          )
-
-          return (
-            <Button
-              aria-pressed={isSelected}
-              className={cn(
-                "h-8 border-0 bg-background/60 px-2 font-mono text-[11px] text-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1",
-                isSelected &&
-                  "bg-primary text-primary-foreground hover:bg-primary"
-              )}
-              key={strikePriceUsd}
-              onClick={() => onSelectStrike(strikePriceUsd)}
-              type="button"
-              variant="secondary"
-            >
-              {formatStrikeValue(strikePriceUsd, market.tickSizeUsd)}
-            </Button>
-          )
-        })}
-      </div>
-
-      <div className="space-y-1.5">
-        <div className="flex gap-2">
-          <Input
-            className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
-            inputMode="decimal"
-            onChange={(event) => onCustomStrikeChange(event.target.value)}
-            placeholder={formatStrikeInput(selectedStrikePriceUsd)}
-            value={customStrike}
-          />
-          <Button
-            className="h-9 shrink-0 px-3 text-xs"
-            disabled={!canApplyCustomStrike}
-            onClick={onApplyCustomStrike}
-            type="button"
-          >
-            Apply
-          </Button>
-        </div>
-        <p className="text-[11px] leading-4 text-muted-foreground">
-          {helperText}
-        </p>
-      </div>
+    <div className="grid grid-cols-2 gap-2">
+      <label className="space-y-2">
+        <span className="text-xs text-muted-foreground">Lower Strike</span>
+        <Input
+          className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          inputMode="decimal"
+          onBlur={commitLowerStrike}
+          onChange={(event) => setLowerInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur()
+            }
+          }}
+          value={lowerInput}
+        />
+      </label>
+      <label className="space-y-2">
+        <span className="text-xs text-muted-foreground">Upper Strike</span>
+        <Input
+          className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          inputMode="decimal"
+          onBlur={commitHigherStrike}
+          onChange={(event) => setHigherInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur()
+            }
+          }}
+          value={higherInput}
+        />
+      </label>
     </div>
   )
 }
@@ -756,10 +740,8 @@ function TicketSection({
   title: string
 }) {
   return (
-    <div className="space-y-2 rounded-md bg-muted p-3 text-sm">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {title}
-      </div>
+    <div className="space-y-2 rounded-md bg-muted p-2.5 text-sm">
+      <div className="text-xs text-muted-foreground">{title}</div>
       <div className="space-y-2">{children}</div>
     </div>
   )
@@ -768,9 +750,7 @@ function TicketSection({
 function TicketRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-4">
-      <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
+      <span className="text-xs text-muted-foreground">{label}</span>
       <span className="truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </span>

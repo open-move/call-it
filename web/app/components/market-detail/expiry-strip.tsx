@@ -70,7 +70,7 @@ export function ExpiryStrip({
   }
 
   return (
-    <div className="border-b border-border/30 bg-background/25 px-3 py-2.5">
+    <div className="border-b border-border/30 bg-background/25 px-3 py-2">
       <div className="flex min-w-0 [scrollbar-width:none] gap-1.5 overflow-x-auto [&::-webkit-scrollbar]:hidden">
         {expiryOptions.map((option) => {
           const isSelected = option.oracleId === selectedOracleId
@@ -96,7 +96,7 @@ export function ExpiryStrip({
                   isExpiryActive ? "bg-outcome-up" : "bg-muted-foreground/45"
                 )}
               />
-              <span className="font-semibold tracking-wide text-foreground uppercase">
+              <span className="tracking-wide text-foreground uppercase">
                 {formatExpiryDate(option.expiryMs)}
               </span>
               <span>{formatExpiryTime(option.expiryMs)}</span>

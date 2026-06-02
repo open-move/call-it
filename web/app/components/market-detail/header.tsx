@@ -41,7 +41,7 @@ export function Header({
 
   return (
     <header className="border-b border-border/40">
-      <div className="flex min-w-0 flex-col gap-4 px-3 py-2.5">
+      <div className="flex min-w-0 flex-col gap-3 px-3 py-2.5">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2.5">
             <AssetIcon
@@ -51,7 +51,7 @@ export function Header({
               className="size-5"
             />
             <div className="flex min-w-0 items-center gap-1.5 text-left">
-              <span className="truncate text-sm leading-none font-semibold tracking-tight text-foreground">
+              <span className="truncate text-sm leading-none font-medium tracking-tight text-foreground">
                 {market.assetSymbol} Prediction ·{" "}
                 {formatMarketTitleExpiry(market.expiryMs)}
               </span>

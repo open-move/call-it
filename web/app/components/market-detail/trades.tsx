@@ -28,10 +28,10 @@ function formatTradeTime(timestampMs: number) {
 export function Trades({ trades }: TradesProps) {
   return (
     <Card className="flex h-full w-full flex-col rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-4 py-3">
-        <CardTitle className="text-sm font-semibold">Trades</CardTitle>
+      <CardHeader className="px-3 py-2.5">
+        <CardTitle className="text-sm font-medium">Trades</CardTitle>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2">
+      <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2.5">
         {trades.length > 0 ? (
           <div className="space-y-1 px-3">
             <div className="grid grid-cols-[1fr_1fr_4.75rem] gap-3 px-2 pb-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
@@ -42,7 +42,7 @@ export function Trades({ trades }: TradesProps) {
             {trades.map((trade) => (
               <div
                 className={cn(
-                  "grid grid-cols-[1fr_1fr_4.75rem] gap-3 rounded-sm px-2 py-1.5 text-xs tabular-nums",
+                  "grid grid-cols-[1fr_1fr_4.75rem] gap-3 rounded-sm px-2 py-1 text-xs tabular-nums",
                   trade.side === "above"
                     ? "bg-outcome-up/10"
                     : "bg-outcome-down/10"

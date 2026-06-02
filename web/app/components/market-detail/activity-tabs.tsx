@@ -469,7 +469,7 @@ function ActivityTabsFrame({
         className="flex h-full min-h-0 flex-col gap-0"
         defaultValue="positions"
       >
-        <div className="flex h-14 shrink-0 items-center justify-between gap-4 border-b border-border/45 px-4">
+        <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border/45 px-3">
           <TabsList
             className="h-full w-full justify-start gap-6 overflow-x-auto rounded-none p-0"
             variant="line"
@@ -499,13 +499,13 @@ function ActivityTabsFrame({
               {redemptionsLabel}
             </TabsTrigger>
           </TabsList>
-          <div className="hidden shrink-0 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:block">
+          <div className="hidden shrink-0 text-xs text-muted-foreground lg:block">
             Predict activity
           </div>
         </div>
 
         <TabsContent
-          className="min-h-0 flex-1 overflow-y-auto px-4 py-4"
+          className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
           value="positions"
         >
           {positionsContent}
@@ -574,7 +574,7 @@ function PositionsPanel({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        <div className="text-xs text-muted-foreground">
           {totalPositions} total for expiry
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
@@ -585,9 +585,9 @@ function PositionsPanel({
               <Button
                 aria-pressed={isSelected}
                 className={cn(
-                  "h-7 rounded-sm px-3 text-xs shadow-none ring-0 focus-visible:ring-0",
+                  "h-8 rounded-sm px-3 text-xs font-normal shadow-none ring-0 focus-visible:ring-0",
                   isSelected
-                    ? "bg-primary text-primary-foreground hover:bg-primary"
+                    ? "bg-primary/10 text-primary hover:bg-primary/15"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
                 key={scope}
@@ -616,7 +616,7 @@ function PositionsPanel({
 
 function PositionHeaderRow({ columns }: { columns: string[] }) {
   return (
-    <div className="grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 border-b border-border/45 px-4 py-3 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 border-b border-border/45 px-3 py-2.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       {columns.map((column) => (
         <span className="truncate last:text-right" key={column}>
           {column}
@@ -648,7 +648,7 @@ function PositionsTable({
         return (
           <div
             className={cn(
-              "grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 px-4 py-3 text-xs",
+              "grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 px-3 py-2.5 text-xs",
               isSelected && "bg-primary/5"
             )}
             key={position.id}
@@ -716,9 +716,9 @@ function TradesPanel({
       : "No trades for this strike."
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col px-3 py-3">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        <div className="text-xs text-muted-foreground">
           {totalTrades} total for expiry
         </div>
         <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
@@ -729,9 +729,9 @@ function TradesPanel({
               <Button
                 aria-pressed={isSelected}
                 className={cn(
-                  "h-7 rounded-sm px-3 text-xs shadow-none ring-0 focus-visible:ring-0",
+                  "h-8 rounded-sm px-3 text-xs font-normal shadow-none ring-0 focus-visible:ring-0",
                   isSelected
-                    ? "bg-primary text-primary-foreground hover:bg-primary"
+                    ? "bg-primary/10 text-primary hover:bg-primary/15"
                     : "text-muted-foreground hover:bg-accent hover:text-foreground"
                 )}
                 key={scope}
@@ -777,7 +777,7 @@ function RangesPanel({
       : "No range activity around this strike."
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col px-3 py-3">
       <ActivityScopeHeader
         currentScope={rangeScope}
         onScopeChange={setRangeScope}
@@ -817,7 +817,7 @@ function RedemptionsPanel({
       : "No redemptions for this strike."
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-4 py-4">
+    <div className="flex h-full min-h-0 flex-col px-3 py-3">
       <ActivityScopeHeader
         currentScope={redemptionScope}
         onScopeChange={setRedemptionScope}
@@ -848,9 +848,7 @@ function ActivityScopeHeader({
 }) {
   return (
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {totalLabel}
-      </div>
+      <div className="text-xs text-muted-foreground">{totalLabel}</div>
       <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
         {(["strike", "oracle"] satisfies ActivityScope[]).map((scope) => {
           const isSelected = currentScope === scope
@@ -859,9 +857,9 @@ function ActivityScopeHeader({
             <Button
               aria-pressed={isSelected}
               className={cn(
-                "h-7 rounded-sm px-3 text-xs shadow-none ring-0 focus-visible:ring-0",
+                "h-8 rounded-sm px-3 text-xs font-normal shadow-none ring-0 focus-visible:ring-0",
                 isSelected
-                  ? "bg-primary text-primary-foreground hover:bg-primary"
+                  ? "bg-primary/10 text-primary hover:bg-primary/15"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground"
               )}
               key={scope}
@@ -880,7 +878,7 @@ function ActivityScopeHeader({
 
 function HeaderRow({ columns }: { columns: string[] }) {
   return (
-    <div className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 border-b border-border/45 px-4 py-3 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 border-b border-border/45 px-3 py-2.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       {columns.map((column) => (
         <span className="truncate last:text-right" key={column}>
           {column}
@@ -911,7 +909,7 @@ function TradesTable({
         return (
           <div
             className={cn(
-              "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-4 py-3 text-xs",
+              "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs",
               isSelected && "bg-primary/5"
             )}
             key={trade.id}
@@ -966,7 +964,7 @@ function RangeTradesTable({
         return (
           <div
             className={cn(
-              "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-4 py-3 text-xs",
+              "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs",
               isSelected && "bg-primary/5"
             )}
             key={trade.id}
@@ -1051,7 +1049,7 @@ function RedemptionsTable({
       {rows.map((redemption) => (
         <div
           className={cn(
-            "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-4 py-3 text-xs",
+            "grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs",
             redemption.isSelected && "bg-primary/5"
           )}
           key={redemption.id}
