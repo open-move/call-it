@@ -43,6 +43,7 @@ export interface Redemption {
 
 export interface Position {
   id: string
+  orderIds: string[]
   strikePriceUsd: number
   side: "above" | "below"
   openQuantity: number
@@ -58,6 +59,7 @@ export interface Position {
 
 export interface RangePosition {
   id: string
+  orderIds: string[]
   lowerStrikePriceUsd: number
   higherStrikePriceUsd: number
   openQuantity: number
@@ -111,3 +113,17 @@ export type RangeRedemptionActivityRow = { kind: "range" } & RangeRedemption
 export type RedemptionActivityRow =
   | DirectionalRedemptionActivityRow
   | RangeRedemptionActivityRow
+
+export type PositionTradeIntent =
+  | {
+      intentId: number
+      kind: "binary"
+      side: "above" | "below"
+      strikePriceUsd: number
+    }
+  | {
+      higherStrikePriceUsd: number
+      intentId: number
+      kind: "range"
+      lowerStrikePriceUsd: number
+    }

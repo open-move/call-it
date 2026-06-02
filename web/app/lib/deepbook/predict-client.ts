@@ -97,8 +97,43 @@ function readNullableString(record: Record<string, unknown>, key: string) {
   return value
 }
 
+function readOptionalString(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
+  if (typeof value !== "string") {
+    throw new PredictServerError(
+      `Invalid Predict response: ${key} must be a string`
+    )
+  }
+
+  return value
+}
+
 function readStringArray(record: Record<string, unknown>, key: string) {
   const value = record[key]
+
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string")
+  ) {
+    throw new PredictServerError(
+      `Invalid Predict response: ${key} must be a string array`
+    )
+  }
+
+  return value
+}
+
+function readOptionalStringArray(record: Record<string, unknown>, key: string) {
+  const value = record[key]
+
+  if (value === undefined || value === null) {
+    return undefined
+  }
 
   if (
     !Array.isArray(value) ||
@@ -297,6 +332,7 @@ function parseDirectionalPositionMintEvent(
     trader: readString(value, "trader"),
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
+    order_id: readOptionalString(value, "order_id"),
     expiry: readNumber(value, "expiry"),
     strike: readNumber(value, "strike"),
     is_up: readBoolean(value, "is_up"),
@@ -330,6 +366,7 @@ function parseDirectionalPositionRedeemEvent(
     executor: readString(value, "executor"),
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
+    order_id: readOptionalString(value, "order_id"),
     expiry: readNumber(value, "expiry"),
     strike: readNumber(value, "strike"),
     is_up: readBoolean(value, "is_up"),
@@ -361,6 +398,7 @@ function parseRangeMintEvent(value: unknown): RangeMintEvent {
     trader: readString(value, "trader"),
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
+    order_id: readOptionalString(value, "order_id"),
     expiry: readNumber(value, "expiry"),
     lower_strike: readNumber(value, "lower_strike"),
     higher_strike: readNumber(value, "higher_strike"),
@@ -391,6 +429,7 @@ function parseRangeRedeemEvent(value: unknown): RangeRedeemEvent {
     trader: readString(value, "trader"),
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
+    order_id: readOptionalString(value, "order_id"),
     expiry: readNumber(value, "expiry"),
     lower_strike: readNumber(value, "lower_strike"),
     higher_strike: readNumber(value, "higher_strike"),
@@ -484,6 +523,7 @@ function parseManagerPositionSummary(value: unknown): ManagerPositionSummary {
     manager_id: readString(value, "manager_id"),
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
+    order_ids: readOptionalStringArray(value, "order_ids"),
     underlying_asset: readNullableString(value, "underlying_asset"),
     expiry: readNumber(value, "expiry"),
     strike: readNumber(value, "strike"),

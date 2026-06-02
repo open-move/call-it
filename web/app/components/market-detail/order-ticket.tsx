@@ -19,6 +19,7 @@ import {
   parseDecimalUnits,
 } from "~/lib/callit/trading/amounts"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
+import { type PositionTradeIntent } from "~/lib/callit/trade/types"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import {
   buildCreateManagerTransaction,
@@ -43,6 +44,7 @@ type ContractSide = "above" | "below"
 export interface OrderTicketProps {
   market: MarketSnapshot
   selectedStrikePriceUsd: number
+  tradeIntent?: PositionTradeIntent
 }
 
 interface ManagerState {
@@ -251,12 +253,16 @@ function OrderTicketFallback({}: OrderTicketProps) {
 function OrderTicketClient({
   market,
   selectedStrikePriceUsd,
+  tradeIntent,
 }: OrderTicketProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const navigate = useNavigate()
   const revalidator = useRevalidator()
   const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
   const [contractSide, setContractSide] = useState<ContractSide>("above")
+  const [ticketStrikePriceUsd, setTicketStrikePriceUsd] = useState(
+    selectedStrikePriceUsd
+  )
   const [size, setSize] = useState("")
   const [customStrike, setCustomStrike] = useState(() =>
     formatStrikeInput(selectedStrikePriceUsd)
@@ -296,6 +302,7 @@ function OrderTicketClient({
         : `Buy ${getSideLabel(contractSide)}`
 
   useEffect(() => {
+    setTicketStrikePriceUsd(selectedStrikePriceUsd)
     setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
     setRangeStrikes(getRangeStrikeDefaults(market, selectedStrikePriceUsd))
   }, [market, selectedStrikePriceUsd])
@@ -305,14 +312,65 @@ function OrderTicketClient({
       nextStrikePriceUsd,
       market
     )
+    const strikeParam = formatStrikeSearchParam(normalizedStrikePriceUsd)
     const searchParams = new URLSearchParams(window.location.search)
 
-    searchParams.set(
-      "strike",
-      formatStrikeSearchParam(normalizedStrikePriceUsd)
-    )
+    setTicketStrikePriceUsd(normalizedStrikePriceUsd)
+    setCustomStrike(formatStrikeInput(normalizedStrikePriceUsd))
+    setQuote(undefined)
+
+    if (searchParams.get("strike") === strikeParam) {
+      return
+    }
+
+    searchParams.set("strike", strikeParam)
     navigate({ search: `?${searchParams.toString()}` })
   }
+
+  useEffect(() => {
+    if (!tradeIntent) {
+      return
+    }
+
+    setSize("")
+    setQuote(undefined)
+    setStatusMessage(undefined)
+    setErrorMessage(undefined)
+
+    if (tradeIntent.kind === "range") {
+      setTicketMode("range")
+      const nextRangeStrikes = {
+        higher: normalizeStrikePrice(tradeIntent.higherStrikePriceUsd, market),
+        lower: normalizeStrikePrice(tradeIntent.lowerStrikePriceUsd, market),
+      }
+
+      setRangeStrikes(nextRangeStrikes)
+      setStatusMessage(
+        `Loaded ${market.assetSymbol} ${formatStrikeValue(
+          nextRangeStrikes.lower,
+          market.tickSizeUsd
+        )}-${formatStrikeValue(nextRangeStrikes.higher, market.tickSizeUsd)} Range`
+      )
+      return
+    }
+
+    const nextStrikePriceUsd = normalizeStrikePrice(
+      tradeIntent.strikePriceUsd,
+      market
+    )
+
+    setTicketMode("binary")
+    setContractSide(tradeIntent.side)
+    setTicketStrikePriceUsd(nextStrikePriceUsd)
+    setCustomStrike(formatStrikeInput(nextStrikePriceUsd))
+    pinStrikeSearchParam(nextStrikePriceUsd)
+    setStatusMessage(
+      `Loaded ${market.assetSymbol} ${formatStrikeValue(
+        nextStrikePriceUsd,
+        market.tickSizeUsd
+      )} ${getSideLabel(tradeIntent.side)}`
+    )
+  }, [tradeIntent?.intentId])
 
   useEffect(() => {
     let isStale = false
@@ -375,7 +433,7 @@ function OrderTicketClient({
               market,
               quantity: selectedQuantity,
               rangeStrikes,
-              selectedStrikePriceUsd,
+              selectedStrikePriceUsd: ticketStrikePriceUsd,
               ticketMode,
               walletAddress,
             })
@@ -405,7 +463,7 @@ function OrderTicketClient({
     market,
     rangeStrikes,
     selectedQuantity,
-    selectedStrikePriceUsd,
+    ticketStrikePriceUsd,
     ticketMode,
     walletAddress,
   ])
@@ -445,7 +503,7 @@ function OrderTicketClient({
         market,
         quantity: selectedQuantity,
         rangeStrikes,
-        selectedStrikePriceUsd,
+        selectedStrikePriceUsd: ticketStrikePriceUsd,
         ticketMode,
         walletAddress,
       })
@@ -485,7 +543,7 @@ function OrderTicketClient({
 
       setStatusMessage("Trade confirmed")
       if (ticketMode === "binary") {
-        pinStrikeSearchParam(selectedStrikePriceUsd)
+        pinStrikeSearchParam(ticketStrikePriceUsd)
       }
       const nextManagerState = await loadManagerState(walletAddress)
       setManagerState(nextManagerState)
@@ -558,7 +616,7 @@ function OrderTicketClient({
                   }
                 }}
                 onCustomStrikeChange={setCustomStrike}
-                selectedStrikePriceUsd={selectedStrikePriceUsd}
+                selectedStrikePriceUsd={ticketStrikePriceUsd}
               />
             </>
           ) : (

@@ -1,8 +1,11 @@
+import { useState } from "react"
+
 import {
   type ExpiryOption,
   type MarketSnapshot,
 } from "~/lib/callit/market/types"
 import {
+  type PositionTradeIntent,
   type RangeRedemption,
   type RangeTrade,
   type Redemption,
@@ -43,6 +46,7 @@ export function Page({
   toolbarQuote,
   trades,
 }: PageProps) {
+  const [tradeIntent, setTradeIntent] = useState<PositionTradeIntent>()
   const tradeActivityRows = getTradeActivityRows(trades, rangeTrades)
   const redemptionActivityRows = getRedemptionActivityRows(
     redemptions,
@@ -83,6 +87,12 @@ export function Page({
 
           <ActivityTabs
             market={market}
+            onAddPosition={(intent) => {
+              setTradeIntent((currentIntent) => ({
+                ...intent,
+                intentId: (currentIntent?.intentId ?? 0) + 1,
+              }))
+            }}
             redemptions={redemptionActivityRows}
             trades={tradeActivityRows}
           />
@@ -92,6 +102,7 @@ export function Page({
           <OrderTicket
             market={market}
             selectedStrikePriceUsd={selectedStrikePriceUsd}
+            tradeIntent={tradeIntent}
           />
         </aside>
       </div>

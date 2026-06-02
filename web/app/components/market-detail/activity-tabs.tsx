@@ -1,8 +1,15 @@
 import { type ReactNode, useEffect, useState } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { ActivityIcon, BriefcaseIcon, RotateCcwIcon } from "lucide-react"
 
 import { Card } from "~/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
@@ -13,6 +20,7 @@ import {
 import { filterPositions } from "~/lib/callit/trade/positions"
 import {
   type PositionRow,
+  type PositionTradeIntent,
   type RedemptionActivityRow,
   type TradeActivityRow,
 } from "~/lib/callit/trade/types"
@@ -29,8 +37,13 @@ interface PositionLoadState {
   positions: PositionRow[]
 }
 
+type AddPositionIntent =
+  | Omit<Extract<PositionTradeIntent, { kind: "binary" }>, "intentId">
+  | Omit<Extract<PositionTradeIntent, { kind: "range" }>, "intentId">
+
 export interface ActivityTabsProps {
   market: MarketSnapshot
+  onAddPosition: (intent: AddPositionIntent) => void
   redemptions: RedemptionActivityRow[]
   trades: TradeActivityRow[]
 }
@@ -45,16 +58,11 @@ interface ActivityTabsFrameProps {
 }
 
 type ActivityTabValue = "positions" | "trades" | "redemptions"
+type ContractTone = "above" | "below" | "range"
 
-function getActivityTabIcon(value: ActivityTabValue) {
-  switch (value) {
-    case "positions":
-      return BriefcaseIcon
-    case "trades":
-      return ActivityIcon
-    case "redemptions":
-      return RotateCcwIcon
-  }
+interface ContractToneInput {
+  kind: "directional" | "range"
+  side?: "above" | "below"
 }
 
 function formatAddress(address: string) {
@@ -86,7 +94,16 @@ function formatQuantity(quantity: number) {
 
 function formatPositionQuantity(quantity: number) {
   return quantity.toLocaleString("en-US", {
-    maximumFractionDigits: 6,
+    maximumFractionDigits: 4,
+  })
+}
+
+function formatCompactCostUsd(value: number) {
+  return value.toLocaleString("en-US", {
+    currency: "USD",
+    maximumFractionDigits: value >= 100 ? 0 : 2,
+    minimumFractionDigits: value >= 100 ? 0 : 2,
+    style: "currency",
   })
 }
 
@@ -115,10 +132,74 @@ function getSideLabel(side: "above" | "below") {
   return side === "above" ? "Up" : "Down"
 }
 
-function getPositionContract(position: PositionRow) {
+function getPositionContract(position: PositionRow, assetSymbol: string) {
   return position.kind === "directional"
-    ? `${formatUsd(position.strikePriceUsd, 0)} ${getSideLabel(position.side)}`
-    : `${formatRange(position.lowerStrikePriceUsd, position.higherStrikePriceUsd)} Range`
+    ? `${assetSymbol} ${formatUsd(position.strikePriceUsd, 0)} ${getSideLabel(position.side)}`
+    : `${assetSymbol} ${formatRange(position.lowerStrikePriceUsd, position.higherStrikePriceUsd)} Range`
+}
+
+function getPositionKindLabel(position: PositionRow) {
+  return position.kind === "range" ? "RNG" : getSideLabel(position.side)
+}
+
+function getContractTone(row: ContractToneInput): ContractTone {
+  return row.kind === "range"
+    ? "range"
+    : row.side === "above"
+      ? "above"
+      : "below"
+}
+
+function getContractTextClass(row: ContractToneInput) {
+  const tone = getContractTone(row)
+
+  if (tone === "range") {
+    return "text-primary"
+  }
+
+  return tone === "above" ? "text-outcome-up" : "text-outcome-down"
+}
+
+function getContractKindLabel(row: ContractToneInput) {
+  return row.kind === "range" ? "RNG" : getSideLabel(row.side ?? "below")
+}
+
+function getPositionTextClass(position: PositionRow) {
+  return getContractTextClass(position)
+}
+
+function getPositionActionLabel(position: PositionRow) {
+  const status = position.status.toLowerCase()
+
+  if (status === "active" || status === "open") {
+    return "Add"
+  }
+
+  if (status === "redeemable") {
+    return "Redeem"
+  }
+
+  return "Details"
+}
+
+function getPositionAddIntent(position: PositionRow): AddPositionIntent {
+  return position.kind === "directional"
+    ? {
+        kind: "binary",
+        side: position.side,
+        strikePriceUsd: position.strikePriceUsd,
+      }
+    : {
+        higherStrikePriceUsd: position.higherStrikePriceUsd,
+        kind: "range",
+        lowerStrikePriceUsd: position.lowerStrikePriceUsd,
+      }
+}
+
+function canAddToPosition(position: PositionRow) {
+  const status = position.status.toLowerCase()
+
+  return status === "active" || status === "open"
 }
 
 function getTradeContract(trade: {
@@ -128,17 +209,22 @@ function getTradeContract(trade: {
   return `${formatUsd(trade.strikePriceUsd, 0)} ${getSideLabel(trade.side)}`
 }
 
-function getActivityTradeContract(trade: TradeActivityRow) {
+function getActivityTradeContract(
+  trade: TradeActivityRow,
+  assetSymbol: string
+) {
   return trade.kind === "directional"
-    ? getTradeContract(trade)
-    : `${formatRange(trade.lowerStrikePriceUsd, trade.higherStrikePriceUsd)} Range`
+    ? `${assetSymbol} ${getTradeContract(trade)}`
+    : `${assetSymbol} ${formatRange(trade.lowerStrikePriceUsd, trade.higherStrikePriceUsd)} Range`
 }
 
-function getRedemptionContract(redemption: {
-  side: "above" | "below"
-  strikePriceUsd: number
-}) {
-  return `${formatUsd(redemption.strikePriceUsd, 0)} ${getSideLabel(redemption.side)}`
+function getRedemptionContract(
+  redemption: RedemptionActivityRow,
+  assetSymbol: string
+) {
+  return redemption.kind === "directional"
+    ? `${assetSymbol} ${formatUsd(redemption.strikePriceUsd, 0)} ${getSideLabel(redemption.side)}`
+    : `${assetSymbol} ${formatRange(redemption.lowerStrikePriceUsd, redemption.higherStrikePriceUsd)} Range`
 }
 
 export function ActivityTabs(props: ActivityTabsProps) {
@@ -157,7 +243,10 @@ export function ActivityTabs(props: ActivityTabsProps) {
         positionsLabel="Positions"
         redemptionsContent={
           props.redemptions.length > 0 ? (
-            <RedemptionsTable redemptions={props.redemptions} />
+            <RedemptionsTable
+              assetSymbol={props.market.assetSymbol}
+              redemptions={props.redemptions}
+            />
           ) : (
             <EmptyState message="No redemptions for this market." />
           )
@@ -165,7 +254,10 @@ export function ActivityTabs(props: ActivityTabsProps) {
         redemptionsLabel={`Redemptions (${props.redemptions.length})`}
         tradesContent={
           props.trades.length > 0 ? (
-            <TradesTable trades={props.trades} />
+            <TradesTable
+              assetSymbol={props.market.assetSymbol}
+              trades={props.trades}
+            />
           ) : (
             <EmptyState message="No trades for this market." />
           )
@@ -179,7 +271,7 @@ export function ActivityTabs(props: ActivityTabsProps) {
 }
 
 function ActivityTabsClient(props: ActivityTabsProps) {
-  const { market, redemptions, trades } = props
+  const { market, onAddPosition, redemptions, trades } = props
   const { primaryWallet } = useDynamicContext()
   const [positionState, setPositionState] = useState<PositionLoadState>({
     isLoading: false,
@@ -267,23 +359,24 @@ function ActivityTabsClient(props: ActivityTabsProps) {
     <ActivityTabsFrame
       positionsContent={
         <PositionsPanel
+          assetSymbol={market.assetSymbol}
           errorMessage={positionState.errorMessage}
           isLoading={positionState.isLoading}
+          onAddPosition={onAddPosition}
           positions={visiblePositions}
-          totalPositions={positionState.positions.length}
           walletAddress={walletAddress}
         />
       }
       positionsLabel={positionsLabel}
       redemptionsContent={
         <RedemptionsPanel
+          assetSymbol={market.assetSymbol}
           redemptions={redemptions}
-          totalRedemptions={redemptions.length}
         />
       }
       redemptionsLabel={redemptionsLabel}
       tradesContent={
-        <TradesPanel totalTrades={trades.length} trades={trades} />
+        <TradesPanel assetSymbol={market.assetSymbol} trades={trades} />
       }
       tradesLabel={tradesLabel}
     />
@@ -319,7 +412,7 @@ function ActivityTabsFrame({
         </div>
 
         <TabsContent
-          className="min-h-0 flex-1 overflow-y-auto px-3 py-3"
+          className="min-h-0 flex-1 overflow-hidden px-3 py-3"
           value="positions"
         >
           {positionsContent}
@@ -347,11 +440,8 @@ function ActivityTabTrigger({
   label: string
   value: ActivityTabValue
 }) {
-  const TabIcon = getActivityTabIcon(value)
-
   return (
     <TabsTrigger className="h-full flex-none rounded-none px-0" value={value}>
-      <TabIcon className="size-3.5" />
       {label}
     </TabsTrigger>
   )
@@ -366,16 +456,18 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function PositionsPanel({
+  assetSymbol,
   errorMessage,
   isLoading,
+  onAddPosition,
   positions,
-  totalPositions,
   walletAddress,
 }: {
+  assetSymbol: string
   errorMessage?: string
   isLoading: boolean
+  onAddPosition: (intent: AddPositionIntent) => void
   positions: PositionRow[]
-  totalPositions: number
   walletAddress?: string
 }) {
   if (!walletAddress) {
@@ -392,14 +484,12 @@ function PositionsPanel({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-        <div className="text-xs text-muted-foreground">
-          {totalPositions} total for expiry
-        </div>
-      </div>
-
       {positions.length > 0 ? (
-        <PositionsTable positions={positions} />
+        <PositionsTable
+          assetSymbol={assetSymbol}
+          onAddPosition={onAddPosition}
+          positions={positions}
+        />
       ) : (
         <EmptyState message={emptyMessage} />
       )}
@@ -409,7 +499,7 @@ function PositionsPanel({
 
 function PositionHeaderRow({ columns }: { columns: string[] }) {
   return (
-    <div className="grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 border-b border-border/45 px-3 py-2.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       {columns.map((column) => (
         <span className="truncate last:text-right" key={column}>
           {column}
@@ -419,88 +509,169 @@ function PositionHeaderRow({ columns }: { columns: string[] }) {
   )
 }
 
-function PositionsTable({ positions }: { positions: PositionRow[] }) {
+function PositionKindTag({ position }: { position: PositionRow }) {
   return (
-    <div className="min-w-[56rem] flex-1 divide-y divide-border/35 overflow-auto">
-      <PositionHeaderRow
-        columns={["Contract", "Qty", "Entry", "Mark", "Cost", "PnL", "Status"]}
-      />
-      {positions.map((position) => {
-        const pnl =
-          position.kind === "directional"
-            ? position.unrealizedPnlUsd + position.realizedPnlUsd
-            : null
+    <span
+      className={cn(
+        "inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide uppercase",
+        getPositionTextClass(position)
+      )}
+    >
+      {getPositionKindLabel(position)}
+    </span>
+  )
+}
 
-        return (
-          <div
-            className="grid grid-cols-[9rem_7rem_6rem_6rem_7rem_7rem_6rem] gap-4 px-3 py-2.5 text-xs"
-            key={position.id}
-          >
-            <span
-              className={cn(
-                "truncate font-medium capitalize",
-                position.kind === "range"
-                  ? "text-primary"
-                  : position.side === "above"
-                    ? "text-outcome-up"
-                    : "text-outcome-down"
-              )}
+function PositionsTable({
+  assetSymbol,
+  onAddPosition,
+  positions,
+}: {
+  assetSymbol: string
+  onAddPosition: (intent: AddPositionIntent) => void
+  positions: PositionRow[]
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-w-[52rem]">
+        <PositionHeaderRow
+          columns={[
+            "Contract",
+            "Position Size",
+            "Entry",
+            "Mark",
+            "Cost",
+            "PnL",
+            "Action",
+          ]}
+        />
+        {positions.map((position) => {
+          const pnl =
+            position.kind === "directional"
+              ? position.unrealizedPnlUsd + position.realizedPnlUsd
+              : null
+          const pnlClassName =
+            pnl === null
+              ? "text-muted-foreground"
+              : pnl > 0
+                ? "text-outcome-up"
+                : pnl < 0
+                  ? "text-outcome-down"
+                  : "text-muted-foreground"
+
+          return (
+            <div
+              className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+              key={position.id}
             >
-              {getPositionContract(position)}
-            </span>
-            <span className="font-mono text-muted-foreground tabular-nums">
-              {formatPositionQuantity(position.openQuantity)}
-            </span>
-            <span className="font-mono tabular-nums">
-              {formatNullablePriceCents(position.averageEntryPrice)}
-            </span>
-            <span className="font-mono tabular-nums">
-              {formatNullablePriceCents(position.markPrice)}
-            </span>
-            <span className="font-mono tabular-nums">
-              {formatCostUsd(position.openCostBasisUsd)}
-            </span>
-            <span
-              className={cn(
-                "font-mono tabular-nums",
-                pnl === null
-                  ? "text-muted-foreground"
-                  : pnl > 0
-                    ? "text-outcome-up"
-                    : pnl < 0
-                      ? "text-outcome-down"
-                      : "text-muted-foreground"
-              )}
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-2">
+                  <PositionKindTag position={position} />
+                  <span className="truncate font-medium text-foreground">
+                    {getPositionContract(position, assetSymbol)}
+                  </span>
+                </div>
+                <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
+                  {position.status} ·{" "}
+                  {formatRelativeTime(position.lastActivityAt)}
+                </div>
+              </div>
+              <span className="font-mono text-muted-foreground tabular-nums">
+                {formatPositionQuantity(position.openQuantity)}
+              </span>
+              <span className="font-mono tabular-nums">
+                {formatNullablePriceCents(position.averageEntryPrice)}
+              </span>
+              <span className="font-mono tabular-nums">
+                {formatNullablePriceCents(position.markPrice)}
+              </span>
+              <span className="font-mono tabular-nums">
+                {formatCompactCostUsd(position.openCostBasisUsd)}
+              </span>
+              <span
+                className={cn(
+                  "text-right font-mono tabular-nums",
+                  pnlClassName
+                )}
+              >
+                {pnl === null ? "--" : formatPnlUsd(pnl)}
+              </span>
+              <PositionActionMenu
+                onAddPosition={onAddPosition}
+                position={position}
+              />
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function PositionActionMenu({
+  onAddPosition,
+  position,
+}: {
+  onAddPosition: (intent: AddPositionIntent) => void
+  position: PositionRow
+}) {
+  const primaryActionLabel = getPositionActionLabel(position)
+  const addLabel =
+    position.kind === "range" ? "Add to range" : "Add to position"
+  const closeLabel =
+    position.kind === "range" ? "Close range" : "Close position"
+  const status = position.status.toLowerCase()
+  const unavailableActionLabel =
+    status === "redeemable"
+      ? "Redeem"
+      : status === "lost" || status === "liquidated"
+        ? "Clear position"
+        : closeLabel
+
+  return (
+    <div className="flex justify-end">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          aria-label="Position actions"
+          className="h-7 rounded-md bg-muted px-2.5 text-xs text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+          type="button"
+        >
+          Actions
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal text-muted-foreground">
+            {primaryActionLabel} available
+          </DropdownMenuLabel>
+          {canAddToPosition(position) ? (
+            <DropdownMenuItem
+              onClick={() => onAddPosition(getPositionAddIntent(position))}
             >
-              {pnl === null ? "--" : formatPnlUsd(pnl)}
-            </span>
-            <span className="truncate text-right font-mono text-muted-foreground uppercase">
-              {position.status}
-            </span>
-          </div>
-        )
-      })}
+              {addLabel}
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem disabled>{unavailableActionLabel}</DropdownMenuItem>
+          <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal">
+            Requires order-level data
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled>View details</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 }
 
 function TradesPanel({
-  totalTrades,
+  assetSymbol,
   trades,
 }: {
-  totalTrades: number
+  assetSymbol: string
   trades: TradeActivityRow[]
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-        <div className="text-xs text-muted-foreground">
-          {totalTrades} total for expiry
-        </div>
-      </div>
-
       {trades.length > 0 ? (
-        <TradesTable trades={trades} />
+        <TradesTable assetSymbol={assetSymbol} trades={trades} />
       ) : (
         <EmptyState message="No trades for this market." />
       )}
@@ -509,22 +680,16 @@ function TradesPanel({
 }
 
 function RedemptionsPanel({
+  assetSymbol,
   redemptions,
-  totalRedemptions,
 }: {
+  assetSymbol: string
   redemptions: RedemptionActivityRow[]
-  totalRedemptions: number
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3">
-        <div className="text-xs text-muted-foreground">
-          {totalRedemptions} total for expiry
-        </div>
-      </div>
-
       {redemptions.length > 0 ? (
-        <RedemptionsTable redemptions={redemptions} />
+        <RedemptionsTable assetSymbol={assetSymbol} redemptions={redemptions} />
       ) : (
         <EmptyState message="No redemptions for this market." />
       )}
@@ -532,9 +697,20 @@ function RedemptionsPanel({
   )
 }
 
-function HeaderRow({ columns }: { columns: string[] }) {
+function ActivityHeaderRow({
+  className,
+  columns,
+}: {
+  className: string
+  columns: string[]
+}) {
   return (
-    <div className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 border-b border-border/45 px-3 py-2.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div
+      className={cn(
+        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
+        className
+      )}
+    >
       {columns.map((column) => (
         <span className="truncate last:text-right" key={column}>
           {column}
@@ -544,105 +720,125 @@ function HeaderRow({ columns }: { columns: string[] }) {
   )
 }
 
-function TradesTable({ trades }: { trades: TradeActivityRow[] }) {
+function ContractKindTag({ row }: { row: ContractToneInput }) {
   return (
-    <div className="min-w-[48rem] flex-1 divide-y divide-border/35 overflow-auto">
-      <HeaderRow
-        columns={["Time", "Contract", "Price", "Trader", "Size", "Cost"]}
-      />
-      {trades.map((trade) => (
-        <div
-          className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs"
-          key={trade.id}
-        >
-          <span className="font-mono text-muted-foreground tabular-nums">
-            {formatRelativeTime(trade.timestampMs)}
-          </span>
-          {trade.kind === "directional" ? (
-            <span
-              className={cn(
-                "font-medium capitalize",
-                trade.side === "above" ? "text-outcome-up" : "text-outcome-down"
-              )}
-            >
-              {getActivityTradeContract(trade)}
-            </span>
-          ) : (
+    <span
+      className={cn(
+        "inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide uppercase",
+        getContractTextClass(row)
+      )}
+    >
+      {getContractKindLabel(row)}
+    </span>
+  )
+}
+
+function TradesTable({
+  assetSymbol,
+  trades,
+}: {
+  assetSymbol: string
+  trades: TradeActivityRow[]
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-w-[54rem]">
+        <ActivityHeaderRow
+          className="grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem]"
+          columns={[
+            "Contract",
+            "Price",
+            "Position Size",
+            "Cost",
+            "Trader",
+            "Time",
+          ]}
+        />
+        {trades.map((trade) => (
+          <div
+            className="grid grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+            key={trade.id}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <ContractKindTag row={trade} />
+              <span className="truncate font-medium text-foreground">
+                {getActivityTradeContract(trade, assetSymbol)}
+              </span>
+            </div>
             <span className="font-mono tabular-nums">
-              {getActivityTradeContract(trade)}
+              {formatPriceCents(trade.price)}
             </span>
-          )}
-          <span className="font-mono tabular-nums">
-            {formatPriceCents(trade.price)}
-          </span>
-          <AddressText address={trade.trader} />
-          <span className="font-mono text-muted-foreground tabular-nums">
-            {formatQuantity(trade.quantity)}
-          </span>
-          <span className="text-right font-mono tabular-nums">
-            {formatCostUsd(trade.costUsd)}
-          </span>
-        </div>
-      ))}
+            <span className="font-mono text-muted-foreground tabular-nums">
+              {formatQuantity(trade.quantity)}
+            </span>
+            <span className="font-mono tabular-nums">
+              {formatCompactCostUsd(trade.costUsd)}
+            </span>
+            <AddressText address={trade.trader} />
+            <span className="text-right font-mono text-muted-foreground tabular-nums">
+              {formatRelativeTime(trade.timestampMs)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
 function RedemptionsTable({
+  assetSymbol,
   redemptions,
 }: {
+  assetSymbol: string
   redemptions: RedemptionActivityRow[]
 }) {
   return (
-    <div className="min-w-[44rem] flex-1 divide-y divide-border/35 overflow-auto">
-      <HeaderRow
-        columns={["Time", "Type", "Price", "Owner", "Size", "Payout"]}
-      />
-      {redemptions.map((redemption) => (
-        <div
-          className="grid grid-cols-[6rem_6rem_7rem_1fr_8rem_7rem] gap-4 px-3 py-2.5 text-xs"
-          key={redemption.id}
-        >
-          <span className="font-mono text-muted-foreground tabular-nums">
-            {formatRelativeTime(redemption.timestampMs)}
-          </span>
-          {redemption.kind === "directional" ? (
-            <span
-              className={cn(
-                "font-medium capitalize",
-                redemption.side === "above"
-                  ? "text-outcome-up"
-                  : "text-outcome-down"
-              )}
-            >
-              {getRedemptionContract(redemption)}
-            </span>
-          ) : (
+    <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-w-[54rem]">
+        <ActivityHeaderRow
+          className="grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem]"
+          columns={[
+            "Contract",
+            "Price",
+            "Position Size",
+            "Payout",
+            "Owner",
+            "Time",
+          ]}
+        />
+        {redemptions.map((redemption) => (
+          <div
+            className="grid grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+            key={redemption.id}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <ContractKindTag row={redemption} />
+              <span className="truncate font-medium text-foreground">
+                {getRedemptionContract(redemption, assetSymbol)}
+              </span>
+            </div>
             <span className="font-mono tabular-nums">
-              {formatRange(
-                redemption.lowerStrikePriceUsd,
-                redemption.higherStrikePriceUsd
-              )}
+              {formatPriceCents(redemption.bidPrice)}
             </span>
-          )}
-          <span className="font-mono tabular-nums">
-            {formatPriceCents(redemption.bidPrice)}
-          </span>
-          <AddressText
-            address={
-              redemption.kind === "directional"
-                ? redemption.owner
-                : redemption.trader
-            }
-          />
-          <span className="font-mono text-muted-foreground tabular-nums">
-            {formatQuantity(redemption.quantity)}
-          </span>
-          <span className="text-right font-mono tabular-nums">
-            {formatCostUsd(redemption.payoutUsd)}
-          </span>
-        </div>
-      ))}
+            <span className="font-mono text-muted-foreground tabular-nums">
+              {formatQuantity(redemption.quantity)}
+            </span>
+            <span className="font-mono tabular-nums">
+              {formatCompactCostUsd(redemption.payoutUsd)}
+            </span>
+            <AddressText
+              address={
+                redemption.kind === "directional"
+                  ? redemption.owner
+                  : redemption.trader
+              }
+            />
+            <span className="text-right font-mono text-muted-foreground tabular-nums">
+              {formatRelativeTime(redemption.timestampMs)}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

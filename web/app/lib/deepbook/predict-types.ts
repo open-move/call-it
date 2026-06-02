@@ -100,6 +100,7 @@ export interface DirectionalPositionMintEvent {
   trader: string
   quote_asset: string
   oracle_id: string
+  order_id?: string
   expiry: number
   strike: number
   is_up: boolean
@@ -123,6 +124,7 @@ export interface DirectionalPositionRedeemEvent {
   executor: string
   quote_asset: string
   oracle_id: string
+  order_id?: string
   expiry: number
   strike: number
   is_up: boolean
@@ -146,6 +148,7 @@ export interface RangeMintEvent {
   trader: string
   quote_asset: string
   oracle_id: string
+  order_id?: string
   expiry: number
   lower_strike: number
   higher_strike: number
@@ -168,6 +171,7 @@ export interface RangeRedeemEvent {
   trader: string
   quote_asset: string
   oracle_id: string
+  order_id?: string
   expiry: number
   lower_strike: number
   higher_strike: number
@@ -232,6 +236,7 @@ export interface ManagerPositionSummary {
   manager_id: string
   quote_asset: string
   oracle_id: string
+  order_ids?: string[]
   underlying_asset: string | null
   expiry: number
   strike: number
