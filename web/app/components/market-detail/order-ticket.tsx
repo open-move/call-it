@@ -27,7 +27,6 @@ import {
   findCreatedManagerId,
   preparePredictMintTransaction,
   type PredictTradeParams,
-  type SuiTransactionSigner,
 } from "~/lib/deepbook/predict-transactions"
 import {
   formatPredictTradeError,
@@ -35,6 +34,10 @@ import {
   quotePredictTradeSafe,
   type PredictQuoteResult,
 } from "~/lib/deepbook/predict-quotes"
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "~/lib/dynamic/sui-wallet"
 import { getPredictManagers } from "~/lib/deepbook/predict-client"
 import { cn } from "~/lib/utils"
 
@@ -137,16 +140,6 @@ function pinStrikeSearchParam(strikePriceUsd: number) {
 
   url.searchParams.set("strike", strikeParam)
   window.history.replaceState(window.history.state, "", url)
-}
-
-function isSuiTransactionSigner(value: unknown): value is SuiTransactionSigner {
-  if (typeof value !== "object" || value === null) {
-    return false
-  }
-
-  const candidate = value as { signTransaction?: unknown }
-
-  return typeof candidate.signTransaction === "function"
 }
 
 function sleep(ms: number) {
@@ -474,8 +467,11 @@ function OrderTicketClient({
       return
     }
 
-    if (!isSuiTransactionSigner(primaryWallet)) {
-      setErrorMessage("Connected wallet cannot sign Sui transactions")
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
       return
     }
 
@@ -512,7 +508,7 @@ function OrderTicketClient({
       if (!managerId) {
         setStatusMessage("Creating trading account")
         const createResult = await executeSuiTransaction(
-          primaryWallet,
+          signer,
           buildCreateManagerTransaction(walletAddress)
         )
         managerId = findCreatedManagerId(createResult.events)
@@ -539,7 +535,7 @@ function OrderTicketClient({
       setStatusMessage(
         `Funding ${formatDusdc(preparedMint.reserveAmount)} and buying`
       )
-      await executeSuiTransaction(primaryWallet, preparedMint.transaction)
+      await executeSuiTransaction(signer, preparedMint.transaction)
 
       setStatusMessage("Trade confirmed")
       if (ticketMode === "binary") {

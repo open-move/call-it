@@ -33,9 +33,12 @@ import {
   buildSupplyLiquidityTransaction,
   buildWithdrawLiquidityTransaction,
   executeSuiTransaction,
-  type SuiTransactionSigner,
 } from "~/lib/deepbook/predict-transactions"
 import { formatPredictTradeError } from "~/lib/deepbook/predict-quotes"
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "~/lib/dynamic/sui-wallet"
 import {
   type LpSupplyEvent,
   type LpWithdrawalEvent,
@@ -573,8 +576,11 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       return
     }
 
-    if (!isSuiTransactionSigner(primaryWallet)) {
-      setErrorMessage("Connected wallet cannot sign Sui transactions")
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
       return
     }
 
@@ -625,7 +631,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       setStatusMessage(
         action === "supply" ? "Supplying DUSDC" : "Withdrawing DUSDC"
       )
-      await executeSuiTransaction(primaryWallet, transaction)
+      await executeSuiTransaction(signer, transaction)
       setStatusMessage(
         action === "supply" ? "Supply confirmed" : "Withdrawal confirmed"
       )
@@ -844,16 +850,6 @@ function getEstimatedWithdrawAmount(amount: bigint, summary: VaultSummary) {
   }
 
   return (amount * BigInt(Math.floor(summary.vault_value))) / totalSupply
-}
-
-function isSuiTransactionSigner(value: unknown): value is SuiTransactionSigner {
-  if (typeof value !== "object" || value === null) {
-    return false
-  }
-
-  const candidate = value as { signTransaction?: unknown }
-
-  return typeof candidate.signTransaction === "function"
 }
 
 function VaultHealthCard({ summary }: { summary: VaultSummary }) {

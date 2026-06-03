@@ -43,8 +43,11 @@ import {
   executeSuiTransaction,
   simulatePredictRedeemTransaction,
   type PredictRedeemParams,
-  type SuiTransactionSigner,
 } from "~/lib/deepbook/predict-transactions"
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "~/lib/dynamic/sui-wallet"
 import { cn } from "~/lib/utils"
 
 interface PositionLoadState {
@@ -90,16 +93,6 @@ type ActivityTabValue = "positions" | "trades" | "redemptions"
 type ContractTone = "above" | "below" | "range"
 
 const DIRECTIONAL_ORDER_EVENT_LIMIT = 1_000
-
-function isSuiTransactionSigner(value: unknown): value is SuiTransactionSigner {
-  if (typeof value !== "object" || value === null) {
-    return false
-  }
-
-  const candidate = value as { signTransaction?: unknown }
-
-  return typeof candidate.signTransaction === "function"
-}
 
 interface ContractToneInput {
   kind: "directional" | "range"
@@ -447,12 +440,15 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       return
     }
 
-    if (!isSuiTransactionSigner(primaryWallet)) {
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
       setPreviewState({
-        errorMessage: "Connected wallet cannot sign Sui transactions.",
+        errorMessage: RECONNECT_SUI_WALLET_MESSAGE,
         isLoading: false,
         positionId: position.id,
       })
+      setShowAuthFlow(true)
       return
     }
 
@@ -495,7 +491,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       })
 
       const result = await executeSuiTransaction(
-        primaryWallet,
+        signer,
         buildPredictRedeemTransaction({
           managerId: positionState.managerId,
           params,

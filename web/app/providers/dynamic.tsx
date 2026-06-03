@@ -24,6 +24,7 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
     <DynamicContextProvider
       settings={{
         environmentId: import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID,
+        initialAuthenticationMode: "connect-and-sign",
         walletConnectors: [SuiWalletConnectors],
       }}
     >

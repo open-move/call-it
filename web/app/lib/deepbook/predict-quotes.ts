@@ -77,6 +77,7 @@ function mapQuoteFailure(failure: SuiFailure): PredictQuoteResult {
 export function formatPredictTradeError(error: unknown, fallback: string) {
   const message = getSuiFailureMessage(error, fallback)
   const failure = parseSuiFailure(message)
+  const normalizedMessage = message.toLowerCase()
 
   if (isSaturatedFairPriceMoveAbort(failure)) {
     return "No quote for this strike. Choose a strike closer to spot."
@@ -84,6 +85,15 @@ export function formatPredictTradeError(error: unknown, fallback: string) {
 
   if (isMintableAskMoveAbort(failure)) {
     return "Quote is too small to mint. Increase size or widen the range."
+  }
+
+  if (
+    normalizedMessage.includes("wallet standard") ||
+    normalizedMessage.includes("wallet-standard") ||
+    normalizedMessage.includes("wallet does not support") ||
+    normalizedMessage.includes("no account found")
+  ) {
+    return "Reconnect wallet to approve Sui transactions."
   }
 
   return message
