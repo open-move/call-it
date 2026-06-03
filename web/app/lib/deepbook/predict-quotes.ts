@@ -2,6 +2,7 @@ import { bcs } from "@mysten/sui/bcs"
 import { type SuiClientTypes } from "@mysten/sui/client"
 
 import { type PredictTradeQuote } from "./predict-transactions"
+import { getPredictMoveAbortMessage } from "./predict-errors"
 import {
   buildPredictQuoteTransaction,
   type PredictTradeParams,
@@ -18,7 +19,11 @@ const MIN_EXECUTABLE_MINT_COST = 10_000n
 export type PredictQuoteResult =
   | ({ status: "quoted" } & PredictTradeQuote)
   | {
-      reason: "mint_cost_too_low" | "saturated_fair_price"
+      reason:
+        | "market_unavailable"
+        | "mint_cost_too_low"
+        | "saturated_fair_price"
+      message?: string
       status: "no_quote"
     }
   | {
@@ -59,6 +64,16 @@ function isMintableAskMoveAbort(failure: SuiFailure) {
 }
 
 function mapQuoteFailure(failure: SuiFailure): PredictQuoteResult {
+  const predictMessage = getPredictMoveAbortMessage(failure)
+
+  if (predictMessage) {
+    return {
+      message: predictMessage,
+      reason: "market_unavailable",
+      status: "no_quote",
+    }
+  }
+
   if (isSaturatedFairPriceMoveAbort(failure)) {
     return { reason: "saturated_fair_price", status: "no_quote" }
   }
@@ -87,6 +102,12 @@ export function formatPredictTradeError(error: unknown, fallback: string) {
     return "Quote is too small to mint. Increase size or widen the range."
   }
 
+  const predictMessage = getPredictMoveAbortMessage(failure)
+
+  if (predictMessage) {
+    return predictMessage
+  }
+
   if (
     normalizedMessage.includes("wallet standard") ||
     normalizedMessage.includes("wallet-standard") ||
@@ -106,6 +127,10 @@ export function formatPredictQuoteMessage(result: PredictQuoteResult) {
 
   if (result.status === "no_quote" && result.reason === "mint_cost_too_low") {
     return "Quote is too small to mint. Increase size or widen the range."
+  }
+
+  if (result.status === "no_quote" && result.reason === "market_unavailable") {
+    return result.message ?? "This market is not available for trading."
   }
 
   if (result.status === "unavailable") {

@@ -58,13 +58,13 @@ export function Trades({ redemptions, trades }: TradesProps) {
   const tapeRows = getTapeRows(trades, redemptions)
 
   return (
-    <Card className="flex h-full w-full flex-col rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-3 py-2.5">
+    <Card className="flex h-full w-full flex-col gap-4 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-3 py-2.5 pb-0">
         <CardTitle className="text-sm font-medium">Trades</CardTitle>
       </CardHeader>
-      <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pb-2.5">
+      <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pt-0 pb-2.5">
         {tapeRows.length > 0 ? (
-          <div className="space-y-1 px-2">
+          <div className="space-y-0.5 px-2">
             <div className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem] gap-2 px-2 pb-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem]">
               <span>Price</span>
               <span className="text-center">Size</span>

@@ -14,7 +14,9 @@ import {
   PREDICT_PRICE_SCALE,
   PREDICT_QUOTE_ASSET,
 } from "./config"
+import { isDeterministicPredictPreflightFailure } from "./predict-errors"
 import { getSuiGrpcClient } from "./sui-client"
+import { parseSuiFailure } from "./sui-errors"
 
 export interface SuiTransactionSigner {
   signTransaction(transaction: Transaction): Promise<{
@@ -549,6 +551,14 @@ export async function preparePredictMintTransaction({
       reserveAmount = bufferedCost
     } else {
       lastError = result.FailedTransaction.status.error?.message
+
+      if (
+        lastError &&
+        isDeterministicPredictPreflightFailure(parseSuiFailure(lastError))
+      ) {
+        throw new Error(lastError)
+      }
+
       reserveAmount *= 2n
     }
   }

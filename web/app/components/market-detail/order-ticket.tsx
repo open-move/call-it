@@ -178,6 +178,18 @@ function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
 }
 
+function getMarketUnavailableMessage(market: MarketSnapshot, nowMs: number) {
+  if (nowMs >= market.expiryMs) {
+    return "This market has expired and is waiting for settlement. Choose a later expiry."
+  }
+
+  if (market.status !== "active") {
+    return "This market is not active. Choose an active expiry."
+  }
+
+  return undefined
+}
+
 function getTradeParams({
   contractSide,
   market,
@@ -269,12 +281,16 @@ function OrderTicketClient({
   const [isQuoting, setIsQuoting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string>()
+  const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
   const [errorMessage, setErrorMessage] = useState<string>()
+  const [nowMs, setNowMs] = useState(() => Date.now())
   const walletAddress = primaryWallet?.address
   const selectedQuantity = parseDecimalUnits(size, PREDICT_QUOTE_DECIMALS)
   const isAbove = contractSide === "above"
   const isRangeValid = rangeStrikes.lower < rangeStrikes.higher
   const quotedQuote = quote?.status === "quoted" ? quote : undefined
+  const marketUnavailableMessage = getMarketUnavailableMessage(market, nowMs)
+  const panelErrorMessage = marketUnavailableMessage ?? errorMessage
   const chance =
     market.fairUpProbability === undefined
       ? "--"
@@ -283,16 +299,25 @@ function OrderTicketClient({
     isSubmitting ||
     isLoadingManager ||
     isQuoting ||
+    !!marketUnavailableMessage ||
     !selectedQuantity ||
     !quotedQuote ||
     (ticketMode === "range" && !isRangeValid)
-  const actionButtonLabel = !walletAddress
-    ? "Sign in to trade"
-    : isSubmitting
-      ? "Submitting"
-      : ticketMode === "range"
-        ? "Buy Range"
-        : `Buy ${getSideLabel(contractSide)}`
+  const actionButtonLabel = marketUnavailableMessage
+    ? "Market closed"
+    : !walletAddress
+      ? "Sign in to trade"
+      : isSubmitting
+        ? "Submitting"
+        : ticketMode === "range"
+          ? "Buy Range"
+          : `Buy ${getSideLabel(contractSide)}`
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000)
+
+    return () => window.clearInterval(intervalId)
+  }, [])
 
   useEffect(() => {
     setTicketStrikePriceUsd(selectedStrikePriceUsd)
@@ -328,6 +353,7 @@ function OrderTicketClient({
     setSize("")
     setQuote(undefined)
     setStatusMessage(undefined)
+    setStatusKind("neutral")
     setErrorMessage(undefined)
 
     if (tradeIntent.kind === "range") {
@@ -408,6 +434,7 @@ function OrderTicketClient({
     const timeoutId = window.setTimeout(() => {
       async function loadQuote() {
         if (
+          marketUnavailableMessage ||
           !walletAddress ||
           !selectedQuantity ||
           (ticketMode === "range" && !isRangeValid)
@@ -454,6 +481,7 @@ function OrderTicketClient({
     contractSide,
     isRangeValid,
     market,
+    marketUnavailableMessage,
     rangeStrikes,
     selectedQuantity,
     ticketStrikePriceUsd,
@@ -462,6 +490,11 @@ function OrderTicketClient({
   ])
 
   async function handleTrade() {
+    if (marketUnavailableMessage) {
+      setErrorMessage(marketUnavailableMessage)
+      return
+    }
+
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -491,6 +524,7 @@ function OrderTicketClient({
     }
 
     setIsSubmitting(true)
+    setStatusKind("neutral")
     setErrorMessage(undefined)
 
     try {
@@ -538,6 +572,7 @@ function OrderTicketClient({
       await executeSuiTransaction(signer, preparedMint.transaction)
 
       setStatusMessage("Trade confirmed")
+      setStatusKind("success")
       if (ticketMode === "binary") {
         pinStrikeSearchParam(ticketStrikePriceUsd)
       }
@@ -547,6 +582,7 @@ function OrderTicketClient({
       window.setTimeout(() => revalidator.revalidate(), 1_500)
     } catch (error) {
       setStatusMessage(undefined)
+      setStatusKind("neutral")
       setErrorMessage(formatPredictTradeError(error, "Trade failed"))
     } finally {
       setIsSubmitting(false)
@@ -709,22 +745,26 @@ function OrderTicketClient({
             )}
           </TicketSection>
 
-          {(errorMessage || statusMessage) && (
+          {(panelErrorMessage || statusMessage) && (
             <p
               className={cn(
                 "rounded-md px-3 py-2 text-xs leading-5",
-                errorMessage
+                panelErrorMessage
                   ? "bg-destructive/10 text-destructive"
-                  : "bg-muted text-muted-foreground"
+                  : statusKind === "success"
+                    ? "bg-outcome-up/10 text-outcome-up"
+                    : "bg-muted text-muted-foreground"
               )}
             >
-              {errorMessage ?? statusMessage}
+              {panelErrorMessage ?? statusMessage}
             </p>
           )}
 
           <Button
             className="h-9 w-full"
-            disabled={isTradeDisabled && !!walletAddress}
+            disabled={
+              !!marketUnavailableMessage || (isTradeDisabled && !!walletAddress)
+            }
             onClick={handleTrade}
             type="button"
           >
