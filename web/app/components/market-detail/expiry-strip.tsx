@@ -6,7 +6,6 @@ import { cn } from "~/lib/utils"
 export interface ExpiryStripProps {
   expiryOptions: ExpiryOption[]
   selectedOracleId: string
-  selectedStrikePriceUsd: number
 }
 
 const expiryDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -52,18 +51,13 @@ function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
   return `${Math.round(hours / 24)}d`
 }
 
-function getExpiryHref(oracleId: string, selectedStrikePriceUsd: number) {
-  const searchParams = new URLSearchParams({
-    strike: selectedStrikePriceUsd.toString(),
-  })
-
-  return `/markets/${oracleId}?${searchParams.toString()}`
+function getExpiryHref(oracleId: string) {
+  return `/markets/${oracleId}`
 }
 
 export function ExpiryStrip({
   expiryOptions,
   selectedOracleId,
-  selectedStrikePriceUsd,
 }: ExpiryStripProps) {
   if (expiryOptions.length <= 1) {
     return null
@@ -87,7 +81,7 @@ export function ExpiryStrip({
                       "border-border/70 bg-muted/45 text-foreground ring-1 ring-border/30"
               )}
               key={option.oracleId}
-              to={getExpiryHref(option.oracleId, selectedStrikePriceUsd)}
+              to={getExpiryHref(option.oracleId)}
             >
               <span
                 aria-hidden="true"

@@ -42,6 +42,14 @@ function deriveStrike(state: OracleStateResponse) {
   return strike
 }
 
+function deriveMaxStrike(state: OracleStateResponse) {
+  const ORACLE_STRIKE_GRID_TICKS = 100_000
+
+  return (
+    state.oracle.min_strike + state.oracle.tick_size * ORACLE_STRIKE_GRID_TICKS
+  )
+}
+
 function getAssetMetadata(assetSymbol: string) {
   return (
     assetMetadata[assetSymbol] ?? {
@@ -100,6 +108,9 @@ export function mapOracleStateToMarketSnapshot(
       strike,
       svi: state.latest_svi,
     }),
+    forwardPriceUsd: toUsdPrice(state.latest_price.forward),
+    latestSvi: state.latest_svi,
+    maxStrikeUsd: toUsdPrice(deriveMaxStrike(state)),
     minStrikeUsd: toUsdPrice(state.oracle.min_strike),
     priceChangePercent: getPriceChangePercent(priceHistory),
     priceHistory,

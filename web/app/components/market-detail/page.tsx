@@ -68,7 +68,6 @@ export function Page({
               <ExpiryStrip
                 expiryOptions={expiryOptions}
                 selectedOracleId={market.oracleId}
-                selectedStrikePriceUsd={selectedStrikePriceUsd}
               />
 
               <ChartPanel
@@ -82,7 +81,10 @@ export function Page({
           </div>
 
           <div className="h-[30rem] min-w-0">
-            <Trades trades={tradeActivityRows} />
+            <Trades
+              redemptions={redemptionActivityRows}
+              trades={tradeActivityRows}
+            />
           </div>
 
           <ActivityTabs

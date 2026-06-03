@@ -110,6 +110,10 @@ function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
+function addressMatches(firstAddress: string, secondAddress: string) {
+  return firstAddress.toLowerCase() === secondAddress.toLowerCase()
+}
+
 function formatCostUsd(value: number) {
   return value.toLocaleString("en-US", {
     currency: "USD",
@@ -309,6 +313,10 @@ function getActivityTradeContract(
     : `${assetSymbol} ${formatRange(trade.lowerStrikePriceUsd, trade.higherStrikePriceUsd)} Range`
 }
 
+function isWalletTrade(trade: TradeActivityRow, walletAddress: string) {
+  return addressMatches(trade.trader, walletAddress)
+}
+
 function getRedemptionContract(
   redemption: RedemptionActivityRow,
   assetSymbol: string
@@ -316,6 +324,19 @@ function getRedemptionContract(
   return redemption.kind === "directional"
     ? `${assetSymbol} ${formatUsd(redemption.strikePriceUsd, 0)} ${getSideLabel(redemption.side)}`
     : `${assetSymbol} ${formatRange(redemption.lowerStrikePriceUsd, redemption.higherStrikePriceUsd)} Range`
+}
+
+function getRedemptionOwner(redemption: RedemptionActivityRow) {
+  return redemption.kind === "directional"
+    ? redemption.owner
+    : redemption.trader
+}
+
+function isWalletRedemption(
+  redemption: RedemptionActivityRow,
+  walletAddress: string
+) {
+  return addressMatches(getRedemptionOwner(redemption), walletAddress)
 }
 
 export function ActivityTabs(props: ActivityTabsProps) {
@@ -333,27 +354,13 @@ export function ActivityTabs(props: ActivityTabsProps) {
         }
         positionsLabel="Positions"
         redemptionsContent={
-          props.redemptions.length > 0 ? (
-            <RedemptionsTable
-              assetSymbol={props.market.assetSymbol}
-              redemptions={props.redemptions}
-            />
-          ) : (
-            <EmptyState message="No redemptions for this market." />
-          )
+          <EmptyState message="Connect wallet to view your redemptions." />
         }
-        redemptionsLabel={`Redemptions (${props.redemptions.length})`}
+        redemptionsLabel="Redemptions"
         tradesContent={
-          props.trades.length > 0 ? (
-            <TradesTable
-              assetSymbol={props.market.assetSymbol}
-              trades={props.trades}
-            />
-          ) : (
-            <EmptyState message="No trades for this market." />
-          )
+          <EmptyState message="Connect wallet to view your trades." />
         }
-        tradesLabel={`Trades (${props.trades.length})`}
+        tradesLabel="Trades"
       />
     )
   }
@@ -637,11 +644,24 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   ])
 
   const visiblePositions = positionState.positions
-  const positionsLabel = positionState.isLoading
-    ? "Positions"
-    : `Positions (${visiblePositions.length})`
-  const tradesLabel = `Trades (${trades.length})`
-  const redemptionsLabel = `Redemptions (${redemptions.length})`
+  const visibleTrades = walletAddress
+    ? trades.filter((trade) => isWalletTrade(trade, walletAddress))
+    : []
+  const visibleRedemptions = walletAddress
+    ? redemptions.filter((redemption) =>
+        isWalletRedemption(redemption, walletAddress)
+      )
+    : []
+  const positionsLabel =
+    !walletAddress || positionState.isLoading
+      ? "Positions"
+      : `Positions (${visiblePositions.length})`
+  const tradesLabel = walletAddress
+    ? `Trades (${visibleTrades.length})`
+    : "Trades"
+  const redemptionsLabel = walletAddress
+    ? `Redemptions (${visibleRedemptions.length})`
+    : "Redemptions"
 
   return (
     <ActivityTabsFrame
@@ -668,12 +688,17 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       redemptionsContent={
         <RedemptionsPanel
           assetSymbol={market.assetSymbol}
-          redemptions={redemptions}
+          redemptions={visibleRedemptions}
+          walletAddress={walletAddress}
         />
       }
       redemptionsLabel={redemptionsLabel}
       tradesContent={
-        <TradesPanel assetSymbol={market.assetSymbol} trades={trades} />
+        <TradesPanel
+          assetSymbol={market.assetSymbol}
+          trades={visibleTrades}
+          walletAddress={walletAddress}
+        />
       }
       tradesLabel={tradesLabel}
     />
@@ -1059,16 +1084,22 @@ function PositionActionMenu({
 function TradesPanel({
   assetSymbol,
   trades,
+  walletAddress,
 }: {
   assetSymbol: string
   trades: TradeActivityRow[]
+  walletAddress?: string
 }) {
+  if (!walletAddress) {
+    return <EmptyState message="Connect wallet to view your trades." />
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
       {trades.length > 0 ? (
         <TradesTable assetSymbol={assetSymbol} trades={trades} />
       ) : (
-        <EmptyState message="No trades for this market." />
+        <EmptyState message="No trades for this market from your wallet." />
       )}
     </div>
   )
@@ -1077,16 +1108,22 @@ function TradesPanel({
 function RedemptionsPanel({
   assetSymbol,
   redemptions,
+  walletAddress,
 }: {
   assetSymbol: string
   redemptions: RedemptionActivityRow[]
+  walletAddress?: string
 }) {
+  if (!walletAddress) {
+    return <EmptyState message="Connect wallet to view your redemptions." />
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
       {redemptions.length > 0 ? (
         <RedemptionsTable assetSymbol={assetSymbol} redemptions={redemptions} />
       ) : (
-        <EmptyState message="No redemptions for this market." />
+        <EmptyState message="No redemptions for this market from your wallet." />
       )}
     </div>
   )

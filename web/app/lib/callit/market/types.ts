@@ -1,3 +1,5 @@
+import { type OracleSviUpdate } from "~/lib/deepbook/predict-types"
+
 export interface MarketPricePoint {
   timestampMs: number
   valueUsd: number
@@ -40,6 +42,9 @@ export interface MarketSnapshot {
   currentPriceUsd: number
   expiryMs: number
   fairUpProbability?: number
+  forwardPriceUsd: number
+  latestSvi: OracleSviUpdate | null
+  maxStrikeUsd: number
   minStrikeUsd: number
   priceChangePercent: number
   priceHistory: MarketPricePoint[]

@@ -1,4 +1,5 @@
 import type { Route } from "./+types/market"
+import { redirect } from "react-router"
 import { AppFrame } from "~/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "~/components/market-detail/page"
 import { loadMarketSnapshot } from "~/lib/callit/market/loaders"
@@ -11,6 +12,7 @@ import {
   filterRangeTrades,
   filterRedemptions,
 } from "~/lib/callit/trade/activity"
+import { getQuoteableTradeStrike } from "~/lib/callit/trade/strikes"
 import { type ToolbarQuote } from "~/lib/callit/trade/types"
 import { filterTrades } from "~/lib/callit/trade/trades"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
@@ -33,6 +35,14 @@ function parseSelectedStrikePriceUsd(value: string | null) {
   return Number.isFinite(parsedValue) && parsedValue > 0
     ? parsedValue
     : undefined
+}
+
+function getMarketHref(oracleId: string, strikePriceUsd: number) {
+  const searchParams = new URLSearchParams({
+    strike: strikePriceUsd.toString(),
+  })
+
+  return `/markets/${oracleId}?${searchParams.toString()}`
 }
 
 const TOOLBAR_QUOTE_SENDER = "0x797"
@@ -102,9 +112,15 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   const market = await loadMarketSnapshot(oracleId)
   const url = new URL(request.url)
+  const selectedStrikeParam = url.searchParams.get("strike")
   const selectedStrikePriceUsd =
-    parseSelectedStrikePriceUsd(url.searchParams.get("strike")) ??
-    market.strikePriceUsd
+    parseSelectedStrikePriceUsd(selectedStrikeParam)
+
+  if (!selectedStrikePriceUsd) {
+    const quoteableStrikePriceUsd = await getQuoteableTradeStrike(market)
+
+    throw redirect(getMarketHref(market.oracleId, quoteableStrikePriceUsd))
+  }
 
   const [
     expiryOptions,

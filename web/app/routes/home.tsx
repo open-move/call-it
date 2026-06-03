@@ -8,7 +8,7 @@ export async function loader() {
   const markets = await loadActiveMarketSnapshots()
 
   return {
-    markets: presentTradeMarkets(markets),
+    markets: await presentTradeMarkets(markets),
   }
 }
 
