@@ -226,7 +226,10 @@ export function getRangePositionsFromActivity(
       position.redeemedQuantity += event.quantity
       position.totalPayout += event.payout
       if (event.order_id) {
-        position.orderIds.add(event.order_id)
+        position.orderIds.delete(event.order_id)
+      }
+      if (event.replacement_order_id) {
+        position.orderIds.add(event.replacement_order_id)
       }
       position.lastActivityAt = Math.max(
         position.lastActivityAt,

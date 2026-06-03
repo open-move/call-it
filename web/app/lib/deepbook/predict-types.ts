@@ -125,6 +125,7 @@ export interface DirectionalPositionRedeemEvent {
   quote_asset: string
   oracle_id: string
   order_id?: string
+  replacement_order_id?: string
   expiry: number
   strike: number
   is_up: boolean
@@ -172,6 +173,7 @@ export interface RangeRedeemEvent {
   quote_asset: string
   oracle_id: string
   order_id?: string
+  replacement_order_id?: string
   expiry: number
   lower_strike: number
   higher_strike: number

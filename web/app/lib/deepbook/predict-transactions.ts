@@ -45,6 +45,28 @@ export interface RangeTradeParams {
 
 export type PredictTradeParams = DirectionalTradeParams | RangeTradeParams
 
+export interface DirectionalRedeemParams {
+  expiryMs: number
+  isUp: boolean
+  kind?: "binary"
+  oracleId: string
+  orderId: string
+  strikePriceUsd: number
+  walletAddress: string
+}
+
+export interface RangeRedeemParams {
+  expiryMs: number
+  higherStrikePriceUsd: number
+  kind: "range"
+  lowerStrikePriceUsd: number
+  oracleId: string
+  orderId: string
+  walletAddress: string
+}
+
+export type PredictRedeemParams = DirectionalRedeemParams | RangeRedeemParams
+
 export interface PredictTradeQuote {
   mintCost: bigint
   redeemPayout: bigint
@@ -98,10 +120,51 @@ function buildRangeKey(tx: Transaction, params: RangeTradeParams) {
   })
 }
 
+function buildRedeemRangeKey(tx: Transaction, params: RangeRedeemParams) {
+  return tx.moveCall({
+    target: target("range_key", "new"),
+    arguments: [
+      tx.pure.id(params.oracleId),
+      tx.pure.u64(BigInt(params.expiryMs)),
+      tx.pure.u64(toOnchainPrice(params.lowerStrikePriceUsd)),
+      tx.pure.u64(toOnchainPrice(params.higherStrikePriceUsd)),
+    ],
+  })
+}
+
+function buildRedeemMarketKey(
+  tx: Transaction,
+  params: DirectionalRedeemParams
+) {
+  return tx.moveCall({
+    target: target("market_key", "new"),
+    arguments: [
+      tx.pure.id(params.oracleId),
+      tx.pure.u64(BigInt(params.expiryMs)),
+      tx.pure.u64(toOnchainPrice(params.strikePriceUsd)),
+      tx.pure.bool(params.isUp),
+    ],
+  })
+}
+
 function isRangeTradeParams(
   params: PredictTradeParams
 ): params is RangeTradeParams {
   return params.kind === "range"
+}
+
+function isRangeRedeemParams(
+  params: PredictRedeemParams
+): params is RangeRedeemParams {
+  return params.kind === "range"
+}
+
+function toOrderId(value: string) {
+  if (!/^\d+$/.test(value)) {
+    throw new Error("Invalid order ID")
+  }
+
+  return BigInt(value)
 }
 
 function readU64Output(output: SuiClientTypes.CommandOutput) {
@@ -326,6 +389,53 @@ export async function buildPredictMintTransaction({
   return tx
 }
 
+export function buildPredictRedeemTransaction({
+  managerId,
+  params,
+}: {
+  managerId: string
+  params: PredictRedeemParams
+}) {
+  const tx = new Transaction()
+  tx.setSender(params.walletAddress)
+  const orderId = toOrderId(params.orderId)
+
+  if (isRangeRedeemParams(params)) {
+    const key = buildRedeemRangeKey(tx, params)
+
+    tx.moveCall({
+      target: target("predict", "redeem_range"),
+      typeArguments: [PREDICT_QUOTE_ASSET],
+      arguments: [
+        tx.object(PREDICT_OBJECT_ID),
+        tx.object(managerId),
+        tx.object(params.oracleId),
+        key,
+        tx.pure.u64(orderId),
+        tx.object(PREDICT_CLOCK_ID),
+      ],
+    })
+
+    return tx
+  }
+
+  const key = buildRedeemMarketKey(tx, params)
+  tx.moveCall({
+    target: target("predict", "redeem"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      tx.object(managerId),
+      tx.object(params.oracleId),
+      key,
+      tx.pure.u64(orderId),
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  return tx
+}
+
 export async function buildSupplyLiquidityTransaction({
   amount,
   walletAddress,
@@ -444,6 +554,29 @@ export async function preparePredictMintTransaction({
   }
 
   throw new Error(lastError ?? "Could not prepare mint transaction")
+}
+
+export async function simulatePredictRedeemTransaction({
+  managerId,
+  params,
+}: {
+  managerId: string
+  params: PredictRedeemParams
+}) {
+  const result = await getSuiGrpcClient().simulateTransaction({
+    checksEnabled: false,
+    include: { events: true },
+    transaction: buildPredictRedeemTransaction({ managerId, params }),
+  })
+
+  if (result.$kind === "FailedTransaction") {
+    throw new Error(
+      result.FailedTransaction.status.error?.message ??
+        "Redeem simulation failed"
+    )
+  }
+
+  return result.Transaction.events
 }
 
 export async function executeSuiTransaction(

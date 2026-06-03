@@ -430,6 +430,7 @@ function parseRangeRedeemEvent(value: unknown): RangeRedeemEvent {
     quote_asset: readString(value, "quote_asset"),
     oracle_id: readString(value, "oracle_id"),
     order_id: readOptionalString(value, "order_id"),
+    replacement_order_id: readOptionalString(value, "replacement_order_id"),
     expiry: readNumber(value, "expiry"),
     lower_strike: readNumber(value, "lower_strike"),
     higher_strike: readNumber(value, "higher_strike"),
