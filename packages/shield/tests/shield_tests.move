@@ -210,6 +210,166 @@ fun set_beneficiary_aborts_on_zero_beneficiary() {
     end(test);
 }
 
+#[test, expected_failure]
+fun open_aborts_on_zero_hedge_budget() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        0,
+        MAX_LOSS_BPS,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_when_hedge_budget_is_deposit() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        DEPOSIT_AMOUNT,
+        MAX_LOSS_BPS,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_when_hedge_budget_exceeds_max_loss() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET + 1,
+        MAX_LOSS_BPS,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_on_invalid_max_loss_bps() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET,
+        MAX_LOSS_BPS + 1,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_on_zero_hedge_quantity() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET,
+        MAX_LOSS_BPS,
+        STRIKE,
+        0,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_on_invalid_down_strike() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET,
+        MAX_LOSS_BPS,
+        SPOT,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_when_oracle_inactive() {
+    let mut test = begin(ADMIN);
+    let env = setup_inactive(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        ADMIN,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET,
+        MAX_LOSS_BPS,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun open_aborts_for_non_manager_owner() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+
+    attempt_open(
+        &mut test,
+        &env,
+        KEEPER,
+        BENEFICIARY,
+        DEPOSIT_AMOUNT,
+        HEDGE_BUDGET,
+        MAX_LOSS_BPS,
+        STRIKE,
+        HEDGE_QUANTITY,
+    );
+
+    end(test);
+}
+
 #[test]
 fun claim_redeems_hedge_withdraws_plp_and_consumes_cap() {
     let mut test = begin(ADMIN);
@@ -242,6 +402,85 @@ fun claim_redeems_hedge_withdraws_plp_and_consumes_cap() {
         assert!(payout.value() > 0);
         coin::burn_for_testing(payout);
 
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(policy);
+        return_shared(clock);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun claim_aborts_when_oracle_unsettled() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    open_policy(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let mut policy = test.take_shared<ShieldPolicy<TEST_QUOTE>>();
+        let cap = test.take_from_sender<ShieldOwnerCap<TEST_QUOTE>>();
+        let clock = test.take_shared<Clock>();
+
+        let payout = shield::claim<TEST_QUOTE>(
+            &mut predict,
+            &mut manager,
+            &oracle,
+            &mut policy,
+            cap,
+            &clock,
+            test.ctx(),
+        );
+
+        coin::burn_for_testing(payout);
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(policy);
+        return_shared(clock);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun claim_aborts_for_non_manager_owner() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    open_policy(&mut test, &env);
+    settle_oracle(&mut test, env.oracle_id);
+
+    test.next_tx(ADMIN);
+    {
+        let cap = test.take_from_sender<ShieldOwnerCap<TEST_QUOTE>>();
+        transfer::public_transfer(cap, KEEPER);
+    };
+
+    test.next_tx(KEEPER);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let mut policy = test.take_shared<ShieldPolicy<TEST_QUOTE>>();
+        let cap = test.take_from_sender<ShieldOwnerCap<TEST_QUOTE>>();
+        let clock = test.take_shared<Clock>();
+
+        let payout = shield::claim<TEST_QUOTE>(
+            &mut predict,
+            &mut manager,
+            &oracle,
+            &mut policy,
+            cap,
+            &clock,
+            test.ctx(),
+        );
+
+        coin::burn_for_testing(payout);
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
@@ -293,6 +532,39 @@ fun settle_redeems_hedge_to_manager_and_pays_beneficiary() {
         let payout = test.take_from_sender<Coin<TEST_QUOTE>>();
         assert!(payout.value() > 0);
         coin::burn_for_testing(payout);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun settle_aborts_when_oracle_unsettled() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    open_policy(&mut test, &env);
+
+    test.next_tx(KEEPER);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let mut policy = test.take_shared<ShieldPolicy<TEST_QUOTE>>();
+        let clock = test.take_shared<Clock>();
+
+        shield::settle<TEST_QUOTE>(
+            &mut predict,
+            &mut manager,
+            &oracle,
+            &mut policy,
+            &clock,
+            test.ctx(),
+        );
+
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(policy);
+        return_shared(clock);
     };
 
     end(test);
@@ -474,6 +746,48 @@ fun open_policy(test: &mut Scenario, env: &Env) {
     }
 }
 
+fun attempt_open(
+    test: &mut Scenario,
+    env: &Env,
+    sender: address,
+    beneficiary: address,
+    deposit_amount: u64,
+    hedge_budget_amount: u64,
+    max_loss_bps: u16,
+    hedge_strike: u64,
+    hedge_quantity: u64,
+) {
+    test.next_tx(sender);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let clock = test.take_shared<Clock>();
+
+        let payment = coin::mint_for_testing<TEST_QUOTE>(deposit_amount, test.ctx());
+        let (cap, refund) = shield::open<TEST_QUOTE>(
+            &mut predict,
+            &mut manager,
+            &oracle,
+            payment,
+            beneficiary,
+            hedge_budget_amount,
+            max_loss_bps,
+            hedge_strike,
+            hedge_quantity,
+            &clock,
+            test.ctx(),
+        );
+        transfer::public_transfer(cap, sender);
+        coin::burn_for_testing(refund);
+
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    }
+}
+
 fun settle_oracle(test: &mut Scenario, oracle_id: ID) {
     test.next_tx(ADMIN);
     {
@@ -496,6 +810,12 @@ fun settle_oracle(test: &mut Scenario, oracle_id: ID) {
 }
 
 fun setup(test: &mut Scenario): Env {
+    let env = setup_inactive(test);
+    activate_oracle(test, env.oracle_id);
+    env
+}
+
+fun setup_inactive(test: &mut Scenario): Env {
     setup_clock(test);
     let currency = test_quote::create_currency(test.ctx());
 
@@ -506,7 +826,6 @@ fun setup(test: &mut Scenario): Env {
     destroy(currency);
 
     let oracle_id = setup_oracle(test, predict_id);
-    activate_oracle(test, oracle_id);
     let manager_id = setup_manager(test);
 
     Env { predict_id, manager_id, oracle_id }
