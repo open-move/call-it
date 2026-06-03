@@ -1,3 +1,5 @@
+import { type MarketPricePoint } from "~/lib/callit/market/types"
+
 export interface TradeMarket {
   id: string
   oracleId: string
@@ -6,9 +8,19 @@ export interface TradeMarket {
   assetIconUrl?: string
   currentPriceUsd: number
   expiryMs: number
+  fairUpProbability?: number
+  priceChangePercent: number
+  priceHistory: MarketPricePoint[]
   priceUpdatedMs: number
   status: string
   strikePriceUsd: number
+  tradeCount: number
+  volumeUsd: number
+}
+
+export interface TradeMarketActivity {
+  tradeCount: number
+  volumeUsd: number
 }
 
 export interface ToolbarQuote {

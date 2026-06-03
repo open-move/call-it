@@ -13,11 +13,20 @@ export async function loadActiveMarketSnapshots(): Promise<MarketSnapshot[]> {
     .sort(
       (firstOracle, secondOracle) => firstOracle.expiry - secondOracle.expiry
     )
-  const oracleStates = await Promise.all(
-    activeOracles.map((oracle) => getOracleState(oracle.oracle_id))
+  const oracleData = await Promise.all(
+    activeOracles.map(async (oracle) => {
+      const [state, prices] = await Promise.all([
+        getOracleState(oracle.oracle_id),
+        getOraclePrices(oracle.oracle_id, 48),
+      ])
+
+      return { prices, state }
+    })
   )
 
-  return oracleStates.map((state) => mapOracleStateToMarketSnapshot(state))
+  return oracleData.map(({ prices, state }) =>
+    mapOracleStateToMarketSnapshot(state, prices)
+  )
 }
 
 export async function loadMarketSnapshot(

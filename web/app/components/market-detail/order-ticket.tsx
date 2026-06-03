@@ -45,6 +45,7 @@ type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
 
 export interface OrderTicketProps {
+  initialSide?: ContractSide
   market: MarketSnapshot
   selectedStrikePriceUsd: number
   tradeIntent?: PositionTradeIntent
@@ -256,6 +257,7 @@ function OrderTicketFallback({}: OrderTicketProps) {
 }
 
 function OrderTicketClient({
+  initialSide = "above",
   market,
   selectedStrikePriceUsd,
   tradeIntent,
@@ -264,7 +266,7 @@ function OrderTicketClient({
   const navigate = useNavigate()
   const revalidator = useRevalidator()
   const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
-  const [contractSide, setContractSide] = useState<ContractSide>("above")
+  const [contractSide, setContractSide] = useState<ContractSide>(initialSide)
   const [ticketStrikePriceUsd, setTicketStrikePriceUsd] = useState(
     selectedStrikePriceUsd
   )
@@ -321,9 +323,10 @@ function OrderTicketClient({
 
   useEffect(() => {
     setTicketStrikePriceUsd(selectedStrikePriceUsd)
+    setContractSide(initialSide)
     setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
     setRangeStrikes(getRangeStrikeDefaults(market, selectedStrikePriceUsd))
-  }, [market, selectedStrikePriceUsd])
+  }, [initialSide, market, selectedStrikePriceUsd])
 
   function applyStrike(nextStrikePriceUsd: number) {
     const normalizedStrikePriceUsd = normalizeStrikePrice(

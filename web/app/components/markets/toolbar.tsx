@@ -1,11 +1,7 @@
-import { ChevronDownIcon } from "lucide-react"
+import { SearchIcon, SlidersHorizontalIcon } from "lucide-react"
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+import { Button } from "~/components/ui/button"
+import { Input } from "~/components/ui/input"
 import { cn } from "~/lib/utils"
 
 export interface ToolbarOption {
@@ -19,6 +15,8 @@ export interface ToolbarProps {
   expiryOptions: ToolbarOption[]
   onAssetChange: (asset?: string) => void
   onExpiryChange: (expiry?: string) => void
+  onSearchChange: (search: string) => void
+  searchQuery: string
   selectedAsset?: string
   selectedExpiry?: string
   totalCount: number
@@ -30,93 +28,102 @@ export function Toolbar({
   expiryOptions,
   onAssetChange,
   onExpiryChange,
+  onSearchChange,
+  searchQuery,
   selectedAsset,
   selectedExpiry,
   totalCount,
   visibleCount,
 }: ToolbarProps) {
-  const selectedAssetLabel =
-    assetOptions.find((option) => option.value === selectedAsset)?.label ??
-    "All assets"
-  const selectedExpiryLabel =
-    expiryOptions.find((option) => option.value === selectedExpiry)?.label ??
-    "All expiries"
-
   return (
-    <div className="flex flex-col gap-2 border-b border-border/50 bg-background/45 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        <ToolbarDropdown
-          label="Asset"
-          onChange={onAssetChange}
-          options={assetOptions}
-          selectedLabel={selectedAssetLabel}
-          selectedValue={selectedAsset}
-        />
-        <ToolbarDropdown
-          label="Expiry"
-          onChange={onExpiryChange}
-          options={expiryOptions}
-          selectedLabel={selectedExpiryLabel}
-          selectedValue={selectedExpiry}
-        />
+    <div className="space-y-2 border-b border-border/40 bg-card px-3 py-2">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            Asset
+          </span>
+          <ToolbarTabs
+            onChange={onAssetChange}
+            options={assetOptions}
+            selectedValue={selectedAsset}
+          />
+        </div>
+
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              aria-label="Search markets"
+              className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search markets"
+              value={searchQuery}
+            />
+          </div>
+          <Button
+            aria-label="Filters"
+            className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <SlidersHorizontalIcon className="size-4" />
+          </Button>
+        </div>
       </div>
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:text-right">
-        {visibleCount} / {totalCount} markets
+
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            Expiry
+          </span>
+          <ToolbarTabs
+            onChange={onExpiryChange}
+            options={expiryOptions}
+            selectedValue={selectedExpiry}
+          />
+        </div>
+        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:text-right">
+          {visibleCount} / {totalCount} markets
+        </div>
       </div>
     </div>
   )
 }
 
-function ToolbarDropdown({
-  label,
+function ToolbarTabs({
   onChange,
   options,
-  selectedLabel,
   selectedValue,
 }: {
-  label: string
   onChange: (value?: string) => void
   options: ToolbarOption[]
-  selectedLabel: string
   selectedValue?: string
 }) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            aria-label={`${label}: ${selectedLabel}`}
-            className="flex h-8 items-center gap-2 rounded-md border border-border/45 bg-background/45 px-3 text-sm font-medium text-foreground transition-colors hover:bg-accent/55 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-            type="button"
-          />
-        }
-      >
-        <span>{selectedLabel}</span>
-        <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent className="min-w-40" align="start">
-        {options.map((option) => {
-          const isSelected = selectedValue === option.value
+    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {options.map((option) => {
+        const isSelected = selectedValue === option.value
 
-          return (
-            <DropdownMenuItem
-              className={cn(
-                "justify-between",
-                isSelected && "bg-accent text-accent-foreground"
-              )}
-              key={option.value ?? "all"}
-              onClick={() => onChange(option.value)}
-            >
-              <span>{option.label}</span>
-              {option.count !== undefined && (
-                <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                  {option.count}
-                </span>
-              )}
-            </DropdownMenuItem>
-          )
-        })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        return (
+          <button
+            className={cn(
+              "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+              isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
+            )}
+            key={option.value ?? "all"}
+            onClick={() => onChange(option.value)}
+            type="button"
+          >
+            <span>{option.label}</span>
+            {option.count !== undefined && (
+              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                {option.count}
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
   )
 }

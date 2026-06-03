@@ -37,6 +37,18 @@ function parseSelectedStrikePriceUsd(value: string | null) {
     : undefined
 }
 
+function parseInitialSide(value: string | null) {
+  if (value === "up") {
+    return "above" as const
+  }
+
+  if (value === "down") {
+    return "below" as const
+  }
+
+  return undefined
+}
+
 function getMarketHref(oracleId: string, strikePriceUsd: number) {
   const searchParams = new URLSearchParams({
     strike: strikePriceUsd.toString(),
@@ -115,6 +127,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const selectedStrikeParam = url.searchParams.get("strike")
   const selectedStrikePriceUsd =
     parseSelectedStrikePriceUsd(selectedStrikeParam)
+  const initialSide = parseInitialSide(url.searchParams.get("side"))
 
   if (!selectedStrikePriceUsd) {
     const quoteableStrikePriceUsd = await getQuoteableTradeStrike(market)
@@ -148,6 +161,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
 
   return {
     expiryOptions,
+    initialSide,
     market,
     rangeRedemptions: filterRangeRedemptions(rangeRedeems, activityOptions),
     rangeTrades: filterRangeTrades(rangeMints, activityOptions),
@@ -163,6 +177,7 @@ export default function Market({ loaderData }: Route.ComponentProps) {
     <AppFrame>
       <MarketDetailPage
         expiryOptions={loaderData.expiryOptions}
+        initialSide={loaderData.initialSide}
         market={loaderData.market}
         rangeRedemptions={loaderData.rangeRedemptions}
         rangeTrades={loaderData.rangeTrades}

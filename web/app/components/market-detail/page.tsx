@@ -27,6 +27,7 @@ import { Card } from "~/components/ui/card"
 
 export interface PageProps {
   expiryOptions: ExpiryOption[]
+  initialSide?: "above" | "below"
   market: MarketSnapshot
   rangeRedemptions: RangeRedemption[]
   rangeTrades: RangeTrade[]
@@ -38,6 +39,7 @@ export interface PageProps {
 
 export function Page({
   expiryOptions,
+  initialSide,
   market,
   rangeRedemptions,
   rangeTrades,
@@ -102,6 +104,7 @@ export function Page({
 
         <aside className="h-full min-w-0">
           <OrderTicket
+            initialSide={initialSide}
             market={market}
             selectedStrikePriceUsd={selectedStrikePriceUsd}
             tradeIntent={tradeIntent}
