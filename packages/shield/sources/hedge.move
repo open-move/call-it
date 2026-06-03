@@ -14,7 +14,6 @@ use deepbook_predict::{
     predict::{Self, Predict},
     predict_manager::{Self, PredictManager},
 };
-use dusdc::dusdc::DUSDC;
 
 const BPS_DENOMINATOR: u128 = 10000;
 const MAX_LOSS_BPS: u16 = 5000;
@@ -49,18 +48,18 @@ const EInvalidHedgePayout: vector<u8> = b"Hedge redeem reduced manager balance";
 #[error]
 const EHedgePositionChanged: vector<u8> = b"Shield hedge position was changed outside the policy";
 
-public(package) fun open(
+public(package) fun open<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    mut payment: Coin<DUSDC>,
+    mut payment: Coin<Quote>,
     hedge_budget_amount: u64,
     max_loss_bps: u16,
     hedge_strike: u64,
     hedge_quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): (Coin<PLP>, u64, u64, u64, u64, Coin<DUSDC>) {
+): (Coin<PLP>, u64, u64, u64, u64, Coin<Quote>) {
     let deposit_amount = payment.value();
 
     assert!(predict_manager::owner(manager) == ctx.sender(), ENotManagerOwner);
@@ -75,26 +74,26 @@ public(package) fun open(
     assert_hedge_position(manager, key, 0);
 
     let hedge_budget = payment.split(hedge_budget_amount, ctx);
-    let balance_before = predict_manager::balance<DUSDC>(manager);
-    predict_manager::deposit<DUSDC>(manager, hedge_budget, ctx);
-    let balance_after_deposit = predict_manager::balance<DUSDC>(manager);
-    predict::mint<DUSDC>(predict, manager, oracle, key, hedge_quantity, clock, ctx);
+    let balance_before = predict_manager::balance<Quote>(manager);
+    predict_manager::deposit<Quote>(manager, hedge_budget, ctx);
+    let balance_after_deposit = predict_manager::balance<Quote>(manager);
+    predict::mint<Quote>(predict, manager, oracle, key, hedge_quantity, clock, ctx);
     assert_hedge_position(manager, key, hedge_quantity);
-    let balance_after_mint = predict_manager::balance<DUSDC>(manager);
+    let balance_after_mint = predict_manager::balance<Quote>(manager);
     assert!(balance_after_mint >= balance_before, EExceededHedgeBudget);
     let hedge_cost = balance_after_deposit - balance_after_mint;
     let hedge_refund_amount = balance_after_mint - balance_before;
     let refund = if (hedge_refund_amount > 0) {
-        predict_manager::withdraw<DUSDC>(manager, hedge_refund_amount, ctx)
+        predict_manager::withdraw<Quote>(manager, hedge_refund_amount, ctx)
     } else {
         coin::zero(ctx)
     };
-    let plp = predict::supply<DUSDC>(predict, payment, clock, ctx);
+    let plp = predict::supply<Quote>(predict, payment, clock, ctx);
 
     (plp, deposit_amount, hedge_expiry_ms, hedge_cost, hedge_refund_amount, refund)
 }
 
-public(package) fun redeem_to_manager(
+public(package) fun redeem_to_manager<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
@@ -108,15 +107,15 @@ public(package) fun redeem_to_manager(
     assert!(oracle::status(oracle, clock) == oracle::status_settled(), EOracleNotSettled);
     let key = market_key::new(oracle_id, hedge_expiry_ms, hedge_strike, false);
     assert_hedge_position(manager, key, hedge_quantity);
-    let manager_balance_before = predict_manager::balance<DUSDC>(manager);
-    predict::redeem_permissionless<DUSDC>(predict, manager, oracle, key, hedge_quantity, clock, ctx);
+    let manager_balance_before = predict_manager::balance<Quote>(manager);
+    predict::redeem_permissionless<Quote>(predict, manager, oracle, key, hedge_quantity, clock, ctx);
     assert_hedge_position(manager, key, 0);
-    let manager_balance_after = predict_manager::balance<DUSDC>(manager);
+    let manager_balance_after = predict_manager::balance<Quote>(manager);
     assert!(manager_balance_after >= manager_balance_before, EInvalidHedgePayout);
     manager_balance_after - manager_balance_before
 }
 
-public(package) fun redeem_and_withdraw(
+public(package) fun redeem_and_withdraw<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
@@ -126,9 +125,9 @@ public(package) fun redeem_and_withdraw(
     hedge_quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): (u64, Coin<DUSDC>) {
+): (u64, Coin<Quote>) {
     assert!(predict_manager::owner(manager) == ctx.sender(), ENotManagerOwner);
-    let payout_amount = redeem_to_manager(
+    let payout_amount = redeem_to_manager<Quote>(
         predict,
         manager,
         oracle,
@@ -140,7 +139,7 @@ public(package) fun redeem_and_withdraw(
         ctx,
     );
     let payout = if (payout_amount > 0) {
-        predict_manager::withdraw<DUSDC>(manager, payout_amount, ctx)
+        predict_manager::withdraw<Quote>(manager, payout_amount, ctx)
     } else {
         coin::zero(ctx)
     };

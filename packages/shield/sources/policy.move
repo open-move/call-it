@@ -29,7 +29,7 @@ const EWrongOracle: vector<u8> = b"Oracle does not match policy";
 #[error]
 const EPolicySettled: vector<u8> = b"Policy is already settled";
 
-public struct ShieldPolicy has key {
+public struct ShieldPolicy<phantom Quote> has key {
     id: UID,
     beneficiary: address,
     deposit_amount: u64,
@@ -48,12 +48,12 @@ public struct ShieldPolicy has key {
     settled: bool,
 }
 
-public struct ShieldOwnerCap has key, store {
+public struct ShieldOwnerCap<phantom Quote> has key, store {
     id: UID,
     policy_id: ID,
 }
 
-public(package) fun new_shared(
+public(package) fun new_shared<Quote>(
     plp: Coin<PLP>,
     beneficiary: address,
     deposit_amount: u64,
@@ -68,12 +68,12 @@ public(package) fun new_shared(
     hedge_cost: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): (ShieldOwnerCap, ID, ID, u64, u64) {
+): (ShieldOwnerCap<Quote>, ID, ID, u64, u64) {
     let plp_amount = plp.value();
     assert!(plp_amount > 0, EEmptyPolicy);
 
     let created_at_ms = clock.timestamp_ms();
-    let policy = ShieldPolicy {
+    let policy = ShieldPolicy<Quote> {
         id: object::new(ctx),
         beneficiary,
         deposit_amount,
@@ -92,16 +92,16 @@ public(package) fun new_shared(
         settled: false,
     };
     let policy_id = policy.id.to_inner();
-    let cap = ShieldOwnerCap { id: object::new(ctx), policy_id };
+    let cap = ShieldOwnerCap<Quote> { id: object::new(ctx), policy_id };
     let owner_cap_id = cap.id.to_inner();
 
     transfer::share_object(policy);
     (cap, policy_id, owner_cap_id, plp_amount, created_at_ms)
 }
 
-public(package) fun set_beneficiary(
-    policy: &mut ShieldPolicy,
-    cap: &ShieldOwnerCap,
+public(package) fun set_beneficiary<Quote>(
+    policy: &mut ShieldPolicy<Quote>,
+    cap: &ShieldOwnerCap<Quote>,
     new_beneficiary: address,
 ): address {
     assert_unsettled(policy);
@@ -111,7 +111,7 @@ public(package) fun set_beneficiary(
     old_beneficiary
 }
 
-public(package) fun destroy_owner_cap(cap: ShieldOwnerCap, policy_id: ID): ID {
+public(package) fun destroy_owner_cap<Quote>(cap: ShieldOwnerCap<Quote>, policy_id: ID): ID {
     let ShieldOwnerCap { id, policy_id: cap_policy_id } = cap;
     assert!(cap_policy_id == policy_id, EWrongOwnerCap);
     let cap_id = id.to_inner();
@@ -119,8 +119,8 @@ public(package) fun destroy_owner_cap(cap: ShieldOwnerCap, policy_id: ID): ID {
     cap_id
 }
 
-public(package) fun settle_and_take_plp(
-    policy: &mut ShieldPolicy,
+public(package) fun settle_and_take_plp<Quote>(
+    policy: &mut ShieldPolicy<Quote>,
     clock: &Clock,
 ): (Balance<PLP>, ID, address, u64, ID, ID, ID, u64, u64, u64, u64, u64) {
     assert_unsettled(policy);
@@ -145,50 +145,50 @@ public(package) fun settle_and_take_plp(
     )
 }
 
-public(package) fun assert_owner_cap(policy: &ShieldPolicy, cap: &ShieldOwnerCap) {
+public(package) fun assert_owner_cap<Quote>(policy: &ShieldPolicy<Quote>, cap: &ShieldOwnerCap<Quote>) {
     assert!(cap.policy_id == policy.id.to_inner(), EWrongOwnerCap);
 }
 
-public(package) fun assert_predict(policy: &ShieldPolicy, predict_id: ID) {
+public(package) fun assert_predict<Quote>(policy: &ShieldPolicy<Quote>, predict_id: ID) {
     assert!(policy.predict_id == predict_id, EWrongPredict);
 }
 
-public(package) fun assert_manager(policy: &ShieldPolicy, manager_id: ID) {
+public(package) fun assert_manager<Quote>(policy: &ShieldPolicy<Quote>, manager_id: ID) {
     assert!(policy.manager_id == manager_id, EWrongManager);
 }
 
-public(package) fun assert_oracle(policy: &ShieldPolicy, oracle_id: ID) {
+public(package) fun assert_oracle<Quote>(policy: &ShieldPolicy<Quote>, oracle_id: ID) {
     assert!(policy.oracle_id == oracle_id, EWrongOracle);
 }
 
-public(package) fun assert_unsettled(policy: &ShieldPolicy) {
+public(package) fun assert_unsettled<Quote>(policy: &ShieldPolicy<Quote>) {
     assert!(!policy.settled, EPolicySettled);
 }
 
-public(package) fun id(policy: &ShieldPolicy): ID {
+public(package) fun id<Quote>(policy: &ShieldPolicy<Quote>): ID {
     policy.id.to_inner()
 }
 
-public(package) fun owner_cap_id(cap: &ShieldOwnerCap): ID {
+public(package) fun owner_cap_id<Quote>(cap: &ShieldOwnerCap<Quote>): ID {
     cap.id.to_inner()
 }
 
-public(package) fun oracle_id(policy: &ShieldPolicy): ID {
+public(package) fun oracle_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
     policy.oracle_id
 }
 
-public(package) fun hedge_expiry_ms(policy: &ShieldPolicy): u64 {
+public(package) fun hedge_expiry_ms<Quote>(policy: &ShieldPolicy<Quote>): u64 {
     policy.hedge_expiry_ms
 }
 
-public(package) fun hedge_strike(policy: &ShieldPolicy): u64 {
+public(package) fun hedge_strike<Quote>(policy: &ShieldPolicy<Quote>): u64 {
     policy.hedge_strike
 }
 
-public(package) fun hedge_quantity(policy: &ShieldPolicy): u64 {
+public(package) fun hedge_quantity<Quote>(policy: &ShieldPolicy<Quote>): u64 {
     policy.hedge_quantity
 }
 
-public(package) fun settled(policy: &ShieldPolicy): bool {
+public(package) fun settled<Quote>(policy: &ShieldPolicy<Quote>): bool {
     policy.settled
 }
