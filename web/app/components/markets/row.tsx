@@ -185,11 +185,7 @@ function MarketIdentity({ market }: { market: TradeMarket }) {
           {formatMarketTitleExpiry(market.expiryMs)}
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          <span className="rounded-md bg-outcome-up/10 px-1.5 py-0.5 text-outcome-up">
-            Live
-          </span>
           <span>Spot {formatUsd(market.currentPriceUsd, 0)}</span>
-          <span>Strike {formatUsd(market.strikePriceUsd, 0)}</span>
         </div>
       </div>
     </Link>

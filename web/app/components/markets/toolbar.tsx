@@ -36,12 +36,9 @@ export function Toolbar({
   visibleCount,
 }: ToolbarProps) {
   return (
-    <div className="space-y-2 border-b border-border/40 bg-card px-3 py-2">
+    <div className="space-y-2">
       <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Asset
-          </span>
           <ToolbarTabs
             onChange={onAssetChange}
             options={assetOptions}
@@ -60,6 +57,7 @@ export function Toolbar({
               value={searchQuery}
             />
           </div>
+
           <Button
             aria-label="Filters"
             className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
@@ -69,22 +67,6 @@ export function Toolbar({
           >
             <SlidersHorizontalIcon className="size-4" />
           </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Expiry
-          </span>
-          <ToolbarTabs
-            onChange={onExpiryChange}
-            options={expiryOptions}
-            selectedValue={selectedExpiry}
-          />
-        </div>
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:text-right">
-          {visibleCount} / {totalCount} markets
         </div>
       </div>
     </div>
@@ -116,11 +98,11 @@ function ToolbarTabs({
             type="button"
           >
             <span>{option.label}</span>
-            {option.count !== undefined && (
-              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+            {/*{option.count !== undefined && (
+              <span className="font-mono text-[9px] text-muted-foreground tabular-nums">
                 {option.count}
               </span>
-            )}
+            )}*/}
           </button>
         )
       })}

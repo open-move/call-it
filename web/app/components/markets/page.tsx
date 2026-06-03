@@ -1,9 +1,4 @@
-import {
-  ActivityIcon,
-  ArrowUpRightIcon,
-  RadioTowerIcon,
-  TimerIcon,
-} from "lucide-react"
+import { ArrowUpRightIcon, FlameIcon, TimerIcon } from "lucide-react"
 import { useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
@@ -56,7 +51,7 @@ function getAssetOptions(markets: TradeMarket[]): ToolbarOption[] {
   })
 
   return [
-    { label: "All assets", value: undefined },
+    { label: "All", value: undefined },
     ...Array.from(assetMap.values()).sort((firstAsset, secondAsset) =>
       firstAsset.label.localeCompare(secondAsset.label)
     ),
@@ -217,24 +212,24 @@ export function Page({ markets }: PageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         {markets.length > 0 ? (
-          <>
+          <div className="flex flex-col gap-6">
             <LiveShowcase markets={topMarkets} pulseStats={pulseStats} />
 
             <div className="space-y-2">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                    <ActivityIcon className="size-3.5" />
-                    Live markets
-                  </div>
-                  <h1 className="mt-1 text-sm font-medium text-foreground">
-                    Markets
-                  </h1>
-                </div>
-                <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:text-right">
-                  DeepBook Predict · Sui Testnet
-                </div>
-              </div>
+              <div className="text-md font-medium text-foreground">Markets</div>
+
+              <Toolbar
+                assetOptions={assetOptions}
+                expiryOptions={expiryTabs}
+                onAssetChange={(asset) => updateFilterParam("asset", asset)}
+                onExpiryChange={(expiry) => updateFilterParam("expiry", expiry)}
+                onSearchChange={setSearchQuery}
+                searchQuery={searchQuery}
+                selectedAsset={selectedAsset}
+                selectedExpiry={selectedExpiry}
+                totalCount={markets.length}
+                visibleCount={visibleMarkets.length}
+              />
 
               <Table
                 markets={visibleMarkets}
@@ -256,7 +251,7 @@ export function Page({ markets }: PageProps) {
                 }
               />
             </div>
-          </>
+          </div>
         ) : (
           <div className="rounded-md border border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
             No live markets are available right now.
@@ -281,12 +276,9 @@ function LiveShowcase({
       <div className="rounded-md border-0 bg-card p-3 shadow-none ring-0">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 text-sm leading-none font-medium text-foreground">
-            <RadioTowerIcon className="size-3.5 translate-y-px text-outcome-down" />
-            Live
+            <FlameIcon className="size-3.5 translate-y-px text-outcome-down" />
+            Top Markets
           </div>
-          <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            {markets.length} hot markets
-          </span>
         </div>
 
         <div className="space-y-0.5">

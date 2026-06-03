@@ -13,7 +13,7 @@ export interface TableProps {
 const columnLabels = [
   "Market",
   "Chart",
-  "Up Fair",
+  "Price (Up)",
   "Volume",
   "Distance",
   "Expires",
@@ -23,8 +23,7 @@ const columnLabels = [
 export function Table({ markets, toolbar }: TableProps) {
   return (
     <div className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      {toolbar}
-      <div className="hidden border-b border-border/40 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
+      <div className="hidden border-b border-border/40 bg-card px-3 py-4 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
         {columnLabels.map((label, index) => (
           <div
             className={cn(
