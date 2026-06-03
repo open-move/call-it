@@ -70,8 +70,14 @@ public struct ShieldSettled<phantom Quote> has copy, drop {
     plp_amount: u64,
     plp_quote_amount: u64,
     hedge_payout_amount: u64,
-    quote_amount: u64,
+    beneficiary_quote_amount: u64,
     settled_at_ms: u64,
+}
+
+public struct ShieldOwnerCapBurned<phantom Quote> has copy, drop {
+    policy_id: ID,
+    owner_cap_id: ID,
+    burned_at_ms: u64,
 }
 
 public struct ShieldBeneficiaryUpdated<phantom Quote> has copy, drop {
@@ -94,6 +100,7 @@ public fun open<Quote>(
     clock: &Clock,
     ctx: &mut TxContext,
 ): (ShieldOwnerCap<Quote>, Coin<Quote>) {
+    policy::assert_valid_beneficiary(beneficiary);
     let (plp, deposit_amount, hedge_expiry_ms, hedge_cost, hedge_refund_amount, refund) = hedge::open<Quote>(
         predict,
         manager,
@@ -173,6 +180,16 @@ public fun claim<Quote>(
 ): Coin<Quote> {
     assert_bindings<Quote>(policy, predict, manager, oracle);
     policy::assert_owner_cap<Quote>(policy, &cap);
+    if (policy::settled<Quote>(policy)) {
+        let policy_id = policy::id<Quote>(policy);
+        let owner_cap_id = policy::destroy_owner_cap<Quote>(cap, policy_id);
+        event::emit(ShieldOwnerCapBurned<Quote> {
+            policy_id,
+            owner_cap_id,
+            burned_at_ms: clock.timestamp_ms(),
+        });
+        return coin::zero(ctx)
+    };
     policy::assert_unsettled<Quote>(policy);
     let (hedge_payout_amount, mut payout) = hedge::redeem_and_withdraw<Quote>(
         predict,
@@ -270,7 +287,7 @@ public fun settle<Quote>(
     let plp = coin::from_balance(plp_balance, ctx);
     let payout = predict::withdraw<Quote>(predict, plp, clock, ctx);
     let plp_quote_amount = payout.value();
-    let quote_amount = payout.value();
+    let beneficiary_quote_amount = payout.value();
 
     event::emit(ShieldSettled<Quote> {
         policy_id,
@@ -285,7 +302,7 @@ public fun settle<Quote>(
         plp_amount,
         plp_quote_amount,
         hedge_payout_amount,
-        quote_amount,
+        beneficiary_quote_amount,
         settled_at_ms,
     });
 

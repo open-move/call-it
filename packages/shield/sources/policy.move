@@ -29,6 +29,9 @@ const EWrongOracle: vector<u8> = b"Oracle does not match policy";
 #[error]
 const EPolicySettled: vector<u8> = b"Policy is already settled";
 
+#[error]
+const EInvalidBeneficiary: vector<u8> = b"Beneficiary must be non-zero";
+
 public struct ShieldPolicy<phantom Quote> has key {
     id: UID,
     beneficiary: address,
@@ -69,6 +72,7 @@ public(package) fun new_shared<Quote>(
     clock: &Clock,
     ctx: &mut TxContext,
 ): (ShieldOwnerCap<Quote>, ID, ID, u64, u64) {
+    assert_valid_beneficiary(beneficiary);
     let plp_amount = plp.value();
     assert!(plp_amount > 0, EEmptyPolicy);
 
@@ -106,9 +110,14 @@ public(package) fun set_beneficiary<Quote>(
 ): address {
     assert_unsettled(policy);
     assert_owner_cap(policy, cap);
+    assert_valid_beneficiary(new_beneficiary);
     let old_beneficiary = policy.beneficiary;
     policy.beneficiary = new_beneficiary;
     old_beneficiary
+}
+
+public(package) fun assert_valid_beneficiary(beneficiary: address) {
+    assert!(beneficiary != @0x0, EInvalidBeneficiary);
 }
 
 public(package) fun destroy_owner_cap<Quote>(cap: ShieldOwnerCap<Quote>, policy_id: ID): ID {
