@@ -7,13 +7,14 @@ import { Button } from "~/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+} from "~/components/primitives/dropdown-menu"
 import { Input } from "~/components/ui/input"
 import { formatUsd } from "~/lib/callit/format"
 import {
@@ -63,13 +64,7 @@ const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: "UTC",
 })
 
-const columnLabels = [
-  "Product",
-  "Trigger",
-  "Budget",
-  "Expires",
-  "Action",
-]
+const columnLabels = ["Product", "Trigger", "Budget", "Expires", "Action"]
 
 function getAssetOptions(products: ShieldProduct[]): FilterOption[] {
   const assetMap = new Map<string, FilterOption>()
@@ -473,12 +468,14 @@ function MobileMetric({
 function ActionButton({ product }: { product: ShieldProduct }) {
   return (
     <div className="flex items-center justify-end lg:border-l lg:border-border/25 lg:pl-3">
-      <Link
-        className="inline-flex h-7 min-w-20 items-center justify-center rounded-md bg-primary/10 px-2.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        to={getShieldProductHref(product)}
+      <Button
+        className="min-w-20 bg-primary/10 text-xs text-primary shadow-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+        render={<Link to={getShieldProductHref(product)} />}
+        size="sm"
+        variant="ghost"
       >
         Open
-      </Link>
+      </Button>
     </div>
   )
 }
@@ -520,7 +517,7 @@ function ShieldSearchControls({
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           aria-label="Search shields"
-          className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search shields"
           value={searchQuery}
@@ -578,8 +575,8 @@ function FilterMenu({
         render={
           <Button
             aria-label="Filters"
-            className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
-            size="icon"
+            className="border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
+            size="icon-sm"
             type="button"
             variant="outline"
           />
@@ -588,60 +585,90 @@ function FilterMenu({
         <SlidersHorizontalIcon className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel>Sort</DropdownMenuLabel>
-        <DropdownMenuRadioGroup value={selectedSort} onValueChange={onSortChange}>
-          <DropdownMenuRadioItem value="expiry">
-            Nearest expiry
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="distance">
-            Protection distance
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="budget">
-            Hedge budget
-          </DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Asset</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={selectedAsset ?? "all"}
-          onValueChange={(value) => onAssetChange(value === "all" ? undefined : value)}
-        >
-          {assetOptions.map((option) => (
-            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
-              {option.label}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Sort</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedSort}
+            onValueChange={onSortChange}
+          >
+            <DropdownMenuRadioItem value="expiry">
+              Nearest expiry
             </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Tenor</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={selectedTenor ?? "all"}
-          onValueChange={(value) => onTenorChange(value === "all" ? undefined : value)}
-        >
-          {tenorOptions.map((option) => (
-            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
-              {option.label}
+            <DropdownMenuRadioItem value="distance">
+              Protection distance
             </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel>Protection</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={selectedProtection ?? "all"}
-          onValueChange={(value) => onProtectionChange(value === "all" ? undefined : value)}
-        >
-          {protectionOptions.map((option) => (
-            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
-              {option.label}
+            <DropdownMenuRadioItem value="budget">
+              Hedge budget
             </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
 
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onResetFilters}>Reset filters</DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Asset</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedAsset ?? "all"}
+            onValueChange={(value) =>
+              onAssetChange(value === "all" ? undefined : value)
+            }
+          >
+            {assetOptions.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value ?? "all"}
+                value={option.value ?? "all"}
+              >
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Tenor</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedTenor ?? "all"}
+            onValueChange={(value) =>
+              onTenorChange(value === "all" ? undefined : value)
+            }
+          >
+            {tenorOptions.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value ?? "all"}
+                value={option.value ?? "all"}
+              >
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Protection</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedProtection ?? "all"}
+            onValueChange={(value) =>
+              onProtectionChange(value === "all" ? undefined : value)
+            }
+          >
+            {protectionOptions.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value ?? "all"}
+                value={option.value ?? "all"}
+              >
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={onResetFilters}>
+            Reset filters
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )

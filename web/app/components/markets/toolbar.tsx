@@ -5,13 +5,14 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+} from "~/components/primitives/dropdown-menu"
 import { Input } from "~/components/ui/input"
 import { cn } from "~/lib/utils"
 
@@ -83,7 +84,7 @@ export function MarketSearchControls({
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           aria-label="Search markets"
-          className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search markets"
           value={searchQuery}
@@ -120,8 +121,8 @@ function FilterMenu({
         render={
           <Button
             aria-label="Filters"
-            className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
-            size="icon"
+            className="border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
+            size="icon-sm"
             type="button"
             variant="outline"
           />
@@ -130,28 +131,36 @@ function FilterMenu({
         <SlidersHorizontalIcon className="size-4" />
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
-        <DropdownMenuLabel>Sort</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={selectedSort}
-          onValueChange={onSortChange}
-        >
-          <DropdownMenuRadioItem value="expiry">
-            Expiring soon
-          </DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="volume">Volume</DropdownMenuRadioItem>
-          <DropdownMenuRadioItem value="move">Price move</DropdownMenuRadioItem>
-        </DropdownMenuRadioGroup>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Sort</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedSort}
+            onValueChange={onSortChange}
+          >
+            <DropdownMenuRadioItem value="expiry">
+              Expiring soon
+            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="volume">Volume</DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="move">
+              Price move
+            </DropdownMenuRadioItem>
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuCheckboxItem
-          checked={withTradesOnly}
-          onCheckedChange={onWithTradesOnlyChange}
-        >
-          With recent trades
-        </DropdownMenuCheckboxItem>
+        <DropdownMenuGroup>
+          <DropdownMenuCheckboxItem
+            checked={withTradesOnly}
+            onCheckedChange={onWithTradesOnlyChange}
+          >
+            With recent trades
+          </DropdownMenuCheckboxItem>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onResetFilters}>
-          Reset filters
-        </DropdownMenuItem>
+        <DropdownMenuGroup>
+          <DropdownMenuItem onClick={onResetFilters}>
+            Reset filters
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -172,17 +181,19 @@ function ToolbarTabs({
         const isSelected = selectedValue === option.value
 
         return (
-          <button
+          <Button
             className={cn(
-              "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+              "gap-1.5 px-2 text-xs font-normal text-muted-foreground shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
               isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
             )}
             key={option.value ?? "all"}
             onClick={() => onChange(option.value)}
+            size="sm"
             type="button"
+            variant="ghost"
           >
             <span>{option.label}</span>
-          </button>
+          </Button>
         )
       })}
     </div>

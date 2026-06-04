@@ -7,11 +7,12 @@ import { Card } from "~/components/ui/card"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/components/ui/dropdown-menu"
+} from "~/components/primitives/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type MarketSnapshot } from "~/lib/callit/market/types"
@@ -759,7 +760,7 @@ function ActivityTabTrigger({
   value: ActivityTabValue
 }) {
   return (
-    <TabsTrigger className="h-full flex-none rounded-none px-0" value={value}>
+    <TabsTrigger className="flex-none rounded-none px-0" value={value}>
       {label}
     </TabsTrigger>
   )
@@ -1037,40 +1038,52 @@ function PositionActionMenu({
     <div className="flex justify-end">
       <DropdownMenu>
         <DropdownMenuTrigger
-          aria-label="Position actions"
-          className="h-7 rounded-md bg-muted px-2.5 text-xs text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-          type="button"
+          render={
+            <Button
+              aria-label="Position actions"
+              className="bg-muted px-2.5 text-xs text-foreground shadow-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              size="sm"
+              type="button"
+              variant="ghost"
+            />
+          }
         >
           Actions
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal text-muted-foreground">
-            {primaryActionLabel} available
-          </DropdownMenuLabel>
-          {canAddToPosition(position) ? (
-            <DropdownMenuItem
-              onClick={() => onAddPosition(getPositionAddIntent(position))}
-            >
-              {addLabel}
-            </DropdownMenuItem>
-          ) : null}
-          {position.orderIds.length > 0 ? (
-            <>
-              <DropdownMenuItem onClick={() => onPreviewLifecycle(position)}>
-                Preview {lifecycleActionLabel.toLowerCase()}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal text-muted-foreground">
+              {primaryActionLabel} available
+            </DropdownMenuLabel>
+            {canAddToPosition(position) ? (
+              <DropdownMenuItem
+                onClick={() => onAddPosition(getPositionAddIntent(position))}
+              >
+                {addLabel}
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onRequestLifecycle(position)}>
-                Confirm {lifecycleActionLabel.toLowerCase()}
+            ) : null}
+            {position.orderIds.length > 0 ? (
+              <>
+                <DropdownMenuItem onClick={() => onPreviewLifecycle(position)}>
+                  Preview {lifecycleActionLabel.toLowerCase()}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onRequestLifecycle(position)}>
+                  Confirm {lifecycleActionLabel.toLowerCase()}
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuItem disabled>
+                {lifecycleActionLabel}
               </DropdownMenuItem>
-            </>
-          ) : (
-            <DropdownMenuItem disabled>{lifecycleActionLabel}</DropdownMenuItem>
-          )}
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal">
-            {disabledReason}
-          </DropdownMenuLabel>
+            )}
+            <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal">
+              {disabledReason}
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>View details</DropdownMenuItem>
+          <DropdownMenuGroup>
+            <DropdownMenuItem disabled>View details</DropdownMenuItem>
+          </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

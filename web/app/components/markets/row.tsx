@@ -1,6 +1,7 @@
 import { Link } from "react-router"
 
 import { AssetIcon } from "~/components/shared/market/asset-icon"
+import { Button } from "~/components/ui/button"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type TradeMarket } from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
@@ -251,18 +252,22 @@ function MobileMetric({
 function ActionButtons({ market }: { market: TradeMarket }) {
   return (
     <div className="flex items-center justify-end gap-1.5 lg:border-l lg:border-border/25 lg:pl-3">
-      <Link
-        className="inline-flex h-7 min-w-11 items-center justify-center rounded-md bg-outcome-up/10 px-2.5 text-xs font-medium text-outcome-up transition-colors hover:bg-outcome-up/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        to={getMarketHref(market, "up")}
+      <Button
+        className="min-w-11 bg-outcome-up/10 text-xs text-outcome-up shadow-none hover:bg-outcome-up/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+        render={<Link to={getMarketHref(market, "up")} />}
+        size="sm"
+        variant="ghost"
       >
         Up
-      </Link>
-      <Link
-        className="inline-flex h-7 min-w-11 items-center justify-center rounded-md bg-outcome-down/10 px-2.5 text-xs font-medium text-outcome-down transition-colors hover:bg-outcome-down/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        to={getMarketHref(market, "down")}
+      </Button>
+      <Button
+        className="min-w-11 bg-outcome-down/10 text-xs text-outcome-down shadow-none hover:bg-outcome-down/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+        render={<Link to={getMarketHref(market, "down")} />}
+        size="sm"
+        variant="ghost"
       >
         Down
-      </Link>
+      </Button>
     </div>
   )
 }

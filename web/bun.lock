@@ -5,6 +5,8 @@
       "name": "rr-app",
       "dependencies": {
         "@base-ui/react": "^1.5.0",
+        "@dicebear/core": "^10.0.2",
+        "@dicebear/styles": "^10.1.0",
         "@dynamic-labs/sdk-react-core": "^4.84.0",
         "@dynamic-labs/sui": "^4.84.0",
         "@fontsource-variable/inter": "^5.2.8",
@@ -110,6 +112,10 @@
     "@base-ui/react": ["@base-ui/react@1.5.0", "", { "dependencies": { "@babel/runtime": "^7.29.2", "@base-ui/utils": "0.2.9", "@floating-ui/react-dom": "^2.1.8", "@floating-ui/utils": "^0.2.11", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@date-fns/tz": "^1.2.0", "@types/react": "^17 || ^18 || ^19", "date-fns": "^4.0.0", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@date-fns/tz", "@types/react", "date-fns"] }, "sha512-z1gSAlced1yY+iM+mHDEtIkD8UI3Ebs52MuBPxvV6f5hRutk+xvCH/wuB7hDqDzK9JG5FoMz5nhrqtSs1wjt1A=="],
 
     "@base-ui/utils": ["@base-ui/utils@0.2.9", "", { "dependencies": { "@babel/runtime": "^7.29.2", "@floating-ui/utils": "^0.2.11", "reselect": "^5.1.1", "use-sync-external-store": "^1.6.0" }, "peerDependencies": { "@types/react": "^17 || ^18 || ^19", "react": "^17 || ^18 || ^19", "react-dom": "^17 || ^18 || ^19" }, "optionalPeers": ["@types/react"] }, "sha512-x/PDDCYzoqPpjrdyb3VcyylTI2IjUXEtYDGi5foh7KsnmNJIIaVwA2GLgDH1dps1GgXiJbA60hM+AyuTfQzIvw=="],
+
+    "@dicebear/core": ["@dicebear/core@10.0.2", "", {}, "sha512-Lw3Tjw0tf5Jg6SBszJ57YhowgMWv/eqU4K0hmnIxj0rgCjFYeM2/SDWl0dQNdDmVcWrfsR0Q5f+78f1uxF76Sg=="],
+
+    "@dicebear/styles": ["@dicebear/styles@10.1.0", "", {}, "sha512-IrCy3X5TQvlqigKmErsHqQuTwXthbGtzf0cgd6gOugx01LIXCMNNCUjnPKWchHvhmu4ACJ7xwfjQ1Myl20wd5Q=="],
 
     "@dotenvx/dotenvx": ["@dotenvx/dotenvx@1.67.0", "", { "dependencies": { "commander": "^11.1.0", "dotenv": "^17.2.1", "eciesjs": "^0.4.10", "enquirer": "^2.4.1", "execa": "^5.1.1", "fdir": "^6.2.0", "ignore": "^5.3.0", "object-treeify": "1.1.33", "picomatch": "^4.0.4", "which": "^4.0.0", "yocto-spinner": "^1.1.0" }, "bin": { "dotenvx": "src/cli/dotenvx.js" } }, "sha512-KBfIx5OrAG6giqSkHCkQWynZmT47XkSTuuYIcvjHxlKoVRlYbxNrJmyIPaefnszU8MCvMwrrB+viJQzPqzgpcg=="],
 

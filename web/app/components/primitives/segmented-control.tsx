@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { Button } from "~/components/ui/button"
 import { cn } from "~/lib/utils"
 
 export interface SegmentedControlOption {
@@ -30,7 +31,7 @@ export function SegmentedControl({
         const isSelected = option.value === value
 
         return (
-          <button
+          <Button
             aria-checked={isSelected}
             className={cn(
               "rounded-md px-4 py-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
@@ -42,9 +43,10 @@ export function SegmentedControl({
             onClick={() => onValueChange(option.value)}
             role="radio"
             type="button"
+            variant={isSelected ? "default" : "ghost"}
           >
             {option.label}
-          </button>
+          </Button>
         )
       })}
     </div>

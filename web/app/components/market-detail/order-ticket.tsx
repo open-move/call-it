@@ -252,7 +252,7 @@ export function OrderTicket(props: OrderTicketProps) {
 function OrderTicketFallback({}: OrderTicketProps) {
   return (
     <TicketCard>
-      <Button className="h-9 w-full" disabled type="button">
+      <Button className="w-full" disabled type="button">
         Sign in to trade
       </Button>
     </TicketCard>
@@ -606,7 +606,7 @@ function OrderTicketClient({
         }}
         value={ticketMode}
       >
-        <TabsList className="h-9 w-full overflow-hidden rounded-md bg-muted p-0">
+        <TabsList className="w-full overflow-hidden rounded-md bg-muted p-0">
           {(["binary", "range"] satisfies TicketMode[]).map((mode) => (
             <TicketModeTab key={mode} mode={mode} />
           ))}
@@ -625,7 +625,7 @@ function OrderTicketClient({
                   <Button
                     aria-pressed={isSelected}
                     className={cn(
-                      "h-8 border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
+                      "border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
                       isSelected &&
                         (side === "above"
                           ? "bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
@@ -633,6 +633,7 @@ function OrderTicketClient({
                     )}
                     key={side}
                     onClick={() => setContractSide(side)}
+                    size="sm"
                     type="button"
                     variant="secondary"
                   >
@@ -676,29 +677,61 @@ function OrderTicketClient({
           />
         )}
 
-          <label className="block space-y-2">
-            <span className="text-xs text-muted-foreground">Contracts</span>
-            <div className="relative">
-              <Input
-                className="h-9 border-0 pr-24 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
-                inputMode="decimal"
-                onChange={(event) => setSize(event.target.value)}
-                placeholder="0.00"
-                value={size}
-              />
-              <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-                Contracts
-              </span>
-            </div>
-          </label>
+        <label className="block space-y-2">
+          <span className="text-xs text-muted-foreground">Contracts</span>
+          <div className="relative">
+            <Input
+              className="border-0 pr-24 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+              inputMode="decimal"
+              onChange={(event) => setSize(event.target.value)}
+              placeholder="0.00"
+              value={size}
+            />
+            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
+              Contracts
+            </span>
+          </div>
+        </label>
 
-          <TicketSection title="Order">
-            {ticketMode === "binary" ? (
-              <>
-                <TicketRow
-                  label="Price"
-                  value={
-                    quotedQuote && selectedQuantity
+        <TicketSection title="Order">
+          {ticketMode === "binary" ? (
+            <>
+              <TicketRow
+                label="Price"
+                value={
+                  quotedQuote && selectedQuantity
+                    ? `${formatUnitPrice(
+                        quotedQuote.mintCost,
+                        selectedQuantity
+                      )} DUSDC`
+                    : quote?.status === "no_quote"
+                      ? "No quote"
+                      : isQuoting
+                        ? "Quoting"
+                        : "--"
+                }
+              />
+              <TicketRow label="Chance" value={chance} />
+              <TicketRow
+                label="Cost"
+                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+              />
+            </>
+          ) : (
+            <>
+              <TicketRow
+                label="Range"
+                value={`${formatStrikeValue(
+                  rangeStrikes.lower,
+                  market.tickSizeUsd
+                )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
+              />
+              <TicketRow
+                label="Price"
+                value={
+                  !isRangeValid
+                    ? "Invalid range"
+                    : quotedQuote && selectedQuantity
                       ? `${formatUnitPrice(
                           quotedQuote.mintCost,
                           selectedQuantity
@@ -708,72 +741,40 @@ function OrderTicketClient({
                         : isQuoting
                           ? "Quoting"
                           : "--"
-                  }
-                />
-                <TicketRow label="Chance" value={chance} />
-                <TicketRow
-                  label="Cost"
-                  value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
-                />
-              </>
-            ) : (
-              <>
-                <TicketRow
-                  label="Range"
-                  value={`${formatStrikeValue(
-                    rangeStrikes.lower,
-                    market.tickSizeUsd
-                  )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
-                />
-                <TicketRow
-                  label="Price"
-                  value={
-                    !isRangeValid
-                      ? "Invalid range"
-                      : quotedQuote && selectedQuantity
-                        ? `${formatUnitPrice(
-                            quotedQuote.mintCost,
-                            selectedQuantity
-                          )} DUSDC`
-                        : quote?.status === "no_quote"
-                          ? "No quote"
-                          : isQuoting
-                            ? "Quoting"
-                            : "--"
-                  }
-                />
-                <TicketRow
-                  label="Cost"
-                  value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
-                />
-              </>
-            )}
-          </TicketSection>
-
-          {(panelErrorMessage || statusMessage) && (
-            <TicketMessage
-              kind={
-                panelErrorMessage
-                  ? "error"
-                  : statusKind === "success"
-                    ? "success"
-                    : "neutral"
-              }
-            >
-              {panelErrorMessage ?? statusMessage}
-            </TicketMessage>
+                }
+              />
+              <TicketRow
+                label="Cost"
+                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+              />
+            </>
           )}
+        </TicketSection>
 
-          <Button
-            className="h-9 w-full"
-            disabled={
-              !!marketUnavailableMessage || (isTradeDisabled && !!walletAddress)
+        {(panelErrorMessage || statusMessage) && (
+          <TicketMessage
+            kind={
+              panelErrorMessage
+                ? "error"
+                : statusKind === "success"
+                  ? "success"
+                  : "neutral"
             }
-            onClick={handleTrade}
-            type="button"
           >
-            {actionButtonLabel}
-          </Button>
+            {panelErrorMessage ?? statusMessage}
+          </TicketMessage>
+        )}
+
+        <Button
+          className="w-full"
+          disabled={
+            !!marketUnavailableMessage || (isTradeDisabled && !!walletAddress)
+          }
+          onClick={handleTrade}
+          type="button"
+        >
+          {actionButtonLabel}
+        </Button>
       </TicketCard>
     </div>
   )
@@ -784,7 +785,7 @@ function TicketModeTab({ mode }: { mode: TicketMode }) {
 
   return (
     <TabsTrigger
-      className="!h-full rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
+      className="rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
       value={mode}
     >
       <ModeIcon className="size-3.5" />
@@ -808,7 +809,7 @@ function StrikeInput({
     <label className="block space-y-2">
       <span className="text-xs text-muted-foreground">Strike (USD)</span>
       <Input
-        className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+        className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
         inputMode="decimal"
         onBlur={onCommitStrike}
         onChange={(event) => onCustomStrikeChange(event.target.value)}
@@ -878,7 +879,7 @@ function RangeSelector({
           Lower Strike (USD)
         </span>
         <Input
-          className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
           inputMode="decimal"
           onBlur={commitLowerStrike}
           onChange={(event) => setLowerInput(event.target.value)}
@@ -895,7 +896,7 @@ function RangeSelector({
           Upper Strike (USD)
         </span>
         <Input
-          className="h-9 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
           inputMode="decimal"
           onBlur={commitHigherStrike}
           onChange={(event) => setHigherInput(event.target.value)}

@@ -749,7 +749,7 @@ function LiquidityPanelFrame({
                 Connect wallet to view your position.
               </p>
               <Button
-                className="mt-3 h-9 w-full"
+                className="mt-3 w-full"
                 disabled={!onConnect}
                 onClick={onConnect}
                 type="button"
@@ -762,15 +762,10 @@ function LiquidityPanelFrame({
           {walletAddress && (
             <div className="mt-auto">
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  className="h-9"
-                  onClick={() => selectAction("supply")}
-                  type="button"
-                >
+                <Button onClick={() => selectAction("supply")} type="button">
                   Deposit DUSDC
                 </Button>
                 <Button
-                  className="h-9"
                   onClick={() => selectAction("withdraw")}
                   type="button"
                   variant="outline"
@@ -853,7 +848,7 @@ function EarnActionDialog({
           <span className="text-xs text-muted-foreground">Amount</span>
           <div className="relative">
             <Input
-              className="h-10 border-0 pr-28 font-mono text-sm shadow-none ring-0 focus-visible:ring-1"
+              className="border-0 pr-28 font-mono text-sm shadow-none ring-0 focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
@@ -861,9 +856,10 @@ function EarnActionDialog({
             />
             <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2 text-xs text-muted-foreground">
               <Button
-                className="h-6 px-2 font-mono text-[10px]"
+                className="px-2 font-mono text-[10px]"
                 disabled={!onMaxAmount}
                 onClick={onMaxAmount}
+                size="xs"
                 type="button"
                 variant="ghost"
               >
@@ -921,9 +917,10 @@ function EarnActionDialog({
 
         <DialogFooter>
           <Button
-            className="h-10 w-full"
+            className="w-full"
             disabled={buttonDisabled}
             onClick={onSubmit}
+            size="lg"
             type="button"
           >
             {buttonLabel}

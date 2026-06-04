@@ -109,10 +109,7 @@ async function waitForManagerState(walletAddress: string) {
   )
 }
 
-export function DetailPage({
-  expiryProducts,
-  product,
-}: DetailPageProps) {
+export function DetailPage({ expiryProducts, product }: DetailPageProps) {
   const expiryOptions = getShieldExpiryOptions(expiryProducts)
   const [positionRefreshKey, setPositionRefreshKey] = useState(0)
 
@@ -164,10 +161,7 @@ export function DetailPage({
             />
           </div>
 
-          <ShieldInfoTabs
-            product={product}
-            refreshKey={positionRefreshKey}
-          />
+          <ShieldInfoTabs product={product} refreshKey={positionRefreshKey} />
         </section>
 
         <aside className="h-full min-w-0">
@@ -252,9 +246,7 @@ function ShieldTicketFrame({
   const [isLoadingManager, setIsLoadingManager] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string>()
-  const [statusKind, setStatusKind] = useState<"neutral" | "success">(
-    "neutral"
-  )
+  const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
   const [errorMessage, setErrorMessage] = useState<string>()
   const depositAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
   const hedgeBudget = depositAmount
@@ -402,7 +394,7 @@ function ShieldTicketFrame({
           <span className="text-xs text-muted-foreground">Deposit</span>
           <div className="relative">
             <Input
-              className="h-9 border-0 pr-20 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+              className="border-0 pr-20 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
@@ -440,7 +432,7 @@ function ShieldTicketFrame({
         )}
 
         <Button
-          className="h-9 w-full"
+          className="w-full"
           disabled={buttonDisabled}
           onClick={handleOpenShield}
           type="button"
@@ -466,7 +458,9 @@ function ShieldInfoTabs({
       defaultValue="positions"
       tabs={[
         {
-          content: <PositionsContent product={product} refreshKey={refreshKey} />,
+          content: (
+            <PositionsContent product={product} refreshKey={refreshKey} />
+          ),
           label: "Positions",
           value: "positions",
         },
@@ -617,7 +611,10 @@ function ShieldPositionCard({ position }: { position: ShieldPositionRow }) {
           label="Hedge budget"
           value={formatDusdc(position.hedgeBudgetAmount)}
         />
-        <PositionMetric label="Expires" value={formatExpiryDistance(position.hedgeExpiryMs)} />
+        <PositionMetric
+          label="Expires"
+          value={formatExpiryDistance(position.hedgeExpiryMs)}
+        />
       </div>
     </div>
   )
