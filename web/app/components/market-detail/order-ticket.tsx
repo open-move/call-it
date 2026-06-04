@@ -5,11 +5,16 @@ import {
   ArrowUpIcon,
   MoveHorizontalIcon,
 } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate, useRevalidator } from "react-router"
 
+import {
+  TicketCard,
+  TicketMessage,
+  TicketRow,
+  TicketSection,
+} from "~/components/shared/ticket/ticket"
 import { Button } from "~/components/ui/button"
-import { Card, CardContent } from "~/components/ui/card"
 import { Input } from "~/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatUsd } from "~/lib/callit/format"
@@ -246,13 +251,11 @@ export function OrderTicket(props: OrderTicketProps) {
 
 function OrderTicketFallback({}: OrderTicketProps) {
   return (
-    <Card className="h-full w-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="flex flex-1 flex-col gap-3 px-3 py-3">
-        <Button className="h-9 w-full" disabled type="button">
-          Sign in to trade
-        </Button>
-      </CardContent>
-    </Card>
+    <TicketCard>
+      <Button className="h-9 w-full" disabled type="button">
+        Sign in to trade
+      </Button>
+    </TicketCard>
   )
 }
 
@@ -610,69 +613,68 @@ function OrderTicketClient({
         </TabsList>
       </Tabs>
 
-      <Card className="w-full flex-1 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-        <CardContent className="flex flex-1 flex-col gap-3 px-3 py-3">
-          {ticketMode === "binary" ? (
-            <>
-              <div aria-label="Direction" className="grid grid-cols-2 gap-2">
-                {(["above", "below"] satisfies ContractSide[]).map((side) => {
-                  const isSelected = contractSide === side
-                  const SideIcon = getSideIcon(side)
+      <TicketCard>
+        {ticketMode === "binary" ? (
+          <>
+            <div aria-label="Direction" className="grid grid-cols-2 gap-2">
+              {(["above", "below"] satisfies ContractSide[]).map((side) => {
+                const isSelected = contractSide === side
+                const SideIcon = getSideIcon(side)
 
-                  return (
-                    <Button
-                      aria-pressed={isSelected}
-                      className={cn(
-                        "h-8 border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
-                        isSelected &&
-                          (side === "above"
-                            ? "bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
-                            : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15")
-                      )}
-                      key={side}
-                      onClick={() => setContractSide(side)}
-                      type="button"
-                      variant="secondary"
-                    >
-                      <SideIcon className="size-3" />
-                      {getSideLabel(side)}
-                    </Button>
-                  )
-                })}
-              </div>
+                return (
+                  <Button
+                    aria-pressed={isSelected}
+                    className={cn(
+                      "h-8 border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
+                      isSelected &&
+                        (side === "above"
+                          ? "bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
+                          : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15")
+                    )}
+                    key={side}
+                    onClick={() => setContractSide(side)}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <SideIcon className="size-3" />
+                    {getSideLabel(side)}
+                  </Button>
+                )
+              })}
+            </div>
 
-              <StrikeInput
-                customStrike={customStrike}
-                onCommitStrike={() => {
-                  const parsedStrike = parseStrikeInput(customStrike)
+            <StrikeInput
+              customStrike={customStrike}
+              onCommitStrike={() => {
+                const parsedStrike = parseStrikeInput(customStrike)
 
-                  if (parsedStrike) {
-                    applyStrike(parsedStrike)
-                  }
-                }}
-                onCustomStrikeChange={setCustomStrike}
-                selectedStrikePriceUsd={ticketStrikePriceUsd}
-              />
-            </>
-          ) : (
-            <RangeSelector
-              higherStrike={rangeStrikes.higher}
-              lowerStrike={rangeStrikes.lower}
-              market={market}
-              onHigherStrikeChange={(value) => {
-                setRangeStrikes((currentStrikes) => ({
-                  ...currentStrikes,
-                  higher: value,
-                }))
+                if (parsedStrike) {
+                  applyStrike(parsedStrike)
+                }
               }}
-              onLowerStrikeChange={(value) => {
-                setRangeStrikes((currentStrikes) => ({
-                  ...currentStrikes,
-                  lower: value,
-                }))
-              }}
+              onCustomStrikeChange={setCustomStrike}
+              selectedStrikePriceUsd={ticketStrikePriceUsd}
             />
-          )}
+          </>
+        ) : (
+          <RangeSelector
+            higherStrike={rangeStrikes.higher}
+            lowerStrike={rangeStrikes.lower}
+            market={market}
+            onHigherStrikeChange={(value) => {
+              setRangeStrikes((currentStrikes) => ({
+                ...currentStrikes,
+                higher: value,
+              }))
+            }}
+            onLowerStrikeChange={(value) => {
+              setRangeStrikes((currentStrikes) => ({
+                ...currentStrikes,
+                lower: value,
+              }))
+            }}
+          />
+        )}
 
           <label className="block space-y-2">
             <span className="text-xs text-muted-foreground">Contracts</span>
@@ -749,18 +751,17 @@ function OrderTicketClient({
           </TicketSection>
 
           {(panelErrorMessage || statusMessage) && (
-            <p
-              className={cn(
-                "rounded-md px-3 py-2 text-xs leading-5",
+            <TicketMessage
+              kind={
                 panelErrorMessage
-                  ? "bg-destructive/10 text-destructive"
+                  ? "error"
                   : statusKind === "success"
-                    ? "bg-outcome-up/10 text-outcome-up"
-                    : "bg-muted text-muted-foreground"
-              )}
+                    ? "success"
+                    : "neutral"
+              }
             >
               {panelErrorMessage ?? statusMessage}
-            </p>
+            </TicketMessage>
           )}
 
           <Button
@@ -773,8 +774,7 @@ function OrderTicketClient({
           >
             {actionButtonLabel}
           </Button>
-        </CardContent>
-      </Card>
+      </TicketCard>
     </div>
   )
 }
@@ -907,32 +907,6 @@ function RangeSelector({
           value={higherInput}
         />
       </label>
-    </div>
-  )
-}
-
-function TicketSection({
-  children,
-  title,
-}: {
-  children: ReactNode
-  title: string
-}) {
-  return (
-    <div className="space-y-2 rounded-md bg-muted p-2.5 text-sm">
-      <div className="text-xs text-muted-foreground">{title}</div>
-      <div className="space-y-2">{children}</div>
-    </div>
-  )
-}
-
-function TicketRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
-        {value}
-      </span>
     </div>
   )
 }

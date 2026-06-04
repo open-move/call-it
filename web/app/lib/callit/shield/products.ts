@@ -21,7 +21,7 @@ interface AssetConfig {
 
 const DAY_MS = 24 * 60 * 60_000
 
-const shieldAssetConfigs = {
+const shieldAssetConfigs: Record<string, AssetConfig> = {
   BTC: {
     quoteAsset: PREDICT_QUOTE_ASSET,
     presets: [
@@ -48,7 +48,7 @@ const shieldAssetConfigs = {
       { budgetBps: 5000, label: "Tail", multiplier: 0.68, preset: "tail" },
     ],
   },
-} satisfies Record<string, AssetConfig>
+}
 
 const fallbackPresetConfigs = [
   { budgetBps: 2500, label: "Light", multiplier: 0.95, preset: "light" },

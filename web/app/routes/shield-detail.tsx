@@ -43,10 +43,12 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   }
 
   return {
-    product,
-    relatedProducts: products.filter(
-      (candidate) => candidate.market.oracleId === oracleId
+    expiryProducts: products.filter(
+      (candidate) =>
+        candidate.market.assetSymbol === product.market.assetSymbol &&
+        candidate.preset === product.preset
     ),
+    product,
   }
 }
 
@@ -54,8 +56,8 @@ export default function ShieldDetail({ loaderData }: Route.ComponentProps) {
   return (
     <AppFrame>
       <ShieldDetailPage
+        expiryProducts={loaderData.expiryProducts}
         product={loaderData.product}
-        relatedProducts={loaderData.relatedProducts}
       />
     </AppFrame>
   )

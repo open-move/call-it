@@ -18,6 +18,11 @@ export const PREDICT_QUOTE_DECIMALS = 6
 
 export const PREDICT_PRICE_SCALE = 1_000_000_000
 
+export const SHIELD_PACKAGE_ID =
+  "0x1d00ca1442e0d989dcd74f6276dd66760e76c9c5e7f447e1d701644ca37a79da"
+
+export const SHIELD_ORIGINAL_PACKAGE_ID = SHIELD_PACKAGE_ID
+
 export const SUI_GRPC_URL = "https://fullnode.testnet.sui.io:443"
 
 export const SUI_NETWORK = "testnet"

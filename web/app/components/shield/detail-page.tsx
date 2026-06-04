@@ -1,26 +1,52 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { ArrowLeftIcon, ShieldCheckIcon } from "lucide-react"
-import { useEffect, useState, type ReactNode } from "react"
-import { Link } from "react-router"
+import { ShieldCheckIcon } from "lucide-react"
+import { useEffect, useState } from "react"
+import { useRevalidator } from "react-router"
 
-import { Badge, BadgeTone } from "~/components/primitives/badge"
-import { AssetIcon } from "~/components/shared/market/asset-icon"
-import { Button } from "~/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { Input } from "~/components/ui/input"
-import { ChartPanel } from "~/components/market-detail/chart-panel"
-import { formatUsd } from "~/lib/callit/format"
+import { BadgeTone } from "~/components/primitives/badge"
+import { DetailChartCard } from "~/components/shared/detail/detail-chart-card"
+import { DetailTabs } from "~/components/shared/detail/detail-tabs"
 import {
-  getShieldPresetLabel,
+  TicketCard,
+  TicketMessage,
+  TicketRow,
+  TicketSection,
+} from "~/components/shared/ticket/ticket"
+import { Button } from "~/components/ui/button"
+import { Input } from "~/components/ui/input"
+import { formatUsd } from "~/lib/callit/format"
+import { type ExpiryOption } from "~/lib/callit/market/types"
+import {
   getShieldProductHref,
   getShieldTenorLabel,
 } from "~/lib/callit/shield/products"
 import { type ShieldProduct } from "~/lib/callit/shield/types"
+import {
+  formatDecimalUnits,
+  parseDecimalUnits,
+} from "~/lib/callit/trading/amounts"
+import { getPredictManagers } from "~/lib/deepbook/predict-client"
+import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
+import { formatPredictTradeError } from "~/lib/deepbook/predict-quotes"
+import { prepareShieldOpenTransaction } from "~/lib/deepbook/shield-transactions"
+import {
+  buildCreateManagerTransaction,
+  executeSuiTransaction,
+  findCreatedManagerId,
+} from "~/lib/deepbook/predict-transactions"
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "~/lib/dynamic/sui-wallet"
 import { cn } from "~/lib/utils"
 
+interface ManagerState {
+  managerId?: string
+}
+
 export interface DetailPageProps {
+  expiryProducts: ShieldProduct[]
   product: ShieldProduct
-  relatedProducts: ShieldProduct[]
 }
 
 function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
@@ -45,161 +71,118 @@ function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
   return `${Math.round(hours / 24)}d`
 }
 
-function formatSignedPercent(value: number) {
-  const displayValue = Math.abs(value) < 0.005 ? 0 : value
-
-  return `${displayValue >= 0 ? "+" : ""}${displayValue.toFixed(2)}%`
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
-function parseAmount(value: string) {
-  const parsedValue = Number(value.replaceAll(",", ""))
-
-  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0
+function formatDusdc(value: bigint) {
+  return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
 }
 
-function formatAmount(value: number) {
-  return value.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 0,
-  })
+async function loadManagerState(walletAddress: string): Promise<ManagerState> {
+  const [manager] = await getPredictManagers(walletAddress)
+
+  if (!manager) {
+    return {}
+  }
+
+  return { managerId: manager.manager_id }
 }
 
-export function DetailPage({ product, relatedProducts }: DetailPageProps) {
+async function waitForManagerState(walletAddress: string) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const managerState = await loadManagerState(walletAddress)
+
+    if (managerState.managerId) {
+      return managerState
+    }
+
+    await sleep(1_000)
+  }
+
+  throw new Error(
+    "Manager creation confirmed, but the indexer has not caught up"
+  )
+}
+
+export function DetailPage({
+  expiryProducts,
+  product,
+}: DetailPageProps) {
+  const expiryOptions = getShieldExpiryOptions(expiryProducts)
+
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mb-3">
-        <Link
-          className="inline-flex items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-          to="/shield"
-        >
-          <ArrowLeftIcon className="size-3.5" />
-          Back to Shield
-        </Link>
-      </div>
-
-      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_24rem]">
-        <section className="min-w-0 space-y-3">
-          <Header product={product} />
-
-          <Card className="flex h-120 min-w-0 flex-col overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-            <ChartPanel
+      <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <section className="grid min-w-0 gap-3">
+          <div className="h-120 min-w-0">
+            <DetailChartCard
+              assetIconUrl={product.market.assetIconUrl}
               assetName={product.market.assetName}
               assetSymbol={product.market.assetSymbol}
-              oracleId={product.market.oracleId}
+              badgeLabel={product.status === "active" ? "Live" : product.status}
+              badgeTone={
+                product.status === "active" ? BadgeTone.Live : BadgeTone.Neutral
+              }
+              expiryOptions={expiryOptions}
+              getExpiryHref={(option) =>
+                getShieldProductHref(
+                  expiryProducts.find(
+                    (expiryProduct) =>
+                      expiryProduct.market.oracleId === option.oracleId
+                  ) ?? product
+                )
+              }
+              metrics={[
+                { label: "Deposit", value: "DUSDC" },
+                { label: "Yield", value: "Predict PLP" },
+                { label: "Tenor", value: getShieldTenorLabel(product.tenor) },
+                {
+                  className: "text-outcome-down",
+                  label: "Trigger",
+                  value: `Below ${formatUsd(product.protectionStrikeUsd, 0)}`,
+                },
+                {
+                  label: "Budget",
+                  value: `≤${product.hedgeBudgetBps / 100}%`,
+                },
+                {
+                  label: "Expires",
+                  value: formatExpiryDistance(product.market.expiryMs),
+                },
+              ]}
               points={product.market.priceHistory}
-              selectedStrikePriceUsd={product.protectionStrikeUsd}
+              referenceLabel="Trigger"
+              referencePriceUsd={product.protectionStrikeUsd}
+              selectedOracleId={product.market.oracleId}
+              title={`${product.market.assetSymbol} Shield · ${getShieldTenorLabel(product.tenor)}`}
             />
-            <div className="border-t border-border/40 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-              Protection trigger · {formatUsd(product.protectionStrikeUsd, 0)} ·{" "}
-              {formatSignedPercent(product.distancePercent)} from spot
-            </div>
-          </Card>
-
-          <div className="grid gap-3 lg:grid-cols-2">
-            <TermsCard product={product} />
-            <ScenarioCard product={product} />
           </div>
 
-          <RiskCard />
+          <ShieldInfoTabs product={product} />
         </section>
 
-        <aside className="min-w-0 xl:sticky xl:top-20">
-          <ShieldTicket product={product} relatedProducts={relatedProducts} />
+        <aside className="h-full min-w-0">
+          <ShieldTicket product={product} />
         </aside>
       </div>
     </main>
   )
 }
 
-function Header({ product }: { product: ShieldProduct }) {
-  return (
-    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="px-3 py-3">
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <AssetIcon
-              assetIconUrl={product.market.assetIconUrl}
-              assetName={product.market.assetName}
-              assetSymbol={product.market.assetSymbol}
-              className="size-8"
-            />
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <h1 className="truncate text-lg leading-none font-semibold tracking-tight text-foreground">
-                  {product.market.assetSymbol} Shield ·{" "}
-                  {getShieldTenorLabel(product.tenor)}
-                </h1>
-                <Badge
-                  className="px-2 py-0.5 font-mono text-[10px] uppercase"
-                  tone={BadgeTone.Live}
-                >
-                  Live
-                </Badge>
-              </div>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                {getShieldPresetLabel(product.preset)} protection below{" "}
-                {formatUsd(product.protectionStrikeUsd, 0)} with PLP yield
-                exposure.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-4 overflow-x-auto pb-1">
-          <div className="flex min-w-175 items-end gap-6">
-            <HeaderMetric label="Deposit Asset" value="DUSDC" />
-            <HeaderMetric label="Yield Source" value="Predict PLP" />
-            <HeaderMetric label="Tenor" value={getShieldTenorLabel(product.tenor)} />
-            <HeaderMetric
-              className="text-outcome-down"
-              label="Protection"
-              value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
-            />
-            <HeaderMetric
-              label="Hedge Budget"
-              value={`≤${product.hedgeBudgetBps / 100}%`}
-            />
-            <HeaderMetric
-              label="Expires"
-              value={formatExpiryDistance(product.market.expiryMs)}
-            />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function HeaderMetric({
-  className,
-  label,
-  value,
-}: {
-  className?: string
-  label: string
-  value: string
-}) {
-  return (
-    <div className="min-w-0 whitespace-nowrap">
-      <div className="text-[11px] text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-1 truncate font-mono text-xs leading-none font-medium text-foreground tabular-nums",
-          className
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  )
+function getShieldExpiryOptions(products: ShieldProduct[]): ExpiryOption[] {
+  return products.map((product) => ({
+    assetSymbol: product.market.assetSymbol,
+    expiryMs: product.market.expiryMs,
+    oracleId: product.market.oracleId,
+    status: product.market.status,
+  }))
 }
 
 function ShieldTicket({
   product,
-  relatedProducts,
 }: {
   product: ShieldProduct
-  relatedProducts: ShieldProduct[]
 }) {
   const [isClient, setIsClient] = useState(false)
 
@@ -208,82 +191,199 @@ function ShieldTicket({
   }, [])
 
   if (!isClient) {
-    return <ShieldTicketFrame product={product} relatedProducts={relatedProducts} />
+    return <ShieldTicketFrame product={product} />
   }
 
-  return (
-    <ShieldTicketClient product={product} relatedProducts={relatedProducts} />
-  )
+  return <ShieldTicketClient product={product} />
 }
 
 function ShieldTicketClient({
   product,
-  relatedProducts,
 }: {
   product: ShieldProduct
-  relatedProducts: ShieldProduct[]
 }) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const revalidator = useRevalidator()
 
   return (
     <ShieldTicketFrame
-      beneficiary={primaryWallet?.address}
       onConnect={() => setShowAuthFlow(true)}
       product={product}
-      relatedProducts={relatedProducts}
+      revalidate={() => revalidator.revalidate()}
+      wallet={primaryWallet}
       walletAddress={primaryWallet?.address}
     />
   )
 }
 
 function ShieldTicketFrame({
-  beneficiary,
   onConnect,
   product,
-  relatedProducts,
+  revalidate,
+  wallet,
   walletAddress,
 }: {
-  beneficiary?: string
   onConnect?: () => void
   product: ShieldProduct
-  relatedProducts: ShieldProduct[]
+  revalidate?: () => void
+  wallet?: unknown
   walletAddress?: string
 }) {
   const [amount, setAmount] = useState("")
-  const [beneficiaryInput, setBeneficiaryInput] = useState(beneficiary ?? "")
-  const depositAmount = parseAmount(amount)
-  const hedgeBudget = (depositAmount * product.hedgeBudgetBps) / 10_000
-  const plpSupply = Math.max(depositAmount - hedgeBudget, 0)
-  const buttonLabel = !walletAddress ? "Sign in" : "Open after deploy"
-  const buttonDisabled = walletAddress ? true : !onConnect
+  const [managerState, setManagerState] = useState<ManagerState>({})
+  const [isLoadingManager, setIsLoadingManager] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string>()
+  const [statusKind, setStatusKind] = useState<"neutral" | "success">(
+    "neutral"
+  )
+  const [errorMessage, setErrorMessage] = useState<string>()
+  const depositAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
+  const hedgeBudget = depositAmount
+    ? (depositAmount * BigInt(product.hedgeBudgetBps)) / 10_000n
+    : 0n
+  const plpSupply = depositAmount ? depositAmount - hedgeBudget : 0n
+  const buttonLabel = !walletAddress
+    ? "Sign in"
+    : isSubmitting
+      ? "Submitting"
+      : isLoadingManager
+        ? "Loading account"
+        : "Open Shield"
+  const buttonDisabled = walletAddress
+    ? isSubmitting || isLoadingManager || !depositAmount
+    : !onConnect
 
   useEffect(() => {
-    if (beneficiary && !beneficiaryInput) {
-      setBeneficiaryInput(beneficiary)
+    let isStale = false
+
+    async function load() {
+      if (!walletAddress) {
+        setManagerState({})
+        return
+      }
+
+      setIsLoadingManager(true)
+      setErrorMessage(undefined)
+
+      try {
+        const nextManagerState = await loadManagerState(walletAddress)
+
+        if (!isStale) {
+          setManagerState(nextManagerState)
+        }
+      } catch (error) {
+        if (!isStale) {
+          setErrorMessage(
+            error instanceof Error ? error.message : "Failed to load account"
+          )
+        }
+      } finally {
+        if (!isStale) {
+          setIsLoadingManager(false)
+        }
+      }
     }
-  }, [beneficiary, beneficiaryInput])
+
+    void load()
+
+    return () => {
+      isStale = true
+    }
+  }, [walletAddress])
+
+  async function handleOpenShield() {
+    if (!walletAddress) {
+      onConnect?.()
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(wallet)
+
+    if (!signer) {
+      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
+      onConnect?.()
+      return
+    }
+
+    if (!depositAmount) {
+      setErrorMessage("Enter a positive deposit")
+      return
+    }
+
+    setIsSubmitting(true)
+    setStatusKind("neutral")
+    setErrorMessage(undefined)
+
+    try {
+      let managerId = managerState.managerId
+
+      if (!managerId) {
+        setStatusMessage("Creating trading account")
+        const createResult = await executeSuiTransaction(
+          signer,
+          buildCreateManagerTransaction(walletAddress)
+        )
+        managerId = findCreatedManagerId(createResult.events)
+
+        if (!managerId) {
+          const nextManagerState = await waitForManagerState(walletAddress)
+          managerId = nextManagerState.managerId
+          setManagerState(nextManagerState)
+        }
+      }
+
+      if (!managerId) {
+        throw new Error("Could not resolve trading account")
+      }
+
+      setStatusMessage("Preparing Shield")
+      const preparedOpen = await prepareShieldOpenTransaction({
+        depositAmount,
+        expiryMs: product.market.expiryMs,
+        hedgeBudgetBps: product.hedgeBudgetBps,
+        managerId,
+        oracleId: product.market.oracleId,
+        protectionStrikeUsd: product.protectionStrikeUsd,
+        walletAddress,
+      })
+
+      setStatusMessage(
+        `Opening ${formatDusdc(depositAmount)} Shield with ${formatDusdc(
+          preparedOpen.hedgeBudgetAmount
+        )} hedge budget`
+      )
+      await executeSuiTransaction(signer, preparedOpen.transaction)
+
+      setStatusMessage("Shield opened")
+      setStatusKind("success")
+      setAmount("")
+      revalidate?.()
+      window.setTimeout(() => revalidate?.(), 1_500)
+    } catch (error) {
+      setStatusMessage(undefined)
+      setStatusKind("neutral")
+      setErrorMessage(formatPredictTradeError(error, "Open Shield failed"))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
+    <div className="flex h-full w-full flex-col gap-2">
+      <TicketCard>
         <div>
-          <div className="flex items-center gap-2 text-base font-semibold text-foreground">
-            <ShieldCheckIcon className="size-4 text-primary" />
+          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+            <ShieldCheckIcon className="size-3.5 text-primary" />
             Open Shield
           </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            First release UI. Transaction wiring turns on after Shield is
-            published on testnet.
-          </p>
         </div>
 
         <label className="block space-y-2">
-          <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Deposit
-          </span>
+          <span className="text-xs text-muted-foreground">Deposit</span>
           <div className="relative">
             <Input
-              className="h-11 border-0 pr-20 font-mono shadow-none ring-0 focus-visible:ring-1"
+              className="h-9 border-0 pr-20 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => setAmount(event.target.value)}
               placeholder="0.00"
@@ -295,90 +395,78 @@ function ShieldTicketFrame({
           </div>
         </label>
 
-        <div className="space-y-2">
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Protection
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {relatedProducts.map((relatedProduct) => {
-              const isSelected = relatedProduct.id === product.id
-
-              return (
-                <Link
-                  className={cn(
-                    "flex h-8 items-center justify-center rounded-md bg-muted px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-                    isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
-                  )}
-                  key={relatedProduct.id}
-                  to={getShieldProductHref(relatedProduct)}
-                >
-                  {getShieldPresetLabel(relatedProduct.preset)}
-                </Link>
-              )
-            })}
-          </div>
-          <div className="rounded-md bg-muted p-3">
-            <PanelRow
-              label="Tenor"
-              value={getShieldTenorLabel(product.tenor)}
-            />
-            <PanelRow
-              label="Trigger"
-              value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
-              valueClassName="text-outcome-down"
-            />
-            <PanelRow
-              label="Distance"
-              value={formatSignedPercent(product.distancePercent)}
-              valueClassName="text-outcome-down"
-            />
-            <PanelRow
-              label="Expires"
-              value={formatExpiryDistance(product.market.expiryMs)}
-            />
-          </div>
-        </div>
-
-        <label className="block space-y-2">
-          <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Beneficiary
-          </span>
-          <Input
-            className="h-10 border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
-            onChange={(event) => setBeneficiaryInput(event.target.value)}
-            placeholder="0x..."
-            value={beneficiaryInput}
+        <TicketSection title="Preview">
+          <TicketRow
+            label="PLP supply"
+            value={depositAmount ? `~${formatDusdc(plpSupply)}` : "--"}
           />
-        </label>
+          <TicketRow
+            label="Hedge budget"
+            value={depositAmount ? `≤${formatDusdc(hedgeBudget)}` : "--"}
+          />
+        </TicketSection>
 
-        <div className="space-y-2 rounded-md bg-muted p-3">
-          <PanelRow label="PLP supply" value={`~${formatAmount(plpSupply)}`} />
-          <PanelRow label="Hedge budget" value={`≤${formatAmount(hedgeBudget)}`} />
-          <PanelRow label="Max loss bps" value={product.hedgeBudgetBps.toString()} />
-          <PanelRow label="Unused budget" value="Refunds" />
-        </div>
-
-        <p className="text-xs leading-5 text-muted-foreground">
-          Keeper settlement sends the PLP withdrawal to the beneficiary. The
-          hedge payout is redeemed into the owner&apos;s PredictManager.
-        </p>
+        {(errorMessage || statusMessage) && (
+          <TicketMessage
+            kind={
+              errorMessage
+                ? "error"
+                : statusKind === "success"
+                  ? "success"
+                  : "neutral"
+            }
+          >
+            {errorMessage ?? statusMessage}
+          </TicketMessage>
+        )}
 
         <Button
-          className="mt-auto h-11 w-full"
+          className="h-9 w-full"
           disabled={buttonDisabled}
-          onClick={walletAddress ? undefined : onConnect}
+          onClick={handleOpenShield}
           type="button"
         >
           {buttonLabel}
         </Button>
-      </CardContent>
-    </Card>
+      </TicketCard>
+    </div>
   )
 }
 
-function TermsCard({ product }: { product: ShieldProduct }) {
+function ShieldInfoTabs({ product }: { product: ShieldProduct }) {
   return (
-    <InfoCard title="Terms">
+    <DetailTabs
+      className="h-[24rem] min-w-0"
+      contentClassName="px-3 py-3"
+      defaultValue="positions"
+      tabs={[
+        {
+          content: <PositionsContent />,
+          label: "Positions",
+          value: "positions",
+        },
+        {
+          content: <TermsContent product={product} />,
+          label: "Terms",
+          value: "terms",
+        },
+        { content: <RiskContent />, label: "Risks", value: "risks" },
+      ]}
+    />
+  )
+}
+
+function PositionsContent() {
+  return (
+    <div className="flex h-full min-h-0 items-center justify-center text-center text-sm text-muted-foreground">
+      No Shield positions yet.
+    </div>
+  )
+}
+
+function TermsContent({ product }: { product: ShieldProduct }) {
+  return (
+    <div className="space-y-2">
       <PanelRow label="Deposit asset" value="DUSDC" />
       <PanelRow label="Yield source" value="Predict PLP" />
       <PanelRow label="Tenor" value={getShieldTenorLabel(product.tenor)} />
@@ -388,63 +476,16 @@ function TermsCard({ product }: { product: ShieldProduct }) {
       />
       <PanelRow label="Hedge type" value="Binary DOWN" />
       <PanelRow label="Budget" value={`≤${product.hedgeBudgetBps / 100}%`} />
-    </InfoCard>
+    </div>
   )
 }
 
-function ScenarioCard({ product }: { product: ShieldProduct }) {
+function RiskContent() {
   return (
-    <InfoCard title="Scenarios">
-      <ScenarioRow
-        label="Above trigger"
-        value="PLP withdraws; hedge expires worthless"
-      />
-      <ScenarioRow
-        label="Below trigger"
-        value="DOWN hedge pays into the manager"
-      />
-      <ScenarioRow
-        label="Not settled"
-        value="Claim waits for oracle settlement"
-      />
-      <ScenarioRow
-        label="Trigger"
-        value={`${product.market.assetSymbol} below ${formatUsd(product.protectionStrikeUsd, 0)}`}
-      />
-    </InfoCard>
-  )
-}
-
-function RiskCard() {
-  return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="px-4 py-4">
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Risk notes
-        </div>
-        <div className="mt-3 grid gap-2 text-sm leading-6 text-muted-foreground md:grid-cols-2">
-          <p>
-            Max loss bps limits the hedge budget, not total strategy loss. PLP
-            value can still move with vault liabilities and liquidity.
-          </p>
-          <p>
-            Shield currently uses binary DOWN protection only. Range hedges and
-            payout caps are intentionally excluded from the first contract.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function InfoCard({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-4 pt-4 pb-0">
-        <CardTitle className="text-base">{title}</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 px-4 py-4">{children}</CardContent>
-    </Card>
+    <div className="grid gap-2 text-sm leading-6 text-muted-foreground md:grid-cols-2">
+      <p>Max loss bps limits hedge budget, not total strategy loss.</p>
+      <p>Shield v1 uses binary DOWN protection only.</p>
+    </div>
   )
 }
 
@@ -470,17 +511,6 @@ function PanelRow({
       >
         {value}
       </span>
-    </div>
-  )
-}
-
-function ScenarioRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-muted px-3 py-2">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-1 text-sm leading-5 text-foreground">{value}</div>
     </div>
   )
 }

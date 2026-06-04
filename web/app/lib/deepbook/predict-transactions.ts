@@ -94,7 +94,7 @@ function target(module: string, functionName: string) {
   return `${PREDICT_PACKAGE_ID}::${module}::${functionName}`
 }
 
-function toOnchainPrice(valueUsd: number) {
+export function toOnchainPrice(valueUsd: number) {
   return BigInt(Math.round(valueUsd * PREDICT_PRICE_SCALE))
 }
 
@@ -271,7 +271,7 @@ async function buildCoin(
   return depositCoin
 }
 
-function buildQuoteCoin(tx: Transaction, owner: string, amount: bigint) {
+export function buildQuoteCoin(tx: Transaction, owner: string, amount: bigint) {
   return buildCoin(
     tx,
     owner,
