@@ -318,6 +318,7 @@ function VaultPriceChart({
               <XAxis
                 axisLine={false}
                 dataKey="timestamp_ms"
+                domain={["dataMin", "dataMax"]}
                 minTickGap={34}
                 scale="time"
                 tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
