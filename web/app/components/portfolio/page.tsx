@@ -1,7 +1,6 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { formatAddress } from "@mysten/sui/utils"
 import { ArrowUpRightIcon, SearchIcon, WalletIcon } from "lucide-react"
-import { type ReactNode } from "react"
 import { useEffect, useState } from "react"
 import { Link } from "react-router"
 import {
@@ -22,6 +21,7 @@ import {
   type ChartConfig,
 } from "~/components/ui/chart"
 import { Input } from "~/components/ui/input"
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import {
   PREDICT_LP_ASSET,
@@ -55,6 +55,8 @@ export interface PageProps {
 
 type PortfolioTab = "open" | "redeemable" | "closed" | "activity"
 type PositionType = "UP" | "DOWN" | "RNG"
+type ChartMode = "realized" | "exposure"
+type ChartInterval = "1d" | "1w" | "1m" | "max"
 
 interface PortfolioPosition {
   assetSymbol: string
@@ -87,7 +89,6 @@ interface PortfolioState {
 
 interface PortfolioSummary {
   availableDusdc: number
-  largestPosition?: PortfolioPosition
   openCostBasisUsd: number
   openPredictionValueUsd: number
   plpBalance: number
@@ -95,7 +96,6 @@ interface PortfolioSummary {
   portfolioValueUsd: number
   rangeCostBasisUsd: number
   realizedPnlUsd: number
-  totalPositionCount: number
   unrealizedPnlUsd: number
   upCostBasisUsd: number
   downCostBasisUsd: number
@@ -154,6 +154,13 @@ const portfolioTabs = [
   { label: "Activity", value: "activity" },
 ] satisfies Array<{ label: string; value: PortfolioTab }>
 
+const chartIntervals = [
+  { label: "1d", value: "1d" },
+  { label: "1w", value: "1w" },
+  { label: "1m", value: "1m" },
+  { label: "Max", value: "max" },
+] satisfies Array<{ label: string; value: ChartInterval }>
+
 function toUsdPrice(value: number) {
   return value / PRICE_SCALE
 }
@@ -168,10 +175,6 @@ function coinBalanceToAmount(value: bigint) {
 
 function formatQuantity(value: number) {
   return value.toLocaleString("en-US", { maximumFractionDigits: 4 })
-}
-
-function formatCompactQuantity(value: number) {
-  return value.toLocaleString("en-US", { maximumFractionDigits: 2 })
 }
 
 function formatCents(value: number | null) {
@@ -606,13 +609,6 @@ function getPortfolioSummary({
     0
   )
   const realizedPnlUsd = realizedPnlPoints.at(-1)?.cumulativePnlUsd ?? 0
-  const largestPosition = positions
-    .slice()
-    .sort(
-      (firstPosition, secondPosition) =>
-        secondPosition.costBasisUsd - firstPosition.costBasisUsd
-    )[0]
-
   return {
     availableDusdc,
     downCostBasisUsd: positions.reduce(
@@ -620,7 +616,6 @@ function getPortfolioSummary({
         total + (position.type === "DOWN" ? position.costBasisUsd : 0),
       0
     ),
-    largestPosition,
     openCostBasisUsd,
     openPredictionValueUsd,
     plpBalance: plpAmount,
@@ -632,7 +627,6 @@ function getPortfolioSummary({
       0
     ),
     realizedPnlUsd,
-    totalPositionCount: positions.length,
     unrealizedPnlUsd,
     upCostBasisUsd: positions.reduce(
       (total, position) =>
@@ -696,7 +690,7 @@ export function Page(props: PageProps) {
 
   if (!isClient) {
     return (
-      <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <ConnectPortfolioCard onConnect={() => undefined} />
       </main>
     )
@@ -839,32 +833,20 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
   }, [oracles, walletAddress])
 
   return (
-    <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-3">
         {!walletAddress ? (
           <ConnectPortfolioCard onConnect={() => setShowAuthFlow(true)} />
         ) : (
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
-              <AccountCard
-                managerId={portfolioState.managerId}
-                summary={summary}
-                walletAddress={walletAddress}
-              />
+              <AccountCard summary={summary} />
+
               <PortfolioChartCard
                 isLoading={portfolioState.isLoading}
                 realizedPnlPoints={portfolioState.realizedPnlPoints}
                 summary={summary}
               />
-            </section>
-
-            <section className="grid gap-3 lg:grid-cols-3">
-              <ExposureBreakdownCard summary={summary} />
-              <VaultPositionCard
-                summary={summary}
-                vaultSummary={vaultSummary}
-              />
-              <RiskBiasCard summary={summary} />
             </section>
 
             {portfolioState.errorMessage ? (
@@ -910,44 +892,28 @@ function ConnectPortfolioCard({ onConnect }: { onConnect: () => void }) {
   )
 }
 
-function AccountCard({
-  managerId,
-  summary,
-  walletAddress,
-}: {
-  managerId?: string
-  summary: PortfolioSummary
-  walletAddress: string
-}) {
+function AccountCard({ summary }: { summary: PortfolioSummary }) {
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <div className="border-b border-border/40 px-3 py-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="text-sm font-medium text-foreground">Account</div>
-            <div className="mt-1 truncate font-mono text-xs text-muted-foreground">
-              {formatAddress(walletAddress)}
-            </div>
-          </div>
-          <div className="rounded-md bg-muted px-2 py-1 text-[10px] text-muted-foreground uppercase">
-            {managerId ? "Manager linked" : "No manager"}
-          </div>
-        </div>
-      </div>
-
+    <Card className="gap-2 rounded-md border-0 bg-card py-0 pt-3 shadow-none ring-0">
       <div className="grid gap-4 px-3 py-3">
         <div>
-          <div className="text-xs text-muted-foreground">Portfolio Value</div>
-          <div className="mt-1 font-mono text-3xl font-medium tracking-tight text-foreground tabular-nums">
-            {formatUsd(summary.portfolioValueUsd)}
+          <div className="truncate text-xs text-muted-foreground">
+            Total Value
           </div>
-          <div
-            className={cn(
-              "mt-1 text-xs",
-              getPnlClassName(summary.unrealizedPnlUsd)
-            )}
-          >
-            {formatSignedUsd(summary.unrealizedPnlUsd)} unrealized
+
+          <div>
+            <div className="mt-1 font-mono text-2xl font-medium tracking-tight text-foreground tabular-nums">
+              {formatUsd(summary.portfolioValueUsd)}
+            </div>
+
+            <div
+              className={cn(
+                "mt-1 text-xs",
+                getPnlClassName(summary.unrealizedPnlUsd)
+              )}
+            >
+              {formatSignedUsd(summary.unrealizedPnlUsd)} unrealized
+            </div>
           </div>
         </div>
 
@@ -975,16 +941,9 @@ function AccountCard({
         </div>
 
         <div className="grid grid-cols-2 gap-2">
-          <Button render={<Link to="/" />} size="sm" type="button">
-            Trade
-          </Button>
-          <Button
-            render={<Link to="/earn" />}
-            size="sm"
-            type="button"
-            variant="secondary"
-          >
-            Earn
+          <Button type="button">Deposit</Button>
+          <Button type="button" variant="secondary">
+            Withdraw
           </Button>
         </div>
       </div>
@@ -1079,6 +1038,42 @@ function getDisplayRealizedPnlPoints(points: RealizedPnlPoint[]) {
   return [syntheticStart, ...points]
 }
 
+function getIntervalStartMs(interval: ChartInterval, nowMs = Date.now()) {
+  if (interval === "1d") {
+    return nowMs - 24 * 60 * 60_000
+  }
+
+  if (interval === "1w") {
+    return nowMs - 7 * 24 * 60 * 60_000
+  }
+
+  if (interval === "1m") {
+    return nowMs - 30 * 24 * 60 * 60_000
+  }
+
+  return undefined
+}
+
+function getIntervalRealizedPnlPoints(
+  points: RealizedPnlPoint[],
+  interval: ChartInterval
+) {
+  const startMs = getIntervalStartMs(interval)
+  const filteredPoints = startMs
+    ? points.filter((point) => point.timestampMs >= startMs)
+    : points
+  let cumulativePnlUsd = 0
+
+  return filteredPoints.map((point) => {
+    cumulativePnlUsd += point.pnlUsd
+
+    return {
+      ...point,
+      cumulativePnlUsd,
+    }
+  })
+}
+
 function PortfolioChartCard({
   isLoading,
   realizedPnlPoints,
@@ -1088,42 +1083,66 @@ function PortfolioChartCard({
   realizedPnlPoints: RealizedPnlPoint[]
   summary: PortfolioSummary
 }) {
+  const [chartMode, setChartMode] = useState<ChartMode>("realized")
+  const [chartInterval, setChartInterval] = useState<ChartInterval>("max")
+  const visibleRealizedPnlPoints = getIntervalRealizedPnlPoints(
+    realizedPnlPoints,
+    chartInterval
+  )
+  const visibleRealizedPnl =
+    visibleRealizedPnlPoints.at(-1)?.cumulativePnlUsd ?? 0
   const chartConfig = {
     cumulativePnlUsd: {
       color:
-        summary.realizedPnlUsd >= 0
-          ? "var(--outcome-up)"
-          : "var(--outcome-down)",
+        visibleRealizedPnl >= 0 ? "var(--outcome-up)" : "var(--outcome-down)",
       label: "Realized P&L",
     },
   } satisfies ChartConfig
-  const chartPoints = getDisplayRealizedPnlPoints(realizedPnlPoints)
+  const chartPoints = getDisplayRealizedPnlPoints(visibleRealizedPnlPoints)
   const yDomain = getRealizedPnlDomain(chartPoints)
   const yTicks = getRealizedPnlTicks(yDomain)
 
   return (
-    <Card className="min-h-80 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+    <Card className="min-h-[17rem] gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <div className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-3">
-        <div className="inline-flex rounded-md bg-muted p-0.5 text-xs">
-          <span className="rounded-sm bg-card px-2 py-1 text-foreground">
-            Realized P&L
-          </span>
-          <span className="px-2 py-1 text-muted-foreground">Exposure</span>
-        </div>
-        <div className="hidden items-center gap-3 font-mono text-xs text-muted-foreground sm:flex">
-          <span>1d</span>
-          <span>1w</span>
-          <span>1m</span>
-          <span className="rounded-md bg-muted px-2 py-1 text-foreground">
-            Max
-          </span>
+        <Tabs
+          className="gap-0"
+          value={chartMode}
+          onValueChange={(value) => setChartMode(value as ChartMode)}
+        >
+          <TabsList className="h-8 rounded-md bg-muted p-0.5">
+            <TabsTrigger className="text-xs" value="realized">
+              Realized PnL
+            </TabsTrigger>
+            <TabsTrigger className="text-xs" value="exposure">
+              Exposure
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="hidden items-center gap-1 sm:flex">
+          {chartIntervals.map((interval) => (
+            <Button
+              className="font-mono text-xs text-muted-foreground data-[active=true]:text-foreground"
+              data-active={chartInterval === interval.value}
+              key={interval.value}
+              size="xs"
+              type="button"
+              variant={chartInterval === interval.value ? "secondary" : "ghost"}
+              onClick={() => setChartInterval(interval.value)}
+            >
+              {interval.label}
+            </Button>
+          ))}
         </div>
       </div>
 
-      <div className="grid min-h-64 place-items-center px-3 py-3">
+      <div className="grid min-h-52 place-items-center px-3 py-3">
         {isLoading ? (
           <SkeletonPanel />
-        ) : realizedPnlPoints.length === 0 ? (
+        ) : chartMode === "exposure" ? (
+          <ExposurePanel summary={summary} />
+        ) : visibleRealizedPnlPoints.length === 0 ? (
           <div className="text-center">
             <div className="font-mono text-2xl text-muted-foreground tabular-nums">
               {formatUsd(0)}
@@ -1134,17 +1153,17 @@ function PortfolioChartCard({
             </p>
           </div>
         ) : (
-          <div className="h-64 w-full">
+          <div className="h-52 w-full">
             <div
               className={cn(
-                "mb-2 font-mono text-2xl tabular-nums",
-                getPnlClassName(summary.realizedPnlUsd)
+                "mb-2 font-mono text-xl tabular-nums",
+                getPnlClassName(visibleRealizedPnl)
               )}
             >
-              {formatSignedUsd(summary.realizedPnlUsd)}
+              {formatSignedUsd(visibleRealizedPnl)}
             </div>
             <ChartContainer
-              className="h-[13.5rem] w-full [&_.recharts-cartesian-axis-tick_text]:font-mono"
+              className="h-40 w-full [&_.recharts-cartesian-axis-tick_text]:font-mono"
               config={chartConfig}
             >
               <AreaChart
@@ -1262,6 +1281,41 @@ function SkeletonPanel() {
   )
 }
 
+function ExposurePanel({ summary }: { summary: PortfolioSummary }) {
+  return (
+    <div className="grid w-full max-w-2xl gap-4">
+      <div>
+        <div className="font-mono text-xl text-foreground tabular-nums">
+          {formatUsd(summary.openCostBasisUsd)}
+        </div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          Open prediction cost basis
+        </div>
+      </div>
+      <div className="grid gap-3">
+        <ExposureBar
+          label="Up"
+          tone="up"
+          total={summary.openCostBasisUsd}
+          value={summary.upCostBasisUsd}
+        />
+        <ExposureBar
+          label="Down"
+          tone="down"
+          total={summary.openCostBasisUsd}
+          value={summary.downCostBasisUsd}
+        />
+        <ExposureBar
+          label="Range"
+          tone="range"
+          total={summary.openCostBasisUsd}
+          value={summary.rangeCostBasisUsd}
+        />
+      </div>
+    </div>
+  )
+}
+
 function ExposureBar({
   label,
   tone,
@@ -1278,7 +1332,15 @@ function ExposureBar({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between gap-3 text-xs">
-        <span className="text-muted-foreground">{label}</span>
+        <span
+          className={cn(
+            tone === "up" && "text-outcome-up",
+            tone === "down" && "text-outcome-down",
+            tone === "range" && "text-primary"
+          )}
+        >
+          {label}
+        </span>
         <span className="font-mono text-foreground tabular-nums">
           {formatUsd(value)} · {formatPercent(percent)}
         </span>
@@ -1294,133 +1356,6 @@ function ExposureBar({
           style={{ width: `${Math.max(percent * 100, value > 0 ? 4 : 0)}%` }}
         />
       </div>
-    </div>
-  )
-}
-
-function ExposureBreakdownCard({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <InfoCard title="Prediction Breakdown">
-      <div className="grid gap-3">
-        <BreakdownRow label="Up" tone="up" value={summary.upCostBasisUsd} />
-        <BreakdownRow
-          label="Down"
-          tone="down"
-          value={summary.downCostBasisUsd}
-        />
-        <BreakdownRow
-          label="Range"
-          tone="range"
-          value={summary.rangeCostBasisUsd}
-        />
-      </div>
-    </InfoCard>
-  )
-}
-
-function VaultPositionCard({
-  summary,
-  vaultSummary,
-}: {
-  summary: PortfolioSummary
-  vaultSummary: VaultSummary
-}) {
-  return (
-    <InfoCard title="Vault Position">
-      <div className="grid gap-3 text-sm">
-        <DataRow
-          label="PLP Balance"
-          value={`${formatCompactQuantity(summary.plpBalance)} PLP`}
-        />
-        <DataRow
-          label="Estimated Value"
-          value={formatUsd(summary.plpValueUsd)}
-        />
-        <DataRow
-          label="Share Price"
-          value={`${vaultSummary.plp_share_price.toFixed(6)} DUSDC`}
-        />
-      </div>
-    </InfoCard>
-  )
-}
-
-function RiskBiasCard({ summary }: { summary: PortfolioSummary }) {
-  const directionalTotal = summary.upCostBasisUsd + summary.downCostBasisUsd
-  const upShare =
-    directionalTotal > 0 ? summary.upCostBasisUsd / directionalTotal : 0
-  const biasLabel =
-    directionalTotal === 0
-      ? "No directional bias"
-      : upShare > 0.55
-        ? "Up-heavy"
-        : upShare < 0.45
-          ? "Down-heavy"
-          : "Balanced"
-
-  return (
-    <InfoCard title="Risk / Bias">
-      <div className="grid gap-3 text-sm">
-        <DataRow
-          label="Largest Exposure"
-          value={summary.largestPosition?.contractLabel ?? "--"}
-        />
-        <DataRow label="Directional Bias" value={biasLabel} />
-        <DataRow
-          label="Open Positions"
-          value={summary.totalPositionCount.toString()}
-        />
-      </div>
-    </InfoCard>
-  )
-}
-
-function InfoCard({ children, title }: { children: ReactNode; title: string }) {
-  return (
-    <Card className="rounded-md border-0 bg-card px-3 py-3 shadow-none ring-0">
-      <div className="mb-4 text-xs font-medium tracking-wide text-muted-foreground uppercase">
-        {title}
-      </div>
-      {children}
-    </Card>
-  )
-}
-
-function BreakdownRow({
-  label,
-  tone,
-  value,
-}: {
-  label: string
-  tone: "up" | "down" | "range"
-  value: number
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span
-        className={cn(
-          "text-sm",
-          tone === "up" && "text-outcome-up",
-          tone === "down" && "text-outcome-down",
-          tone === "range" && "text-primary"
-        )}
-      >
-        {label}
-      </span>
-      <span className="font-mono text-sm text-foreground tabular-nums">
-        {formatUsd(value)}
-      </span>
-    </div>
-  )
-}
-
-function DataRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="truncate text-right font-mono text-foreground tabular-nums">
-        {value}
-      </span>
     </div>
   )
 }
