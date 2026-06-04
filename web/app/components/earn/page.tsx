@@ -13,13 +13,15 @@ import {
 
 import { Button } from "~/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card"
-import { Input } from "~/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs"
 import {
-  formatCompactUsd,
-  formatRelativeTime,
-  formatUsd,
-} from "~/lib/callit/format"
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "~/components/ui/dialog"
+import { Input } from "~/components/ui/input"
+import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import {
   formatDecimalUnits,
   parseDecimalUnits,
@@ -177,10 +179,6 @@ function getChartDomain(points: VaultPerformanceResponse["points"]) {
   return [min - padding, max + padding] satisfies [number, number]
 }
 
-function isEarnAction(value: unknown): value is EarnAction {
-  return value === "supply" || value === "withdraw"
-}
-
 export function Page({
   performance,
   supplies,
@@ -191,108 +189,90 @@ export function Page({
   const performanceReturn = getPerformanceReturn(performance)
 
   return (
-    <main className="mx-auto w-full max-w-[96rem] px-4 py-4 sm:px-6 lg:px-8">
-      <div className="space-y-3">
-        <Hero summary={summary} />
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <section className="space-y-3">
+        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <section className="min-w-0">
+            <VaultStatsCard
+              performance={performance}
+              performanceReturn={performanceReturn}
+              summary={summary}
+            />
+          </section>
 
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard
-            label="Vault Value"
-            value={formatQuoteUsd(summary.vault_value)}
-          />
-          <MetricCard
-            label="PLP Price"
-            value={formatSharePrice(summary.plp_share_price)}
-          />
-          <MetricCard
+          <aside className="min-w-0">
+            <LiquidityPanel summary={summary} />
+          </aside>
+        </div>
+
+        <VaultAccountingCard summary={summary} />
+
+        <ActivityCard activity={activity} />
+      </section>
+    </main>
+  )
+}
+
+function VaultStatsCard({
+  performance,
+  performanceReturn,
+  summary,
+}: {
+  performance: VaultPerformanceResponse
+  performanceReturn: number
+  summary: VaultSummary
+}) {
+  return (
+    <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
+        <div className="flex items-end justify-between gap-3">
+          <CardTitle className="text-sm font-medium">Vault Stats</CardTitle>
+          <div className="font-mono text-sm font-medium text-foreground tabular-nums">
+            {formatQuoteUsd(summary.vault_value)}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="px-3">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-2 lg:grid-cols-4">
+          <VaultStat
             label="Available"
             value={formatQuoteUsd(summary.available_withdrawal)}
           />
-          <MetricCard
+          <VaultStat
+            label="PLP Price"
+            value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
+          />
+          <VaultStat
+            label="PLP Supply"
+            value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
+          />
+          <VaultStat
             label="Utilization"
             value={formatPercent(summary.utilization)}
           />
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <PerformanceCard
-            performance={performance}
-            performanceReturn={performanceReturn}
-          />
-          <LiquidityPanel summary={summary} />
-          <VaultHealthCard summary={summary} />
-          <PositionCard summary={summary} />
-        </div>
-
-        <ActivityCard activity={activity} />
-      </div>
-    </main>
-  )
-}
-
-function Hero({ summary }: { summary: VaultSummary }) {
-  return (
-    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="relative px-4 py-5 sm:px-5">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,var(--muted)_0,transparent_55%)] opacity-70" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-muted-foreground uppercase">
-              One pooled Predict vault
-            </p>
-            <h1 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-foreground sm:text-3xl">
-              Earn with the Predict Liquidity Pool
-            </h1>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              Supply DUSDC to back prediction markets and receive PLP shares.
-              Withdrawals depend on available liquidity and current vault risk.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-right sm:flex sm:items-center sm:gap-5">
-            <HeroStat
-              label="Net deposits"
-              value={formatQuoteUsd(summary.net_deposits)}
-            />
-            <HeroStat
-              label="Max payout util"
-              value={formatPercent(summary.max_payout_utilization)}
-            />
-          </div>
-        </div>
+        <VaultPriceChart
+          performance={performance}
+          performanceReturn={performanceReturn}
+        />
       </CardContent>
     </Card>
   )
 }
 
-function HeroStat({ label, value }: { label: string; value: string }) {
+function VaultStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md bg-muted px-3 py-2 sm:bg-transparent sm:p-0">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-sm font-medium text-foreground tabular-nums">
+    <div className="min-w-0">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>
   )
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="px-4 py-4">
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          {label}
-        </div>
-        <div className="mt-3 truncate font-mono text-xl font-medium text-foreground tabular-nums">
-          {value}
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function PerformanceCard({
+function VaultPriceChart({
   performance,
   performanceReturn,
 }: {
@@ -300,133 +280,84 @@ function PerformanceCard({
   performanceReturn: number
 }) {
   const yDomain = getChartDomain(performance.points)
-  const latestPoint = performance.points.at(-1)
 
   return (
-    <Card className="min-h-[25rem] rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:col-span-1">
-      <CardHeader className="px-4 pt-4 pb-0">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-base">PLP Share Price</CardTitle>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Historical vault share value from indexed Predict data.
-            </p>
-          </div>
-          <div className="shrink-0 text-right">
-            <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-              All time
-            </div>
-            <div
-              className={cn(
-                "mt-1 font-mono text-sm font-medium tabular-nums",
-                performanceReturn >= 0 ? "text-outcome-up" : "text-outcome-down"
-              )}
+    <div className="mt-3">
+      <div className="mt-3 h-60 sm:h-64">
+        {performance.points.length > 0 && yDomain ? (
+          <ResponsiveContainer height="100%" width="100%">
+            <AreaChart
+              data={performance.points}
+              margin={{ bottom: 0, left: 0, right: 10, top: 10 }}
             >
-              {formatPercent(performanceReturn)}
-            </div>
+              <defs>
+                <linearGradient
+                  id="plpShareGradient"
+                  x1="0"
+                  x2="0"
+                  y1="0"
+                  y2="1"
+                >
+                  <stop
+                    offset="5%"
+                    stopColor="var(--chart-1)"
+                    stopOpacity={0.28}
+                  />
+                  <stop
+                    offset="95%"
+                    stopColor="var(--chart-1)"
+                    stopOpacity={0}
+                  />
+                </linearGradient>
+              </defs>
+              <CartesianGrid
+                stroke="var(--border)"
+                strokeDasharray="3 3"
+                vertical={false}
+              />
+              <XAxis
+                axisLine={false}
+                dataKey="timestamp_ms"
+                minTickGap={34}
+                scale="time"
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                tickFormatter={(value) => dateFormatter.format(new Date(value))}
+                tickLine={false}
+                type="number"
+              />
+              <YAxis
+                axisLine={false}
+                domain={yDomain}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                tickFormatter={(value) => Number(value).toFixed(4)}
+                tickLine={false}
+                width={58}
+              />
+              <Area
+                dataKey="share_price"
+                fill="url(#plpShareGradient)"
+                isAnimationActive={false}
+                stroke="var(--chart-1)"
+                strokeWidth={2}
+                type="monotone"
+              />
+              <Line
+                dataKey="share_price"
+                dot={false}
+                isAnimationActive={false}
+                stroke="var(--chart-1)"
+                strokeWidth={2}
+                type="monotone"
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
+            No vault performance history is available yet.
           </div>
-        </div>
-      </CardHeader>
-      <CardContent className="px-0 pt-4 pb-4">
-        <div className="h-72 px-1">
-          {performance.points.length > 0 && yDomain ? (
-            <ResponsiveContainer height="100%" width="100%">
-              <AreaChart
-                data={performance.points}
-                margin={{ bottom: 0, left: 4, right: 16, top: 12 }}
-              >
-                <defs>
-                  <linearGradient
-                    id="plpShareGradient"
-                    x1="0"
-                    x2="0"
-                    y1="0"
-                    y2="1"
-                  >
-                    <stop
-                      offset="5%"
-                      stopColor="var(--chart-1)"
-                      stopOpacity={0.28}
-                    />
-                    <stop
-                      offset="95%"
-                      stopColor="var(--chart-1)"
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis
-                  axisLine={false}
-                  dataKey="timestamp_ms"
-                  minTickGap={34}
-                  scale="time"
-                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                  tickFormatter={(value) =>
-                    dateFormatter.format(new Date(value))
-                  }
-                  tickLine={false}
-                  type="number"
-                />
-                <YAxis
-                  axisLine={false}
-                  domain={yDomain}
-                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                  tickFormatter={(value) => Number(value).toFixed(4)}
-                  tickLine={false}
-                  width={62}
-                />
-                <Area
-                  dataKey="share_price"
-                  fill="url(#plpShareGradient)"
-                  isAnimationActive={false}
-                  stroke="var(--chart-1)"
-                  strokeWidth={2}
-                  type="monotone"
-                />
-                <Line
-                  dataKey="share_price"
-                  dot={false}
-                  isAnimationActive={false}
-                  stroke="var(--chart-1)"
-                  strokeWidth={2}
-                  type="monotone"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-              No vault performance history is available yet.
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2 px-4 pt-2 sm:grid-cols-4">
-          <MiniStat
-            label="Current"
-            value={
-              latestPoint ? formatSharePrice(latestPoint.share_price) : "--"
-            }
-          />
-          <MiniStat
-            label="Vault"
-            value={
-              latestPoint
-                ? formatCompactUsd(toQuoteUsd(latestPoint.vault_value))
-                : "--"
-            }
-          />
-          <MiniStat
-            label="Samples"
-            value={performance.points.length.toString()}
-          />
-          <MiniStat label="Range" value={performance.range} />
-        </div>
-      </CardContent>
-    </Card>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -460,13 +391,12 @@ function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
       messageTone="muted"
       onActionChange={setAction}
       onAmountChange={setAmount}
+      onConnect={undefined}
+      onMaxAmount={undefined}
       onSubmit={() => undefined}
       summary={summary}
-      walletBlock={
-        <div className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
-          Connect wallet to view balances.
-        </div>
-      }
+      walletAddress={undefined}
+      walletBlock={undefined}
     />
   )
 }
@@ -476,6 +406,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
   const revalidator = useRevalidator()
   const [action, setAction] = useState<EarnAction>("supply")
   const [amount, setAmount] = useState("")
+  const [dialogAction, setDialogAction] = useState<EarnAction>()
   const [balances, setBalances] = useState<WalletBalances>()
   const [isLoadingBalances, setIsLoadingBalances] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -506,11 +437,11 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     ? "Sign in"
     : isSubmitting
       ? action === "supply"
-        ? "Supplying"
+        ? "Depositing"
         : "Withdrawing"
       : action === "supply"
-        ? "Supply DUSDC"
-        : "Withdraw DUSDC"
+        ? "Deposit"
+        : "Withdraw"
 
   async function loadBalances(address: string) {
     const [dusdcBalance, plpBalance] = await Promise.all([
@@ -590,7 +521,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     }
 
     if (action === "supply" && balances && selectedAmount > balances.dusdc) {
-      setErrorMessage("Supply amount exceeds DUSDC balance")
+      setErrorMessage("Deposit amount exceeds DUSDC balance")
       return
     }
 
@@ -605,7 +536,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
         estimatedWithdrawAmount >
           BigInt(Math.floor(summary.available_withdrawal))
       ) {
-        setErrorMessage("Withdraw amount exceeds available vault liquidity")
+        setErrorMessage("Withdraw amount exceeds vault liquidity")
         return
       }
     }
@@ -615,7 +546,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
 
     try {
       setStatusMessage(
-        action === "supply" ? "Preparing supply" : "Preparing withdrawal"
+        action === "supply" ? "Preparing deposit" : "Preparing withdrawal"
       )
       const transaction =
         action === "supply"
@@ -629,13 +560,14 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
             })
 
       setStatusMessage(
-        action === "supply" ? "Supplying DUSDC" : "Withdrawing DUSDC"
+        action === "supply" ? "Depositing DUSDC" : "Withdrawing DUSDC"
       )
       await executeSuiTransaction(signer, transaction)
       setStatusMessage(
-        action === "supply" ? "Supply confirmed" : "Withdrawal confirmed"
+        action === "supply" ? "Deposit confirmed" : "Withdrawal confirmed"
       )
       setAmount("")
+      setDialogAction(undefined)
       setBalances(await loadBalances(walletAddress))
       revalidator.revalidate()
       window.setTimeout(() => revalidator.revalidate(), 1_500)
@@ -647,49 +579,100 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     }
   }
 
+  function handleMaxAmount() {
+    if (!balances) {
+      return
+    }
+
+    const maxAmount =
+      action === "supply"
+        ? balances.dusdc
+        : minBigInt(balances.plp, getMaxWithdrawShares(summary))
+
+    setAmount(formatDecimalUnits(maxAmount, PREDICT_QUOTE_DECIMALS))
+    setErrorMessage(undefined)
+  }
+
+  function openActionDialog(nextAction: EarnAction) {
+    setAction(nextAction)
+    setDialogAction(nextAction)
+    setAmount("")
+    setErrorMessage(undefined)
+    setStatusMessage(undefined)
+  }
+
+  function handleDialogOpenChange(open: boolean) {
+    if (!open) {
+      setDialogAction(undefined)
+      setAmount("")
+      setErrorMessage(undefined)
+      setStatusMessage(undefined)
+    }
+  }
+
   const plpBalance = balances?.plp ?? 0n
+  const dusdcBalance = balances?.dusdc ?? 0n
   const plpValue =
     (Number(plpBalance) / 10 ** PREDICT_QUOTE_DECIMALS) *
     summary.plp_share_price
+  const dusdcBalanceValue = balances
+    ? `${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS)} DUSDC`
+    : "--"
+  const plpBalanceValue = balances
+    ? `${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`
+    : "--"
+  const plpValueLabel = balances ? formatUsd(plpValue) : "--"
+  const actionBalanceLabel =
+    action === "supply" ? "DUSDC balance" : "PLP balance"
+  const actionBalanceValue =
+    action === "supply" ? dusdcBalanceValue : plpBalanceValue
+  const invalidReason =
+    dialogAction && buttonDisabled && !isSubmitting
+      ? getEarnInvalidReason({
+          action,
+          balances,
+          estimatedWithdrawAmount,
+          isLoadingBalances,
+          selectedAmount,
+          summary,
+        })
+      : undefined
 
   return (
     <LiquidityPanelFrame
       action={action}
+      actionBalanceLabel={actionBalanceLabel}
+      actionBalanceValue={actionBalanceValue}
       amount={amount}
       buttonDisabled={buttonDisabled}
       buttonLabel={buttonLabel}
+      dialogOpen={dialogAction !== undefined}
       estimatedOutput={estimatedOutput}
+      invalidReason={invalidReason}
       message={errorMessage ?? statusMessage}
       messageTone={errorMessage ? "error" : "muted"}
       onActionChange={setAction}
       onAmountChange={setAmount}
+      onConnect={() => setShowAuthFlow(true)}
+      onDialogOpenChange={handleDialogOpenChange}
+      onMaxAmount={balances ? handleMaxAmount : undefined}
+      onOpenAction={openActionDialog}
       onSubmit={handleSubmit}
       summary={summary}
+      walletAddress={walletAddress}
       walletBlock={
-        walletAddress ? (
-          <div className="space-y-2 rounded-md bg-muted p-3">
-            <PanelRow
-              label="DUSDC balance"
-              value={`${formatDecimalUnits(balances?.dusdc ?? 0n, PREDICT_QUOTE_DECIMALS)} DUSDC`}
-            />
-            <PanelRow
-              label="PLP balance"
-              value={`${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`}
-            />
-            <PanelRow label="PLP value" value={formatUsd(plpValue)} />
-          </div>
-        ) : (
-          <div className="rounded-md bg-muted p-3 text-sm">
-            <p className="text-muted-foreground">
-              Connect wallet to view balances.
-            </p>
-            <Button
-              className="mt-3 h-9 w-full"
-              onClick={() => setShowAuthFlow(true)}
-              type="button"
-            >
-              Sign in
-            </Button>
+        walletAddress && (
+          <div className="space-y-3 pt-1">
+            <div>
+              <div className="text-xs text-muted-foreground">PLP value</div>
+              <div className="mt-1 font-mono text-2xl font-medium tracking-tight text-foreground tabular-nums">
+                {plpValueLabel}
+              </div>
+            </div>
+            <div className="space-y-2 border-t border-border/40 pt-3">
+              <PanelRow label="DUSDC" value={dusdcBalanceValue} />
+              <PanelRow label="PLP" value={plpBalanceValue} />
+            </div>
           </div>
         )
       }
@@ -699,77 +682,201 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
 
 function LiquidityPanelFrame({
   action,
+  actionBalanceLabel,
+  actionBalanceValue,
   amount,
   buttonDisabled,
   buttonLabel,
+  dialogOpen = false,
   estimatedOutput,
+  invalidReason,
   message,
   messageTone,
   onActionChange,
   onAmountChange,
+  onConnect,
+  onDialogOpenChange,
+  onMaxAmount,
+  onOpenAction,
   onSubmit,
   summary,
+  walletAddress,
   walletBlock,
 }: {
   action: EarnAction
+  actionBalanceLabel?: string
+  actionBalanceValue?: string
   amount: string
   buttonDisabled: boolean
   buttonLabel: string
+  dialogOpen?: boolean
   estimatedOutput?: number
+  invalidReason?: string
   message?: string
   messageTone: "error" | "muted"
   onActionChange: (action: EarnAction) => void
   onAmountChange: (amount: string) => void
+  onConnect?: () => void
+  onDialogOpenChange?: (open: boolean) => void
+  onMaxAmount?: () => void
+  onOpenAction?: (action: EarnAction) => void
   onSubmit: () => void
   summary: VaultSummary
-  walletBlock: React.ReactNode
+  walletAddress?: string
+  walletBlock?: React.ReactNode
+}) {
+  function selectAction(nextAction: EarnAction) {
+    onActionChange(nextAction)
+    onOpenAction?.(nextAction)
+  }
+
+  return (
+    <>
+      <Card className="h-full rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
+        <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Your Position
+            </div>
+          </div>
+
+          {walletAddress ? (
+            walletBlock
+          ) : (
+            <div className="flex flex-1 flex-col justify-center text-sm">
+              <p className="text-center text-muted-foreground">
+                Connect wallet to view your position.
+              </p>
+              <Button
+                className="mt-3 h-9 w-full"
+                disabled={!onConnect}
+                onClick={onConnect}
+                type="button"
+              >
+                Sign in
+              </Button>
+            </div>
+          )}
+
+          {walletAddress && (
+            <div className="mt-auto">
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  className="h-9"
+                  onClick={() => selectAction("supply")}
+                  type="button"
+                >
+                  Deposit DUSDC
+                </Button>
+                <Button
+                  className="h-9"
+                  onClick={() => selectAction("withdraw")}
+                  type="button"
+                  variant="outline"
+                >
+                  Withdraw
+                </Button>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <EarnActionDialog
+        action={action}
+        actionBalanceLabel={actionBalanceLabel}
+        actionBalanceValue={actionBalanceValue}
+        amount={amount}
+        buttonDisabled={buttonDisabled}
+        buttonLabel={buttonLabel}
+        estimatedOutput={estimatedOutput}
+        invalidReason={invalidReason}
+        message={message}
+        messageTone={messageTone}
+        onAmountChange={onAmountChange}
+        onMaxAmount={onMaxAmount}
+        onOpenChange={onDialogOpenChange}
+        onSubmit={onSubmit}
+        open={dialogOpen}
+        summary={summary}
+      />
+    </>
+  )
+}
+
+function EarnActionDialog({
+  action,
+  actionBalanceLabel,
+  actionBalanceValue,
+  amount,
+  buttonDisabled,
+  buttonLabel,
+  estimatedOutput,
+  invalidReason,
+  message,
+  messageTone,
+  onAmountChange,
+  onMaxAmount,
+  onOpenChange,
+  onSubmit,
+  open,
+  summary,
+}: {
+  action: EarnAction
+  actionBalanceLabel?: string
+  actionBalanceValue?: string
+  amount: string
+  buttonDisabled: boolean
+  buttonLabel: string
+  estimatedOutput?: number
+  invalidReason?: string
+  message?: string
+  messageTone: "error" | "muted"
+  onAmountChange: (amount: string) => void
+  onMaxAmount?: () => void
+  onOpenChange?: (open: boolean) => void
+  onSubmit: () => void
+  open: boolean
+  summary: VaultSummary
 }) {
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
-      <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
-        <Tabs
-          className="gap-0"
-          onValueChange={(value) => {
-            if (isEarnAction(value)) {
-              onActionChange(value)
-            }
-          }}
-          value={action}
-        >
-          <TabsList className="h-9 w-full overflow-hidden rounded-md bg-muted p-0">
-            {(["supply", "withdraw"] satisfies EarnAction[]).map((item) => (
-              <TabsTrigger
-                className="!h-full rounded-none border-0 !border-transparent text-sm font-semibold capitalize shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
-                key={item}
-                value={item}
-              >
-                {item}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+    <Dialog onOpenChange={(nextOpen) => onOpenChange?.(nextOpen)} open={open}>
+      <DialogContent className="gap-5 rounded-md bg-card p-5 sm:max-w-lg">
+        <DialogHeader className="gap-1">
+          <DialogTitle className="text-sm font-medium">
+            {action === "supply" ? "Deposit DUSDC" : "Withdraw PLP"}
+          </DialogTitle>
+        </DialogHeader>
 
         <label className="block space-y-2">
-          <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Amount
-          </span>
+          <span className="text-xs text-muted-foreground">Amount</span>
           <div className="relative">
             <Input
-              className="h-11 border-0 pr-20 font-mono shadow-none ring-0 focus-visible:ring-1"
+              className="h-10 border-0 pr-28 font-mono text-sm shadow-none ring-0 focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
               value={amount}
             />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-              {action === "supply" ? "DUSDC" : "PLP"}
-            </span>
+            <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2 text-xs text-muted-foreground">
+              <Button
+                className="h-6 px-2 font-mono text-[10px]"
+                disabled={!onMaxAmount}
+                onClick={onMaxAmount}
+                type="button"
+                variant="ghost"
+              >
+                MAX
+              </Button>
+              <span>{action === "supply" ? "DUSDC" : "PLP"}</span>
+            </div>
           </div>
         </label>
 
-        {walletBlock}
-
-        <div className="space-y-2 rounded-md bg-muted p-3">
+        <div className="space-y-2.5 rounded-md bg-muted px-3 py-3">
+          {actionBalanceLabel && actionBalanceValue && (
+            <PanelRow label={actionBalanceLabel} value={actionBalanceValue} />
+          )}
           <PanelRow
             label={action === "supply" ? "Est. PLP" : "Est. DUSDC"}
             value={
@@ -784,16 +891,13 @@ function LiquidityPanelFrame({
             label="PLP price"
             value={formatSharePrice(summary.plp_share_price)}
           />
-          <PanelRow
-            label="Available"
-            value={formatQuoteUsd(summary.available_withdrawal)}
-          />
+          {action === "withdraw" && (
+            <PanelRow
+              label="Vault available"
+              value={formatQuoteUsd(summary.available_withdrawal)}
+            />
+          )}
         </div>
-
-        <p className="text-xs leading-5 text-muted-foreground">
-          PLP is a proportional claim on vault value. Withdrawals can be limited
-          by vault risk and available liquidity.
-        </p>
 
         {message && (
           <p
@@ -808,16 +912,24 @@ function LiquidityPanelFrame({
           </p>
         )}
 
-        <Button
-          className="mt-auto h-11 w-full"
-          disabled={buttonDisabled}
-          onClick={onSubmit}
-          type="button"
-        >
-          {buttonLabel}
-        </Button>
-      </CardContent>
-    </Card>
+        {!message && invalidReason && (
+          <p className="rounded-md bg-muted px-3 py-2 text-xs leading-5 text-muted-foreground">
+            {invalidReason}
+          </p>
+        )}
+
+        <DialogFooter>
+          <Button
+            className="h-10 w-full"
+            disabled={buttonDisabled}
+            onClick={onSubmit}
+            type="button"
+          >
+            {buttonLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -852,66 +964,115 @@ function getEstimatedWithdrawAmount(amount: bigint, summary: VaultSummary) {
   return (amount * BigInt(Math.floor(summary.vault_value))) / totalSupply
 }
 
-function VaultHealthCard({ summary }: { summary: VaultSummary }) {
+function getEarnInvalidReason({
+  action,
+  balances,
+  estimatedWithdrawAmount,
+  isLoadingBalances,
+  selectedAmount,
+  summary,
+}: {
+  action: EarnAction
+  balances?: WalletBalances
+  estimatedWithdrawAmount?: bigint
+  isLoadingBalances: boolean
+  selectedAmount: bigint | null
+  summary: VaultSummary
+}) {
+  if (!selectedAmount) {
+    return "Enter an amount"
+  }
+
+  if (isLoadingBalances || !balances) {
+    return "Loading balances"
+  }
+
+  if (action === "supply") {
+    return selectedAmount > balances.dusdc ? "Exceeds DUSDC balance" : undefined
+  }
+
+  if (selectedAmount > balances.plp) {
+    return "Exceeds PLP balance"
+  }
+
+  if (estimatedWithdrawAmount === undefined || estimatedWithdrawAmount === 0n) {
+    return "Vault liquidity unavailable"
+  }
+
+  return estimatedWithdrawAmount >
+    BigInt(Math.floor(summary.available_withdrawal))
+    ? "Exceeds vault liquidity"
+    : undefined
+}
+
+function getMaxWithdrawShares(summary: VaultSummary) {
+  const vaultValue = BigInt(Math.floor(summary.vault_value))
+
+  if (vaultValue === 0n) {
+    return 0n
+  }
+
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-4 pt-4 pb-0">
-        <CardTitle className="text-base">Vault Health</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2 px-4 py-4">
-        <PanelRow
-          label="Vault balance"
-          value={formatQuoteUsd(summary.vault_balance)}
-        />
-        <PanelRow
-          label="Vault value"
-          value={formatQuoteUsd(summary.vault_value)}
-        />
-        <PanelRow label="Total MTM" value={formatQuoteUsd(summary.total_mtm)} />
-        <PanelRow
-          label="Max payout"
-          value={formatQuoteUsd(summary.total_max_payout)}
-        />
-        <PanelRow
-          label="Available liquidity"
-          value={formatQuoteUsd(summary.available_liquidity)}
-        />
-        <PanelRow
-          label="Max payout util"
-          value={formatPercent(summary.max_payout_utilization)}
-        />
-      </CardContent>
-    </Card>
+    (BigInt(Math.floor(summary.available_withdrawal)) *
+      BigInt(Math.floor(summary.plp_total_supply))) /
+    vaultValue
   )
 }
 
-function PositionCard({ summary }: { summary: VaultSummary }) {
+function minBigInt(first: bigint, second: bigint) {
+  return first < second ? first : second
+}
+
+function VaultAccountingCard({ summary }: { summary: VaultSummary }) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-4 pt-4 pb-0">
-        <CardTitle className="text-base">Pool Accounting</CardTitle>
+      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
+        <div className="flex items-end justify-between gap-3">
+          <CardTitle className="text-sm font-medium">
+            Vault Accounting
+          </CardTitle>
+          <div className="font-mono text-sm font-medium text-foreground tabular-nums">
+            {formatQuoteUsd(summary.net_deposits)}
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2 px-4 py-4">
-        <PanelRow
-          label="PLP supply"
-          value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
-        />
-        <PanelRow
-          label="Total supplied"
-          value={formatQuoteUsd(summary.total_supplied)}
-        />
-        <PanelRow
-          label="Total withdrawn"
-          value={formatQuoteUsd(summary.total_withdrawn)}
-        />
-        <PanelRow
-          label="Net deposits"
-          value={formatQuoteUsd(summary.net_deposits)}
-        />
-        <p className="pt-2 text-xs leading-5 text-muted-foreground">
-          The vault takes the opposite side of Predict trades. PLP holders share
-          vault value after current mark-to-market liabilities.
-        </p>
+      <CardContent className="grid gap-4 px-3 py-3 md:grid-cols-2">
+        <div className="space-y-2">
+          <PanelRow
+            label="Vault balance"
+            value={formatQuoteUsd(summary.vault_balance)}
+          />
+          <PanelRow
+            label="Total MTM"
+            value={formatQuoteUsd(summary.total_mtm)}
+          />
+          <PanelRow
+            label="Max payout"
+            value={formatQuoteUsd(summary.total_max_payout)}
+          />
+          <PanelRow
+            label="Payout util"
+            value={formatPercent(summary.max_payout_utilization)}
+          />
+        </div>
+        <div className="space-y-2 border-t border-border/40 pt-3 md:border-t-0 md:border-l md:pt-0 md:pl-4">
+          <PanelRow
+            label="Available liquidity"
+            value={formatQuoteUsd(summary.available_liquidity)}
+          />
+          <PanelRow
+            label="Total supplied"
+            value={formatQuoteUsd(summary.total_supplied)}
+          />
+          <PanelRow
+            label="Total withdrawn"
+            value={formatQuoteUsd(summary.total_withdrawn)}
+          />
+          <PanelRow
+            label="Net deposits"
+            value={formatQuoteUsd(summary.net_deposits)}
+          />
+        </div>
       </CardContent>
     </Card>
   )
@@ -920,11 +1081,11 @@ function PositionCard({ summary }: { summary: VaultSummary }) {
 function ActivityCard({ activity }: { activity: LpActivity[] }) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-4 pt-4 pb-0">
-        <CardTitle className="text-base">Recent LP Activity</CardTitle>
+      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
+        <CardTitle className="text-sm font-medium">LP Activity</CardTitle>
       </CardHeader>
-      <CardContent className="px-0 py-3">
-        <div className="hidden px-4 pb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr]">
+      <CardContent className="px-0 py-0">
+        <div className="hidden border-b border-border/40 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr]">
           <div>Type</div>
           <div>Account</div>
           <div className="text-right">Amount</div>
@@ -932,50 +1093,65 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
           <div className="text-right">Time</div>
         </div>
         <div className="divide-y divide-border/25">
-          {activity.map((event) => (
-            <div
-              className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr] md:items-center md:gap-0 md:py-2.5"
-              key={event.id}
-            >
+          {activity.length > 0 ? (
+            activity.map((event) => (
               <div
-                className={cn(
-                  "font-medium",
-                  event.type === "Supply"
-                    ? "text-outcome-up"
-                    : "text-outcome-down"
-                )}
+                className="grid gap-1.5 px-3 py-2.5 text-sm md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr] md:items-center md:gap-0 md:py-2"
+                key={event.id}
               >
-                {event.type}
+                <div className="flex items-center justify-between gap-3 md:block">
+                  <span
+                    className={cn(
+                      "font-medium",
+                      event.type === "Supply"
+                        ? "text-outcome-up"
+                        : "text-outcome-down"
+                    )}
+                  >
+                    {event.type}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground md:hidden">
+                    {formatRelativeTime(event.timestampMs)}
+                  </span>
+                </div>
+                <div className="font-mono text-xs text-muted-foreground">
+                  {formatAddress(event.account)}
+                </div>
+                <LabeledActivityValue
+                  label="Amount"
+                  value={formatQuoteAmount(event.amount)}
+                />
+                <LabeledActivityValue
+                  label="Shares"
+                  value={formatQuoteAmount(event.shares, "PLP")}
+                />
+                <div className="hidden font-mono text-xs text-muted-foreground md:block md:text-right">
+                  {formatRelativeTime(event.timestampMs)}
+                </div>
               </div>
-              <div className="font-mono text-xs text-muted-foreground">
-                {formatAddress(event.account)}
-              </div>
-              <div className="font-mono text-xs text-foreground tabular-nums md:text-right">
-                {formatQuoteAmount(event.amount)}
-              </div>
-              <div className="font-mono text-xs text-foreground tabular-nums md:text-right">
-                {formatQuoteAmount(event.shares, "PLP")}
-              </div>
-              <div className="font-mono text-xs text-muted-foreground md:text-right">
-                {formatRelativeTime(event.timestampMs)}
-              </div>
+            ))
+          ) : (
+            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+              No LP activity yet.
             </div>
-          ))}
+          )}
         </div>
       </CardContent>
     </Card>
   )
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function LabeledActivityValue({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
   return (
-    <div className="rounded-md bg-muted px-3 py-2">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
-        {value}
-      </div>
+    <div className="flex items-center justify-between gap-3 font-mono text-xs text-foreground tabular-nums md:block md:text-right">
+      <span className="text-muted-foreground md:hidden">{label}</span>
+      <span>{value}</span>
     </div>
   )
 }
