@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useRevalidator } from "react-router"
+import { MoreHorizontalIcon } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
 import { Card } from "~/components/ui/card"
@@ -9,8 +10,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/primitives/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
@@ -68,6 +67,11 @@ interface PositionPreviewState {
 
 interface PositionConfirmState {
   position?: PositionRow
+}
+
+interface LoadedPositions {
+  managerId?: string
+  positions: PositionRow[]
 }
 
 type AddPositionIntent =
@@ -207,32 +211,18 @@ function getPositionTextClass(position: PositionRow) {
   return getContractTextClass(position)
 }
 
-function getPositionActionLabel(position: PositionRow) {
-  const status = position.status.toLowerCase()
-
-  if (status === "active" || status === "open") {
-    return "Add"
-  }
-
-  if (status === "redeemable") {
-    return "Redeem"
-  }
-
-  return "Details"
-}
-
 function getPositionLifecycleActionLabel(position: PositionRow) {
   const status = position.status.toLowerCase()
 
   if (status === "redeemable") {
-    return "Redeem"
+    return "Redeem position"
   }
 
   if (status === "lost" || status === "liquidated") {
     return "Clear position"
   }
 
-  return position.kind === "range" ? "Close range" : "Close position"
+  return "Close position"
 }
 
 function getPositionRedeemParams({
@@ -289,6 +279,90 @@ function canAddToPosition(position: PositionRow) {
   const status = position.status.toLowerCase()
 
   return status === "active" || status === "open"
+}
+
+function canClosePosition(position: PositionRow) {
+  return canAddToPosition(position)
+}
+
+function canRedeemPosition(position: PositionRow) {
+  return position.status.toLowerCase() === "redeemable"
+}
+
+function canClearPosition(position: PositionRow) {
+  const status = position.status.toLowerCase()
+
+  return status === "lost" || status === "liquidated"
+}
+
+async function loadWalletMarketPositions({
+  market,
+  walletAddress,
+}: {
+  market: MarketSnapshot
+  walletAddress: string
+}): Promise<LoadedPositions> {
+  const [manager] = await getPredictManagers(walletAddress)
+
+  if (!manager) {
+    return { positions: [] }
+  }
+
+  const [summaries, rangeActivity, directionalMinted, directionalRedeemed] =
+    await Promise.all([
+      getManagerPositionSummaries(manager.manager_id),
+      getManagerRanges(manager.manager_id),
+      getDirectionalPositionMints(
+        DIRECTIONAL_ORDER_EVENT_LIMIT,
+        market.oracleId
+      ),
+      getDirectionalPositionRedeems(
+        DIRECTIONAL_ORDER_EVENT_LIMIT,
+        market.oracleId
+      ),
+    ])
+  const managerDirectionalMinted = directionalMinted.filter(
+    (event) =>
+      event.manager_id === manager.manager_id &&
+      event.oracle_id === market.oracleId &&
+      event.expiry === market.expiryMs
+  )
+  const managerDirectionalRedeemed = directionalRedeemed.filter(
+    (event) =>
+      event.manager_id === manager.manager_id &&
+      event.oracle_id === market.oracleId &&
+      event.expiry === market.expiryMs
+  )
+  const [hydratedDirectionalActivity, hydratedRangeActivity] =
+    await Promise.all([
+      hydrateDirectionalActivityOrderIds({
+        minted: managerDirectionalMinted,
+        redeemed: managerDirectionalRedeemed,
+      }),
+      hydrateRangeActivityOrderIds(rangeActivity),
+    ])
+  const summariesWithOrderIds = applyDirectionalActivityOrderIds({
+    minted: hydratedDirectionalActivity.minted,
+    redeemed: hydratedDirectionalActivity.redeemed,
+    summaries,
+  })
+  const directionalPositions = filterPositions(summariesWithOrderIds, {
+    expiryMs: market.expiryMs,
+    oracleId: market.oracleId,
+  })
+  const rangePositions = getRangePositionsFromActivity(
+    hydratedRangeActivity.minted,
+    hydratedRangeActivity.redeemed,
+    {
+      expiryMs: market.expiryMs,
+      oracleId: market.oracleId,
+    }
+  )
+
+  return {
+    managerId: manager.manager_id,
+    positions: getPositionRows(directionalPositions, rangePositions),
+  }
 }
 
 function getTradeContract(trade: {
@@ -378,66 +452,95 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   const walletAddress = primaryWallet?.address
   const publicActivityVersion = `${trades.length}:${redemptions.length}`
 
-  async function previewPositionLifecycle(position: PositionRow) {
-    if (!walletAddress || !positionState.managerId) {
+  async function resolveLifecyclePosition(position: PositionRow) {
+    if (!walletAddress) {
       setPreviewState({
-        errorMessage: "Connect wallet to preview this action.",
+        errorMessage: "Connect wallet to manage this position.",
         isLoading: false,
         positionId: position.id,
       })
-      return
+      return undefined
     }
 
-    const params = getPositionRedeemParams({
-      market,
-      position,
-      walletAddress,
+    if (positionState.managerId && position.orderIds.length > 0) {
+      return {
+        managerId: positionState.managerId,
+        position,
+      }
+    }
+
+    setPreviewState({
+      isLoading: true,
+      message: "Resolving position orders.",
+      positionId: position.id,
     })
 
-    if (!params) {
-      setPreviewState({
-        errorMessage: "This position is missing order-level data.",
-        isLoading: false,
-        positionId: position.id,
-      })
-      return
-    }
-
-    setPreviewState({ isLoading: true, positionId: position.id })
-
     try {
-      const events = await simulatePredictRedeemTransaction({
-        managerId: positionState.managerId,
-        params,
+      const loadedPositions = await loadWalletMarketPositions({
+        market,
+        walletAddress,
+      })
+      const resolvedPosition =
+        loadedPositions.positions.find(
+          (nextPosition) => nextPosition.id === position.id
+        ) ?? position
+
+      setPositionState({
+        isLoading: false,
+        managerId: loadedPositions.managerId,
+        positions: loadedPositions.positions,
       })
 
-      setPreviewState({
-        isLoading: false,
-        message: `${getPositionLifecycleActionLabel(position)} preview succeeded (${events.length} events).`,
-        positionId: position.id,
-      })
+      if (!loadedPositions.managerId) {
+        setPreviewState({
+          errorMessage: "Could not resolve trading account.",
+          isLoading: false,
+          positionId: position.id,
+        })
+        return undefined
+      }
+
+      if (resolvedPosition.orderIds.length === 0) {
+        setPreviewState({
+          errorMessage:
+            "Could not resolve the order ID for this position yet. Try again after activity syncs.",
+          isLoading: false,
+          positionId: position.id,
+        })
+        return undefined
+      }
+
+      return {
+        managerId: loadedPositions.managerId,
+        position: resolvedPosition,
+      }
     } catch (error) {
       setPreviewState({
         errorMessage:
-          error instanceof Error ? error.message : "Preview simulation failed.",
+          error instanceof Error
+            ? error.message
+            : "Could not resolve position orders.",
         isLoading: false,
         positionId: position.id,
       })
+      return undefined
     }
+  }
+
+  async function requestPositionLifecycle(position: PositionRow) {
+    const resolvedLifecycle = await resolveLifecyclePosition(position)
+
+    if (!resolvedLifecycle) {
+      return
+    }
+
+    setPreviewState({ isLoading: false })
+    setConfirmState({ position: resolvedLifecycle.position })
   }
 
   async function executePositionLifecycle(position: PositionRow) {
     if (!walletAddress) {
       setShowAuthFlow(true)
-      return
-    }
-
-    if (!positionState.managerId) {
-      setPreviewState({
-        errorMessage: "Could not resolve trading account.",
-        isLoading: false,
-        positionId: position.id,
-      })
       return
     }
 
@@ -453,9 +556,15 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       return
     }
 
+    const resolvedLifecycle = await resolveLifecyclePosition(position)
+
+    if (!resolvedLifecycle) {
+      return
+    }
+
     const params = getPositionRedeemParams({
       market,
-      position,
+      position: resolvedLifecycle.position,
       walletAddress,
     })
 
@@ -468,7 +577,9 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       return
     }
 
-    const actionLabel = getPositionLifecycleActionLabel(position)
+    const actionLabel = getPositionLifecycleActionLabel(
+      resolvedLifecycle.position
+    )
 
     setConfirmState({})
     setPreviewState({
@@ -480,7 +591,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
     try {
       await simulatePredictRedeemTransaction({
-        managerId: positionState.managerId,
+        managerId: resolvedLifecycle.managerId,
         params,
       })
 
@@ -494,7 +605,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       const result = await executeSuiTransaction(
         signer,
         buildPredictRedeemTransaction({
-          managerId: positionState.managerId,
+          managerId: resolvedLifecycle.managerId,
           params,
         })
       )
@@ -537,79 +648,16 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       }))
 
       try {
-        const [manager] = await getPredictManagers(walletAddress)
-
-        if (!manager) {
-          if (!isStale) {
-            setPositionState({ isLoading: false, positions: [] })
-            setPreviewState({ isLoading: false })
-            setConfirmState({})
-          }
-
-          return
-        }
-
-        const [
-          summaries,
-          rangeActivity,
-          directionalMinted,
-          directionalRedeemed,
-        ] = await Promise.all([
-          getManagerPositionSummaries(manager.manager_id),
-          getManagerRanges(manager.manager_id),
-          getDirectionalPositionMints(
-            DIRECTIONAL_ORDER_EVENT_LIMIT,
-            market.oracleId
-          ),
-          getDirectionalPositionRedeems(
-            DIRECTIONAL_ORDER_EVENT_LIMIT,
-            market.oracleId
-          ),
-        ])
-        const managerDirectionalMinted = directionalMinted.filter(
-          (event) =>
-            event.manager_id === manager.manager_id &&
-            event.oracle_id === market.oracleId &&
-            event.expiry === market.expiryMs
-        )
-        const managerDirectionalRedeemed = directionalRedeemed.filter(
-          (event) =>
-            event.manager_id === manager.manager_id &&
-            event.oracle_id === market.oracleId &&
-            event.expiry === market.expiryMs
-        )
-        const [hydratedDirectionalActivity, hydratedRangeActivity] =
-          await Promise.all([
-            hydrateDirectionalActivityOrderIds({
-              minted: managerDirectionalMinted,
-              redeemed: managerDirectionalRedeemed,
-            }),
-            hydrateRangeActivityOrderIds(rangeActivity),
-          ])
-        const summariesWithOrderIds = applyDirectionalActivityOrderIds({
-          minted: hydratedDirectionalActivity.minted,
-          redeemed: hydratedDirectionalActivity.redeemed,
-          summaries,
+        const loadedPositions = await loadWalletMarketPositions({
+          market,
+          walletAddress,
         })
-        const directionalPositions = filterPositions(summariesWithOrderIds, {
-          expiryMs: market.expiryMs,
-          oracleId: market.oracleId,
-        })
-        const rangePositions = getRangePositionsFromActivity(
-          hydratedRangeActivity.minted,
-          hydratedRangeActivity.redeemed,
-          {
-            expiryMs: market.expiryMs,
-            oracleId: market.oracleId,
-          }
-        )
-        const positions = getPositionRows(directionalPositions, rangePositions)
 
         if (!isStale) {
           setPositionState({
             isLoading: false,
-            managerId: manager.manager_id,
-            positions,
+            managerId: loadedPositions.managerId,
+            positions: loadedPositions.positions,
           })
         }
       } catch (error) {
@@ -670,8 +718,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
           onAddPosition={onAddPosition}
           onCancelLifecycle={() => setConfirmState({})}
           onConfirmLifecycle={executePositionLifecycle}
-          onPreviewLifecycle={previewPositionLifecycle}
-          onRequestLifecycle={(position) => setConfirmState({ position })}
+          onRequestLifecycle={requestPositionLifecycle}
           positions={visiblePositions}
           pendingLifecyclePosition={confirmState.position}
           previewErrorMessage={previewState.errorMessage}
@@ -781,7 +828,6 @@ function PositionsPanel({
   onAddPosition,
   onCancelLifecycle,
   onConfirmLifecycle,
-  onPreviewLifecycle,
   onRequestLifecycle,
   pendingLifecyclePosition,
   positions,
@@ -797,7 +843,6 @@ function PositionsPanel({
   onAddPosition: (intent: AddPositionIntent) => void
   onCancelLifecycle: () => void
   onConfirmLifecycle: (position: PositionRow) => void
-  onPreviewLifecycle: (position: PositionRow) => void
   onRequestLifecycle: (position: PositionRow) => void
   pendingLifecyclePosition?: PositionRow
   positions: PositionRow[]
@@ -850,7 +895,6 @@ function PositionsPanel({
         <PositionsTable
           assetSymbol={assetSymbol}
           onAddPosition={onAddPosition}
-          onPreviewLifecycle={onPreviewLifecycle}
           onRequestLifecycle={onRequestLifecycle}
           positions={positions}
         />
@@ -900,8 +944,8 @@ function LifecycleConfirmBanner({
 function PositionHeaderRow({ columns }: { columns: string[] }) {
   return (
     <div className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-      {columns.map((column) => (
-        <span className="truncate last:text-right" key={column}>
+      {columns.map((column, index) => (
+        <span className="truncate last:text-right" key={`${column}-${index}`}>
           {column}
         </span>
       ))}
@@ -925,13 +969,11 @@ function PositionKindTag({ position }: { position: PositionRow }) {
 function PositionsTable({
   assetSymbol,
   onAddPosition,
-  onPreviewLifecycle,
   onRequestLifecycle,
   positions,
 }: {
   assetSymbol: string
   onAddPosition: (intent: AddPositionIntent) => void
-  onPreviewLifecycle: (position: PositionRow) => void
   onRequestLifecycle: (position: PositionRow) => void
   positions: PositionRow[]
 }) {
@@ -946,7 +988,7 @@ function PositionsTable({
             "Mark",
             "Cost",
             "PnL",
-            "Action",
+            "",
           ]}
         />
         {positions.map((position) => {
@@ -1002,7 +1044,6 @@ function PositionsTable({
               </span>
               <PositionActionMenu
                 onAddPosition={onAddPosition}
-                onPreviewLifecycle={onPreviewLifecycle}
                 onRequestLifecycle={onRequestLifecycle}
                 position={position}
               />
@@ -1016,23 +1057,18 @@ function PositionsTable({
 
 function PositionActionMenu({
   onAddPosition,
-  onPreviewLifecycle,
   onRequestLifecycle,
   position,
 }: {
   onAddPosition: (intent: AddPositionIntent) => void
-  onPreviewLifecycle: (position: PositionRow) => void
   onRequestLifecycle: (position: PositionRow) => void
   position: PositionRow
 }) {
-  const primaryActionLabel = getPositionActionLabel(position)
-  const addLabel =
-    position.kind === "range" ? "Add to range" : "Add to position"
   const lifecycleActionLabel = getPositionLifecycleActionLabel(position)
-  const disabledReason =
-    position.orderIds.length > 0
-      ? "Wallet approval required"
-      : "Requires order-level data"
+  const showLifecycleAction =
+    canClosePosition(position) ||
+    canRedeemPosition(position) ||
+    canClearPosition(position)
 
   return (
     <div className="flex justify-end">
@@ -1041,48 +1077,29 @@ function PositionActionMenu({
           render={
             <Button
               aria-label="Position actions"
-              className="bg-muted px-2.5 text-xs text-foreground shadow-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-              size="sm"
+              className="bg-muted text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              size="icon-sm"
               type="button"
               variant="ghost"
             />
           }
         >
-          Actions
+          <MoreHorizontalIcon className="size-3.5" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
           <DropdownMenuGroup>
-            <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal text-muted-foreground">
-              {primaryActionLabel} available
-            </DropdownMenuLabel>
             {canAddToPosition(position) ? (
               <DropdownMenuItem
                 onClick={() => onAddPosition(getPositionAddIntent(position))}
               >
-                {addLabel}
+                Add to position
               </DropdownMenuItem>
             ) : null}
-            {position.orderIds.length > 0 ? (
-              <>
-                <DropdownMenuItem onClick={() => onPreviewLifecycle(position)}>
-                  Preview {lifecycleActionLabel.toLowerCase()}
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onRequestLifecycle(position)}>
-                  Confirm {lifecycleActionLabel.toLowerCase()}
-                </DropdownMenuItem>
-              </>
-            ) : (
-              <DropdownMenuItem disabled>
+            {showLifecycleAction ? (
+              <DropdownMenuItem onClick={() => onRequestLifecycle(position)}>
                 {lifecycleActionLabel}
               </DropdownMenuItem>
-            )}
-            <DropdownMenuLabel className="px-2 py-1 text-[11px] leading-4 font-normal">
-              {disabledReason}
-            </DropdownMenuLabel>
-          </DropdownMenuGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem disabled>View details</DropdownMenuItem>
+            ) : null}
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>

@@ -314,9 +314,7 @@ function OrderTicketClient({
       ? "Sign in to trade"
       : isSubmitting
         ? "Submitting"
-        : ticketMode === "range"
-          ? "Buy Range"
-          : `Buy ${getSideLabel(contractSide)}`
+        : "Mint Position"
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000)
