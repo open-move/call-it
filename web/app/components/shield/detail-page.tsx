@@ -13,6 +13,7 @@ import { formatUsd } from "~/lib/callit/format"
 import {
   getShieldPresetLabel,
   getShieldProductHref,
+  getShieldTenorLabel,
 } from "~/lib/callit/shield/products"
 import { type ShieldProduct } from "~/lib/callit/shield/types"
 import { cn } from "~/lib/utils"
@@ -126,7 +127,7 @@ function Header({ product }: { product: ShieldProduct }) {
               <div className="flex min-w-0 items-center gap-2">
                 <h1 className="truncate text-lg leading-none font-semibold tracking-tight text-foreground">
                   {product.market.assetSymbol} Shield ·{" "}
-                  {getShieldPresetLabel(product.preset)}
+                  {getShieldTenorLabel(product.tenor)}
                 </h1>
                 <Badge
                   className="px-2 py-0.5 font-mono text-[10px] uppercase"
@@ -136,8 +137,9 @@ function Header({ product }: { product: ShieldProduct }) {
                 </Badge>
               </div>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Protected PLP exposure with a binary DOWN hedge below{" "}
-                {formatUsd(product.protectionStrikeUsd, 0)}.
+                {getShieldPresetLabel(product.preset)} protection below{" "}
+                {formatUsd(product.protectionStrikeUsd, 0)} with PLP yield
+                exposure.
               </p>
             </div>
           </div>
@@ -147,6 +149,7 @@ function Header({ product }: { product: ShieldProduct }) {
           <div className="flex min-w-175 items-end gap-6">
             <HeaderMetric label="Deposit Asset" value="DUSDC" />
             <HeaderMetric label="Yield Source" value="Predict PLP" />
+            <HeaderMetric label="Tenor" value={getShieldTenorLabel(product.tenor)} />
             <HeaderMetric
               className="text-outcome-down"
               label="Protection"
@@ -316,6 +319,10 @@ function ShieldTicketFrame({
           </div>
           <div className="rounded-md bg-muted p-3">
             <PanelRow
+              label="Tenor"
+              value={getShieldTenorLabel(product.tenor)}
+            />
+            <PanelRow
               label="Trigger"
               value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
               valueClassName="text-outcome-down"
@@ -374,6 +381,7 @@ function TermsCard({ product }: { product: ShieldProduct }) {
     <InfoCard title="Terms">
       <PanelRow label="Deposit asset" value="DUSDC" />
       <PanelRow label="Yield source" value="Predict PLP" />
+      <PanelRow label="Tenor" value={getShieldTenorLabel(product.tenor)} />
       <PanelRow
         label="Protection"
         value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}

@@ -1,6 +1,7 @@
 import { type MarketSnapshot } from "~/lib/callit/market/types"
 
 export type ShieldPreset = "light" | "balanced" | "tail"
+export type ShieldTenor = "standard" | "weekly"
 
 export interface ShieldProduct {
   id: string
@@ -10,5 +11,6 @@ export interface ShieldProduct {
   distancePercent: number
   distanceUsd: number
   hedgeBudgetBps: number
+  tenor: ShieldTenor
   status: "active" | "unavailable"
 }

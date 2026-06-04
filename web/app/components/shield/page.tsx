@@ -1,19 +1,30 @@
-import { ActivityIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react"
-import { useState, type ReactNode } from "react"
+import { SearchIcon, SlidersHorizontalIcon } from "lucide-react"
+import { useState } from "react"
 import { Link, useSearchParams } from "react-router"
 
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { Button } from "~/components/ui/button"
-import { Card, CardContent } from "~/components/ui/card"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import { Input } from "~/components/ui/input"
-import { formatCompactUsd, formatUsd } from "~/lib/callit/format"
+import { formatUsd } from "~/lib/callit/format"
 import {
   getShieldPresetLabel,
   getShieldProductHref,
+  getShieldTenorLabel,
 } from "~/lib/callit/shield/products"
 import {
   type ShieldPreset,
   type ShieldProduct,
+  type ShieldTenor,
 } from "~/lib/callit/shield/types"
 import { cn } from "~/lib/utils"
 
@@ -21,61 +32,57 @@ export interface PageProps {
   products: ShieldProduct[]
 }
 
-interface ToolbarOption {
-  count?: number
+interface FilterOption {
   label: string
   value?: string
 }
 
-const expiryTabs = [
-  { label: "All expiries", value: undefined },
-  { label: "1h", value: "1h" },
-  { label: "4h", value: "4h" },
-  { label: "1d", value: "1d" },
-  { label: "7d", value: "7d" },
-] satisfies ToolbarOption[]
+type ShieldSort = "expiry" | "budget" | "distance"
 
-const protectionTabs = [
-  { label: "All protection", value: undefined },
+const defaultSort: ShieldSort = "expiry"
+
+const tenorOptions = [
+  { label: "All", value: undefined },
+  { label: "Standard", value: "standard" },
+  { label: "Weekly", value: "weekly" },
+] satisfies FilterOption[]
+
+const protectionOptions = [
+  { label: "All", value: undefined },
   { label: "Light", value: "light" },
   { label: "Balanced", value: "balanced" },
   { label: "Tail", value: "tail" },
-] satisfies ToolbarOption[]
+] satisfies FilterOption[]
 
-const expiryMsByValue: Record<string, number> = {
-  "1h": 60 * 60_000,
-  "4h": 4 * 60 * 60_000,
-  "1d": 24 * 60 * 60_000,
-  "7d": 7 * 24 * 60 * 60_000,
-}
+const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  day: "2-digit",
+  hour: "2-digit",
+  hour12: false,
+  minute: "2-digit",
+  month: "short",
+  timeZone: "UTC",
+})
 
 const columnLabels = [
   "Product",
-  "Protection",
-  "Yield Source",
+  "Trigger",
   "Budget",
-  "Distance",
   "Expires",
   "Action",
 ]
 
-function getAssetOptions(products: ShieldProduct[]): ToolbarOption[] {
-  const assetMap = new Map<string, ToolbarOption>()
+function getAssetOptions(products: ShieldProduct[]): FilterOption[] {
+  const assetMap = new Map<string, FilterOption>()
 
   for (const product of products) {
     const assetSymbol = product.market.assetSymbol
-    const existingAsset = assetMap.get(assetSymbol)
 
-    if (existingAsset) {
-      existingAsset.count = (existingAsset.count ?? 0) + 1
-      continue
+    if (!assetMap.has(assetSymbol)) {
+      assetMap.set(assetSymbol, {
+        label: assetSymbol,
+        value: assetSymbol,
+      })
     }
-
-    assetMap.set(assetSymbol, {
-      count: 1,
-      label: assetSymbol,
-      value: assetSymbol,
-    })
   }
 
   return [
@@ -86,10 +93,16 @@ function getAssetOptions(products: ShieldProduct[]): ToolbarOption[] {
   ]
 }
 
-function getSelectedOption(options: ToolbarOption[], value: string | null) {
+function getSelectedOption(options: FilterOption[], value: string | null) {
   return options.some((option) => option.value === value)
     ? (value ?? undefined)
     : undefined
+}
+
+function getSelectedSort(sortParam: string | null): ShieldSort {
+  return sortParam === "budget" || sortParam === "distance"
+    ? sortParam
+    : defaultSort
 }
 
 function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
@@ -114,10 +127,8 @@ function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
   return `${Math.round(hours / 24)}d`
 }
 
-function formatSignedUsd(value: number) {
-  const displayValue = Math.abs(value) < 0.5 ? 0 : value
-
-  return `${displayValue >= 0 ? "+" : ""}${formatUsd(displayValue, 0)}`
+function formatExpiryTime(expiryMs: number) {
+  return expiryTimeFormatter.format(new Date(expiryMs))
 }
 
 function formatSignedPercent(value: number) {
@@ -130,30 +141,27 @@ function filterProducts({
   products,
   searchQuery,
   selectedAsset,
-  selectedExpiry,
   selectedProtection,
+  selectedTenor,
 }: {
   products: ShieldProduct[]
   searchQuery: string
   selectedAsset?: string
-  selectedExpiry?: string
   selectedProtection?: string
+  selectedTenor?: string
 }) {
   const normalizedQuery = searchQuery.trim().toLowerCase()
-  const expiryCutoffMs = selectedExpiry
-    ? Date.now() + expiryMsByValue[selectedExpiry]
-    : undefined
 
   return products.filter((product) => {
     if (selectedAsset && product.market.assetSymbol !== selectedAsset) {
       return false
     }
 
-    if (selectedProtection && product.preset !== selectedProtection) {
+    if (selectedTenor && product.tenor !== selectedTenor) {
       return false
     }
 
-    if (expiryCutoffMs && product.market.expiryMs > expiryCutoffMs) {
+    if (selectedProtection && product.preset !== selectedProtection) {
       return false
     }
 
@@ -166,6 +174,7 @@ function filterProducts({
       product.market.assetSymbol,
       product.market.oracleId,
       getShieldPresetLabel(product.preset),
+      getShieldTenorLabel(product.tenor),
     ]
       .join(" ")
       .toLowerCase()
@@ -173,20 +182,37 @@ function filterProducts({
   })
 }
 
-function getPulseStats(products: ShieldProduct[]) {
-  const assets = new Set(products.map((product) => product.market.assetSymbol))
-  const nearestProduct = products[0]
-  const totalLiquidityUsd = products.reduce(
-    (total, product) => total + (product.market.volumeUsd ?? 0),
-    0
-  )
+function sortProducts(products: ShieldProduct[], sort: ShieldSort) {
+  return products.slice().sort((firstProduct, secondProduct) => {
+    if (sort === "budget") {
+      return (
+        secondProduct.hedgeBudgetBps - firstProduct.hedgeBudgetBps ||
+        firstProduct.market.expiryMs - secondProduct.market.expiryMs ||
+        firstProduct.market.assetSymbol.localeCompare(
+          secondProduct.market.assetSymbol
+        )
+      )
+    }
 
-  return {
-    assets: assets.size,
-    nearestProduct,
-    products: products.length,
-    totalLiquidityUsd,
-  }
+    if (sort === "distance") {
+      return (
+        Math.abs(firstProduct.distancePercent) -
+          Math.abs(secondProduct.distancePercent) ||
+        firstProduct.market.expiryMs - secondProduct.market.expiryMs ||
+        firstProduct.market.assetSymbol.localeCompare(
+          secondProduct.market.assetSymbol
+        )
+      )
+    }
+
+    return (
+      firstProduct.market.expiryMs - secondProduct.market.expiryMs ||
+      firstProduct.market.assetSymbol.localeCompare(
+        secondProduct.market.assetSymbol
+      ) ||
+      firstProduct.protectionStrikeUsd - secondProduct.protectionStrikeUsd
+    )
+  })
 }
 
 export function Page({ products }: PageProps) {
@@ -197,148 +223,98 @@ export function Page({ products }: PageProps) {
     assetOptions,
     searchParams.get("asset")
   )
-  const selectedExpiry = getSelectedOption(
-    expiryTabs,
-    searchParams.get("expiry")
+  const selectedTenor = getSelectedOption(
+    tenorOptions,
+    searchParams.get("tenor")
   )
   const selectedProtection = getSelectedOption(
-    protectionTabs,
+    protectionOptions,
     searchParams.get("protection")
   )
-  const visibleProducts = filterProducts({
-    products,
-    searchQuery,
-    selectedAsset,
-    selectedExpiry,
-    selectedProtection,
-  })
-  const pulseStats = getPulseStats(products)
+  const selectedSort = getSelectedSort(searchParams.get("sort"))
+  const visibleProducts = sortProducts(
+    filterProducts({
+      products,
+      searchQuery,
+      selectedAsset,
+      selectedProtection,
+      selectedTenor,
+    }),
+    selectedSort
+  )
 
-  function updateFilterParam(key: string, value?: string) {
-    const nextSearchParams = new URLSearchParams(searchParams)
-
+  function setFilterParam(
+    nextSearchParams: URLSearchParams,
+    key: string,
+    value?: string
+  ) {
     if (value) {
       nextSearchParams.set(key, value)
     } else {
       nextSearchParams.delete(key)
     }
+  }
 
+  function updateFilterParam(key: string, value?: string) {
+    const nextSearchParams = new URLSearchParams(searchParams)
+
+    setFilterParam(nextSearchParams, key, value)
     setSearchParams(nextSearchParams)
+  }
+
+  function resetFilters() {
+    const nextSearchParams = new URLSearchParams(searchParams)
+
+    for (const key of ["asset", "tenor", "protection", "sort"]) {
+      nextSearchParams.delete(key)
+    }
+
+    setSearchQuery("")
+    setSearchParams(nextSearchParams)
+  }
+
+  function updateSort(sort: ShieldSort) {
+    updateFilterParam("sort", sort === defaultSort ? undefined : sort)
   }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <LiveShowcase stats={pulseStats} />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm font-medium text-foreground">Shield</div>
 
-        <div className="space-y-2">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="flex items-center gap-1.5 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                <ActivityIcon className="size-3.5" />
-                Protected yield
-              </div>
-              <h1 className="mt-1 text-sm font-medium text-foreground">
-                Shield
-              </h1>
-            </div>
-            <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase sm:text-right">
-              PLP + binary DOWN hedge
-            </div>
+            <ShieldSearchControls
+              assetOptions={assetOptions}
+              onAssetChange={(asset) => updateFilterParam("asset", asset)}
+              onProtectionChange={(protection) =>
+                updateFilterParam("protection", protection)
+              }
+              onResetFilters={resetFilters}
+              onSearchChange={setSearchQuery}
+              onSortChange={updateSort}
+              onTenorChange={(tenor) => updateFilterParam("tenor", tenor)}
+              protectionOptions={protectionOptions}
+              searchQuery={searchQuery}
+              selectedAsset={selectedAsset}
+              selectedProtection={selectedProtection as ShieldPreset}
+              selectedSort={selectedSort}
+              selectedTenor={selectedTenor as ShieldTenor}
+              tenorOptions={tenorOptions}
+            />
           </div>
 
-          <ShieldTable
-            products={visibleProducts}
-            toolbar={
-              <Toolbar
-                assetOptions={assetOptions}
-                expiryOptions={expiryTabs}
-                onAssetChange={(asset) => updateFilterParam("asset", asset)}
-                onExpiryChange={(expiry) => updateFilterParam("expiry", expiry)}
-                onProtectionChange={(protection) =>
-                  updateFilterParam("protection", protection)
-                }
-                onSearchChange={setSearchQuery}
-                protectionOptions={protectionTabs}
-                searchQuery={searchQuery}
-                selectedAsset={selectedAsset}
-                selectedExpiry={selectedExpiry}
-                selectedProtection={selectedProtection as ShieldPreset}
-                totalCount={products.length}
-                visibleCount={visibleProducts.length}
-              />
-            }
-          />
+          <ShieldTable products={visibleProducts} />
         </div>
       </section>
     </main>
   )
 }
 
-function LiveShowcase({ stats }: { stats: ReturnType<typeof getPulseStats> }) {
+function ShieldTable({ products }: { products: ShieldProduct[] }) {
   return (
-    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardContent className="relative px-4 py-5 sm:px-5">
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,var(--muted)_0,transparent_55%)] opacity-70" />
-        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="font-mono text-[10px] tracking-[0.22em] text-muted-foreground uppercase">
-              Structured protected yield
-            </p>
-            <h2 className="mt-3 text-2xl leading-tight font-semibold tracking-tight text-foreground sm:text-3xl">
-              Shield PLP deposits with crash protection
-            </h2>
-            <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              Curated products that supply DUSDC into Predict PLP and reserve a
-              budget for a binary DOWN hedge on the selected market expiry.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-right sm:flex sm:items-center sm:gap-5">
-            <HeroStat label="Products" value={stats.products.toString()} />
-            <HeroStat label="Assets" value={stats.assets.toString()} />
-            <HeroStat
-              label="Nearest"
-              value={
-                stats.nearestProduct
-                  ? formatExpiryDistance(stats.nearestProduct.market.expiryMs)
-                  : "--"
-              }
-            />
-            <HeroStat
-              label="Activity"
-              value={formatCompactUsd(stats.totalLiquidityUsd)}
-            />
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
-function HeroStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md bg-muted px-3 py-2 sm:bg-transparent sm:p-0">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-sm font-medium text-foreground tabular-nums">
-        {value}
-      </div>
-    </div>
-  )
-}
-
-function ShieldTable({
-  products,
-  toolbar,
-}: {
-  products: ShieldProduct[]
-  toolbar: ReactNode
-}) {
-  return (
-    <div className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      {toolbar}
-      <div className="hidden border-b border-border/40 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:grid lg:grid-cols-[minmax(15rem,1.4fr)_0.9fr_0.8fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
+    <div className="overflow-hidden rounded-md bg-card py-0 shadow-none ring-0">
+      <div className="hidden border-b border-border/40 bg-card px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:grid lg:grid-cols-[minmax(16rem,1.6fr)_1fr_0.75fr_0.85fr_7rem] lg:items-center">
         {columnLabels.map((label, index) => (
           <div
             className={cn(
@@ -369,25 +345,19 @@ function ShieldTable({
 function ShieldRow({ product }: { product: ShieldProduct }) {
   return (
     <div className="border-b border-border/35 last:border-b-0">
-      <div className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 lg:grid lg:grid-cols-[minmax(15rem,1.4fr)_0.9fr_0.8fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
+      <div className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 lg:grid lg:grid-cols-[minmax(16rem,1.6fr)_1fr_0.75fr_0.85fr_7rem] lg:items-center">
         <ProductIdentity product={product} />
         <Metric
           className="text-outcome-down"
           subValue={formatSignedPercent(product.distancePercent)}
           value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
         />
-        <Metric subValue="Predict PLP" value="Vault share" />
         <Metric
           subValue="Hedge cap"
           value={`≤${product.hedgeBudgetBps / 100}%`}
         />
         <Metric
-          className="text-outcome-down"
-          subValue={formatSignedPercent(product.distancePercent)}
-          value={formatSignedUsd(product.distanceUsd)}
-        />
-        <Metric
-          subValue="Live"
+          subValue={formatExpiryTime(product.market.expiryMs)}
           value={formatExpiryDistance(product.market.expiryMs)}
         />
         <ActionButton product={product} />
@@ -396,14 +366,11 @@ function ShieldRow({ product }: { product: ShieldProduct }) {
       <div className="space-y-2 px-3 py-3 lg:hidden">
         <div className="flex items-start justify-between gap-3">
           <ProductIdentity product={product} />
-          <div className="rounded-md bg-outcome-up/10 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-outcome-up uppercase">
-            Live
-          </div>
         </div>
         <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-4">
           <MobileMetric
             className="text-outcome-down"
-            label="Protection"
+            label="Trigger"
             value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
           />
           <MobileMetric
@@ -440,16 +407,14 @@ function ProductIdentity({ product }: { product: ShieldProduct }) {
         className="size-6"
       />
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-foreground group-hover:text-primary">
+        <div className="truncate text-xs text-foreground group-hover:text-primary">
           {product.market.assetSymbol} Shield ·{" "}
-          {getShieldPresetLabel(product.preset)}
+          {getShieldTenorLabel(product.tenor)}
         </div>
         <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          <span className="rounded-md bg-outcome-up/10 px-1.5 py-0.5 text-outcome-up">
-            Live
-          </span>
+          <span>{getShieldPresetLabel(product.preset)}</span>
+          <span>·</span>
           <span>Spot {formatUsd(product.market.currentPriceUsd, 0)}</span>
-          <span>PLP + DOWN</span>
         </div>
       </div>
     </Link>
@@ -518,135 +483,166 @@ function ActionButton({ product }: { product: ShieldProduct }) {
   )
 }
 
-function Toolbar({
+function ShieldSearchControls({
   assetOptions,
-  expiryOptions,
   onAssetChange,
-  onExpiryChange,
   onProtectionChange,
+  onResetFilters,
   onSearchChange,
+  onSortChange,
+  onTenorChange,
   protectionOptions,
   searchQuery,
   selectedAsset,
-  selectedExpiry,
   selectedProtection,
-  totalCount,
-  visibleCount,
+  selectedSort,
+  selectedTenor,
+  tenorOptions,
 }: {
-  assetOptions: ToolbarOption[]
-  expiryOptions: ToolbarOption[]
+  assetOptions: FilterOption[]
   onAssetChange: (asset?: string) => void
-  onExpiryChange: (expiry?: string) => void
   onProtectionChange: (protection?: string) => void
+  onResetFilters: () => void
   onSearchChange: (search: string) => void
-  protectionOptions: ToolbarOption[]
+  onSortChange: (sort: ShieldSort) => void
+  onTenorChange: (tenor?: string) => void
+  protectionOptions: FilterOption[]
   searchQuery: string
   selectedAsset?: string
-  selectedExpiry?: string
   selectedProtection?: ShieldPreset
-  totalCount: number
-  visibleCount: number
+  selectedSort: ShieldSort
+  selectedTenor?: ShieldTenor
+  tenorOptions: FilterOption[]
 }) {
   return (
-    <div className="space-y-2 border-b border-border/40 bg-card px-3 py-2">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Asset
-          </span>
-          <ToolbarTabs
-            onChange={onAssetChange}
-            options={assetOptions}
-            selectedValue={selectedAsset}
-          />
-        </div>
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          aria-label="Search shields"
+          className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search shields"
+          value={searchQuery}
+        />
+      </div>
 
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Search Shield products"
-              className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search shields"
-              value={searchQuery}
-            />
-          </div>
+      <FilterMenu
+        assetOptions={assetOptions}
+        onAssetChange={onAssetChange}
+        onProtectionChange={onProtectionChange}
+        onResetFilters={onResetFilters}
+        onSortChange={onSortChange}
+        onTenorChange={onTenorChange}
+        protectionOptions={protectionOptions}
+        selectedAsset={selectedAsset}
+        selectedProtection={selectedProtection}
+        selectedSort={selectedSort}
+        selectedTenor={selectedTenor}
+        tenorOptions={tenorOptions}
+      />
+    </div>
+  )
+}
+
+function FilterMenu({
+  assetOptions,
+  onAssetChange,
+  onProtectionChange,
+  onResetFilters,
+  onSortChange,
+  onTenorChange,
+  protectionOptions,
+  selectedAsset,
+  selectedProtection,
+  selectedSort,
+  selectedTenor,
+  tenorOptions,
+}: {
+  assetOptions: FilterOption[]
+  onAssetChange: (asset?: string) => void
+  onProtectionChange: (protection?: string) => void
+  onResetFilters: () => void
+  onSortChange: (sort: ShieldSort) => void
+  onTenorChange: (tenor?: string) => void
+  protectionOptions: FilterOption[]
+  selectedAsset?: string
+  selectedProtection?: ShieldPreset
+  selectedSort: ShieldSort
+  selectedTenor?: ShieldTenor
+  tenorOptions: FilterOption[]
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <Button
             aria-label="Filters"
             className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
             size="icon"
             type="button"
             variant="outline"
-          >
-            <SlidersHorizontalIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Expiry
-          </span>
-          <ToolbarTabs
-            onChange={onExpiryChange}
-            options={expiryOptions}
-            selectedValue={selectedExpiry}
           />
-        </div>
-        <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:text-right">
-          {visibleCount} / {totalCount} shields
-        </div>
-      </div>
+        }
+      >
+        <SlidersHorizontalIcon className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuLabel>Sort</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={selectedSort} onValueChange={onSortChange}>
+          <DropdownMenuRadioItem value="expiry">
+            Nearest expiry
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="distance">
+            Protection distance
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="budget">
+            Hedge budget
+          </DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
 
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <span className="mr-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Protection
-        </span>
-        <ToolbarTabs
-          onChange={onProtectionChange}
-          options={protectionOptions}
-          selectedValue={selectedProtection}
-        />
-      </div>
-    </div>
-  )
-}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Asset</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={selectedAsset ?? "all"}
+          onValueChange={(value) => onAssetChange(value === "all" ? undefined : value)}
+        >
+          {assetOptions.map((option) => (
+            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
 
-function ToolbarTabs({
-  onChange,
-  options,
-  selectedValue,
-}: {
-  onChange: (value?: string) => void
-  options: ToolbarOption[]
-  selectedValue?: string
-}) {
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-      {options.map((option) => {
-        const isSelected = selectedValue === option.value
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Tenor</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={selectedTenor ?? "all"}
+          onValueChange={(value) => onTenorChange(value === "all" ? undefined : value)}
+        >
+          {tenorOptions.map((option) => (
+            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
 
-        return (
-          <button
-            className={cn(
-              "flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-              isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
-            )}
-            key={option.value ?? "all"}
-            onClick={() => onChange(option.value)}
-            type="button"
-          >
-            <span>{option.label}</span>
-            {option.count !== undefined && (
-              <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-                {option.count}
-              </span>
-            )}
-          </button>
-        )
-      })}
-    </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel>Protection</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={selectedProtection ?? "all"}
+          onValueChange={(value) => onProtectionChange(value === "all" ? undefined : value)}
+        >
+          {protectionOptions.map((option) => (
+            <DropdownMenuRadioItem key={option.value ?? "all"} value={option.value ?? "all"}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onResetFilters}>Reset filters</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

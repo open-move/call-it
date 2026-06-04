@@ -1,6 +1,11 @@
 import { type MarketSnapshot } from "~/lib/callit/market/types"
+import { PREDICT_QUOTE_ASSET } from "~/lib/deepbook/config"
 
-import { type ShieldPreset, type ShieldProduct } from "./types"
+import {
+  type ShieldPreset,
+  type ShieldProduct,
+  type ShieldTenor,
+} from "./types"
 
 interface PresetConfig {
   budgetBps: number
@@ -9,7 +14,43 @@ interface PresetConfig {
   preset: ShieldPreset
 }
 
-const presetConfigs = [
+interface AssetConfig {
+  presets: PresetConfig[]
+  quoteAsset: string
+}
+
+const DAY_MS = 24 * 60 * 60_000
+
+const shieldAssetConfigs = {
+  BTC: {
+    quoteAsset: PREDICT_QUOTE_ASSET,
+    presets: [
+      { budgetBps: 2500, label: "Light", multiplier: 0.95, preset: "light" },
+      {
+        budgetBps: 4000,
+        label: "Balanced",
+        multiplier: 0.85,
+        preset: "balanced",
+      },
+      { budgetBps: 5000, label: "Tail", multiplier: 0.7, preset: "tail" },
+    ],
+  },
+  ETH: {
+    quoteAsset: PREDICT_QUOTE_ASSET,
+    presets: [
+      { budgetBps: 2500, label: "Light", multiplier: 0.94, preset: "light" },
+      {
+        budgetBps: 4000,
+        label: "Balanced",
+        multiplier: 0.84,
+        preset: "balanced",
+      },
+      { budgetBps: 5000, label: "Tail", multiplier: 0.68, preset: "tail" },
+    ],
+  },
+} satisfies Record<string, AssetConfig>
+
+const fallbackPresetConfigs = [
   { budgetBps: 2500, label: "Light", multiplier: 0.95, preset: "light" },
   {
     budgetBps: 4000,
@@ -21,7 +62,31 @@ const presetConfigs = [
 ] satisfies PresetConfig[]
 
 export function getShieldPresetLabel(preset: ShieldPreset) {
-  return presetConfigs.find((config) => config.preset === preset)?.label ?? preset
+  return (
+    fallbackPresetConfigs.find((config) => config.preset === preset)?.label ??
+    preset
+  )
+}
+
+export function getShieldTenorLabel(tenor: ShieldTenor) {
+  return tenor === "standard" ? "Standard" : "Weekly"
+}
+
+function getShieldTenor(
+  expiryMs: number,
+  nowMs = Date.now()
+): ShieldTenor | undefined {
+  const timeToExpiryMs = expiryMs - nowMs
+
+  if (timeToExpiryMs >= 2.5 * DAY_MS && timeToExpiryMs <= 5.5 * DAY_MS) {
+    return "standard"
+  }
+
+  if (timeToExpiryMs > 5.5 * DAY_MS && timeToExpiryMs <= 7.5 * DAY_MS) {
+    return "weekly"
+  }
+
+  return undefined
 }
 
 function roundDownToTick(value: number, tickSize: number) {
@@ -67,7 +132,14 @@ export function createShieldProducts(markets: MarketSnapshot[]) {
   const seenProducts = new Set<string>()
 
   for (const market of markets) {
-    for (const config of presetConfigs) {
+    const assetConfig = shieldAssetConfigs[market.assetSymbol]
+    const tenor = getShieldTenor(market.expiryMs)
+
+    if (!assetConfig || assetConfig.quoteAsset !== PREDICT_QUOTE_ASSET || !tenor) {
+      continue
+    }
+
+    for (const config of assetConfig.presets) {
       const protectionStrikeUsd = normalizeProtectionStrike(
         market,
         config.multiplier
@@ -77,13 +149,13 @@ export function createShieldProducts(markets: MarketSnapshot[]) {
         continue
       }
 
-      const id = `${market.oracleId}-${config.preset}-${protectionStrikeUsd}`
+      const dedupeKey = `${market.oracleId}-${tenor}-${protectionStrikeUsd}`
 
-      if (seenProducts.has(id)) {
+      if (seenProducts.has(dedupeKey)) {
         continue
       }
 
-      seenProducts.add(id)
+      seenProducts.add(dedupeKey)
       products.push({
         distancePercent:
           ((protectionStrikeUsd - market.currentPriceUsd) /
@@ -91,10 +163,11 @@ export function createShieldProducts(markets: MarketSnapshot[]) {
           100,
         distanceUsd: protectionStrikeUsd - market.currentPriceUsd,
         hedgeBudgetBps: config.budgetBps,
-        id,
+        id: `${market.oracleId}-${config.preset}-${protectionStrikeUsd}`,
         market,
         preset: config.preset,
         protectionStrikeUsd,
+        tenor,
         status: "active",
       })
     }

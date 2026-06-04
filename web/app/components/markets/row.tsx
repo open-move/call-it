@@ -106,7 +106,7 @@ export function Row({ market }: RowProps) {
     <div className="border-b border-border/35 last:border-b-0">
       <div className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
         <MarketIdentity market={market} />
-        <div className="border-l border-border/25 pl-4">
+        <div className="border-l border-border/25 pl-3">
           <Sparkline className="h-6" points={market.priceHistory} />
         </div>
         <Metric
