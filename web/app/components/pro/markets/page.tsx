@@ -6,6 +6,7 @@ import { Table } from "./table"
 import { Toolbar, type ToolbarOption } from "./toolbar"
 
 export interface PageProps {
+  emptyStateMessage?: string
   markets: ProMarket[]
 }
 
@@ -79,7 +80,7 @@ function filterMarketsByExpiry(markets: ProMarket[], selectedExpiry?: string) {
   return markets.filter((market) => market.expiryMs <= cutoffMs)
 }
 
-export function Page({ markets }: PageProps) {
+export function Page({ emptyStateMessage, markets }: PageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const assetOptions = getAssetOptions(markets)
   const assetParam = searchParams.get("asset") ?? undefined
@@ -124,7 +125,7 @@ export function Page({ markets }: PageProps) {
           />
         ) : (
           <div className="rounded-md border border-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
-            No live markets are available right now.
+            {emptyStateMessage ?? "No live markets are available right now."}
           </div>
         )}
       </section>

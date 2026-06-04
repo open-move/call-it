@@ -1,9 +1,12 @@
 import { PREDICT_OBJECT_ID, PREDICT_SERVER_URL } from "./config"
 import {
+  type ManagerPositionSummaryResponse,
+  type ManagerSummaryResponse,
   type OracleInfo,
   type OraclePriceUpdate,
   type OracleStateResponse,
   type OracleSviUpdate,
+  type PredictManagerEvent,
 } from "./predict-types"
 
 export class PredictServerError extends Error {
@@ -186,13 +189,147 @@ function parseOraclePriceUpdateArray(value: unknown): OraclePriceUpdate[] {
   return value.map(parseOraclePriceUpdate)
 }
 
+function parsePredictManagerEvent(value: unknown): PredictManagerEvent {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager event must be an object"
+    )
+  }
+
+  return {
+    event_digest: readString(value, "event_digest"),
+    digest: readString(value, "digest"),
+    sender: readString(value, "sender"),
+    checkpoint: readNumber(value, "checkpoint"),
+    checkpoint_timestamp_ms: readNumber(value, "checkpoint_timestamp_ms"),
+    tx_index: readNumber(value, "tx_index"),
+    event_index: readNumber(value, "event_index"),
+    package: readString(value, "package"),
+    manager_id: readString(value, "manager_id"),
+    owner: readString(value, "owner"),
+  }
+}
+
+function parsePredictManagerEventArray(value: unknown): PredictManagerEvent[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected manager event array"
+    )
+  }
+
+  return value.map(parsePredictManagerEvent)
+}
+
+function parseManagerBalance(value: unknown) {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager balance must be an object"
+    )
+  }
+
+  return {
+    quote_asset: readString(value, "quote_asset"),
+    balance: readNumber(value, "balance"),
+  }
+}
+
+function parseManagerSummary(value: unknown): ManagerSummaryResponse {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager summary must be an object"
+    )
+  }
+
+  const balances = value.balances
+
+  if (!Array.isArray(balances)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager balances must be an array"
+    )
+  }
+
+  return {
+    manager_id: readString(value, "manager_id"),
+    owner: readString(value, "owner"),
+    balances: balances.map(parseManagerBalance),
+    trading_balance: readNumber(value, "trading_balance"),
+    open_exposure: readNumber(value, "open_exposure"),
+    redeemable_value: readNumber(value, "redeemable_value"),
+    realized_pnl: readNumber(value, "realized_pnl"),
+    unrealized_pnl: readNumber(value, "unrealized_pnl"),
+    account_value: readNumber(value, "account_value"),
+    open_positions: readNumber(value, "open_positions"),
+    awaiting_settlement_positions: readNumber(
+      value,
+      "awaiting_settlement_positions"
+    ),
+  }
+}
+
+function parseManagerPositionSummary(
+  value: unknown
+): ManagerPositionSummaryResponse {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager position summary must be an object"
+    )
+  }
+
+  return {
+    predict_id: readString(value, "predict_id"),
+    manager_id: readString(value, "manager_id"),
+    quote_asset: readString(value, "quote_asset"),
+    oracle_id: readString(value, "oracle_id"),
+    underlying_asset: readString(value, "underlying_asset"),
+    expiry: readNumber(value, "expiry"),
+    strike: readNumber(value, "strike"),
+    is_up: readBoolean(value, "is_up"),
+    minted_quantity: readNumber(value, "minted_quantity"),
+    redeemed_quantity: readNumber(value, "redeemed_quantity"),
+    open_quantity: readNumber(value, "open_quantity"),
+    total_cost: readNumber(value, "total_cost"),
+    total_payout: readNumber(value, "total_payout"),
+    realized_pnl: readNumber(value, "realized_pnl"),
+    unrealized_pnl: readNumber(value, "unrealized_pnl"),
+    open_cost_basis: readNumber(value, "open_cost_basis"),
+    average_entry_price: readNumber(value, "average_entry_price"),
+    average_exit_price:
+      typeof value.average_exit_price === "number" ? value.average_exit_price : null,
+    mark_price: typeof value.mark_price === "number" ? value.mark_price : null,
+    mark_value: typeof value.mark_value === "number" ? value.mark_value : null,
+    status: readString(value, "status"),
+    first_minted_at: readNumber(value, "first_minted_at"),
+    last_activity_at: readNumber(value, "last_activity_at"),
+  }
+}
+
+function parseManagerPositionSummaryArray(
+  value: unknown
+): ManagerPositionSummaryResponse[] {
+  if (!Array.isArray(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected manager position summary array"
+    )
+  }
+
+  return value.map(parseManagerPositionSummary)
+}
+
 async function readPredictJson<T>(
   path: string,
   parse: (value: unknown) => T
 ): Promise<T> {
-  const response = await fetch(`${PREDICT_SERVER_URL}${path}`, {
-    cache: "no-store",
-  })
+  let response: Response
+
+  try {
+    response = await fetch(`${PREDICT_SERVER_URL}${path}`, {
+      cache: "no-store",
+    })
+  } catch (error) {
+    throw new PredictServerError(
+      `Unable to reach Predict server at ${PREDICT_SERVER_URL}`
+    )
+  }
 
   if (!response.ok) {
     throw new PredictServerError(
@@ -222,5 +359,23 @@ export function getOraclePrices(oracleId: string, limit: number) {
   return readPredictJson(
     `/oracles/${encodeURIComponent(oracleId)}/prices?${params.toString()}`,
     parseOraclePriceUpdateArray
+  )
+}
+
+export function getPredictManagers() {
+  return readPredictJson("/managers", parsePredictManagerEventArray)
+}
+
+export function getManagerSummary(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/summary`,
+    parseManagerSummary
+  )
+}
+
+export function getManagerPositionSummaries(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/positions/summary`,
+    parseManagerPositionSummaryArray
   )
 }

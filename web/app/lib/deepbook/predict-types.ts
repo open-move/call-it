@@ -54,3 +54,61 @@ export interface OracleStateResponse {
   latest_svi: OracleSviUpdate | null
   ask_bounds: unknown | null
 }
+
+export interface PredictManagerEvent {
+  event_digest: string
+  digest: string
+  sender: string
+  checkpoint: number
+  checkpoint_timestamp_ms: number
+  tx_index: number
+  event_index: number
+  package: string
+  manager_id: string
+  owner: string
+}
+
+export interface ManagerBalance {
+  quote_asset: string
+  balance: number
+}
+
+export interface ManagerSummaryResponse {
+  manager_id: string
+  owner: string
+  balances: ManagerBalance[]
+  trading_balance: number
+  open_exposure: number
+  redeemable_value: number
+  realized_pnl: number
+  unrealized_pnl: number
+  account_value: number
+  open_positions: number
+  awaiting_settlement_positions: number
+}
+
+export interface ManagerPositionSummaryResponse {
+  predict_id: string
+  manager_id: string
+  quote_asset: string
+  oracle_id: string
+  underlying_asset: string
+  expiry: number
+  strike: number
+  is_up: boolean
+  minted_quantity: number
+  redeemed_quantity: number
+  open_quantity: number
+  total_cost: number
+  total_payout: number
+  realized_pnl: number
+  unrealized_pnl: number
+  open_cost_basis: number
+  average_entry_price: number
+  average_exit_price: number | null
+  mark_price: number | null
+  mark_value: number | null
+  status: string
+  first_minted_at: number
+  last_activity_at: number
+}
