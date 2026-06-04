@@ -249,7 +249,7 @@ function LightweightPriceChart({
         layout: {
           attributionLogo: false,
           background: { color: chartBackgroundColor, type: ColorType.Solid },
-          fontFamily: "IBM Plex Sans, ui-sans-serif, system-ui, sans-serif",
+          fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
           textColor: "#94a3b8",
         },
         localization: {

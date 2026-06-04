@@ -1,11 +1,21 @@
 import { SearchIcon, SlidersHorizontalIcon } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "~/components/ui/dropdown-menu"
 import { Input } from "~/components/ui/input"
 import { cn } from "~/lib/utils"
 
 export interface ToolbarOption {
-  count?: number
   label: string
   value?: string
 }
@@ -15,12 +25,18 @@ export interface ToolbarProps {
   expiryOptions: ToolbarOption[]
   onAssetChange: (asset?: string) => void
   onExpiryChange: (expiry?: string) => void
-  onSearchChange: (search: string) => void
-  searchQuery: string
   selectedAsset?: string
   selectedExpiry?: string
-  totalCount: number
-  visibleCount: number
+}
+
+export interface MarketSearchControlsProps {
+  onResetFilters: () => void
+  onSearchChange: (search: string) => void
+  onSortChange: (sort: "expiry" | "move" | "volume") => void
+  onWithTradesOnlyChange: (withTradesOnly: boolean) => void
+  searchQuery: string
+  selectedSort: "expiry" | "move" | "volume"
+  withTradesOnly: boolean
 }
 
 export function Toolbar({
@@ -28,48 +44,116 @@ export function Toolbar({
   expiryOptions,
   onAssetChange,
   onExpiryChange,
-  onSearchChange,
-  searchQuery,
   selectedAsset,
   selectedExpiry,
-  totalCount,
-  visibleCount,
 }: ToolbarProps) {
   return (
-    <div className="space-y-2">
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <ToolbarTabs
-            onChange={onAssetChange}
-            options={assetOptions}
-            selectedValue={selectedAsset}
-          />
-        </div>
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <ToolbarTabs
+          onChange={onAssetChange}
+          options={assetOptions}
+          selectedValue={selectedAsset}
+        />
+      </div>
 
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="relative min-w-0 flex-1 lg:w-72 lg:flex-none">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              aria-label="Search markets"
-              className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search markets"
-              value={searchQuery}
-            />
-          </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        <ToolbarTabs
+          onChange={onExpiryChange}
+          options={expiryOptions}
+          selectedValue={selectedExpiry}
+        />
+      </div>
+    </div>
+  )
+}
 
+export function MarketSearchControls({
+  onResetFilters,
+  onSearchChange,
+  onSortChange,
+  onWithTradesOnlyChange,
+  searchQuery,
+  selectedSort,
+  withTradesOnly,
+}: MarketSearchControlsProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+        <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          aria-label="Search markets"
+          className="h-8 border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search markets"
+          value={searchQuery}
+        />
+      </div>
+
+      <FilterMenu
+        onResetFilters={onResetFilters}
+        onSortChange={onSortChange}
+        onWithTradesOnlyChange={onWithTradesOnlyChange}
+        selectedSort={selectedSort}
+        withTradesOnly={withTradesOnly}
+      />
+    </div>
+  )
+}
+
+function FilterMenu({
+  onResetFilters,
+  onSortChange,
+  onWithTradesOnlyChange,
+  selectedSort,
+  withTradesOnly,
+}: {
+  onResetFilters: () => void
+  onSortChange: (sort: "expiry" | "move" | "volume") => void
+  onWithTradesOnlyChange: (withTradesOnly: boolean) => void
+  selectedSort: "expiry" | "move" | "volume"
+  withTradesOnly: boolean
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
           <Button
             aria-label="Filters"
             className="size-8 border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
             size="icon"
             type="button"
             variant="outline"
-          >
-            <SlidersHorizontalIcon className="size-4" />
-          </Button>
-        </div>
-      </div>
-    </div>
+          />
+        }
+      >
+        <SlidersHorizontalIcon className="size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuLabel>Sort</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={selectedSort}
+          onValueChange={onSortChange}
+        >
+          <DropdownMenuRadioItem value="expiry">
+            Expiring soon
+          </DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="volume">Volume</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="move">Price move</DropdownMenuRadioItem>
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuCheckboxItem
+          checked={withTradesOnly}
+          onCheckedChange={onWithTradesOnlyChange}
+        >
+          With recent trades
+        </DropdownMenuCheckboxItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onResetFilters}>
+          Reset filters
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 
@@ -98,11 +182,6 @@ function ToolbarTabs({
             type="button"
           >
             <span>{option.label}</span>
-            {/*{option.count !== undefined && (
-              <span className="font-mono text-[9px] text-muted-foreground tabular-nums">
-                {option.count}
-              </span>
-            )}*/}
           </button>
         )
       })}

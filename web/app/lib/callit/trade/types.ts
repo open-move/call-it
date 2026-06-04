@@ -23,6 +23,15 @@ export interface TradeMarketActivity {
   volumeUsd: number
 }
 
+export interface PredictionActivity {
+  downVolumeUsd: number
+  rangeVolumeUsd: number
+  recentTradeCount: number
+  recentVolumeUsd: number
+  upVolumeUsd: number
+  volumeSparkline: MarketPricePoint[]
+}
+
 export interface ToolbarQuote {
   aboveAsk: number
   aboveBid: number

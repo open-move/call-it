@@ -107,7 +107,7 @@ export function Row({ market }: RowProps) {
       <div className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
         <MarketIdentity market={market} />
         <div className="border-l border-border/25 pl-4">
-          <Sparkline points={market.priceHistory} />
+          <Sparkline className="h-6" points={market.priceHistory} />
         </div>
         <Metric
           className="text-outcome-up"
@@ -180,7 +180,7 @@ function MarketIdentity({ market }: { market: TradeMarket }) {
         className="size-6"
       />
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-foreground group-hover:text-primary">
+        <div className="truncate text-xs text-foreground group-hover:text-primary">
           {market.assetSymbol} Prediction ·{" "}
           {formatMarketTitleExpiry(market.expiryMs)}
         </div>

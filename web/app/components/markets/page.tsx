@@ -4,19 +4,23 @@ import { Link, useSearchParams } from "react-router"
 
 import { AssetIcon } from "~/components/shared/market/asset-icon"
 import { formatUsd } from "~/lib/callit/format"
-import { type TradeMarket } from "~/lib/callit/trade/types"
+import {
+  type PredictionActivity,
+  type TradeMarket,
+} from "~/lib/callit/trade/types"
 import { cn } from "~/lib/utils"
 
 import { Sparkline } from "./sparkline"
 import { Table } from "./table"
-import { Toolbar, type ToolbarOption } from "./toolbar"
+import { MarketSearchControls, Toolbar, type ToolbarOption } from "./toolbar"
 
 export interface PageProps {
   markets: TradeMarket[]
+  predictionActivity: PredictionActivity
 }
 
 const expiryTabs = [
-  { label: "All expiries", value: undefined },
+  { label: "All", value: undefined },
   { label: "15m", value: "15m" },
   { label: "1h", value: "1h" },
   { label: "4h", value: "4h" },
@@ -32,19 +36,21 @@ const expiryMsByValue: Record<string, number> = {
   "7d": 7 * 24 * 60 * 60_000,
 }
 
+type MarketSort = "expiry" | "move" | "volume"
+
+const defaultSort: MarketSort = "expiry"
+
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+  minimumFractionDigits: 1,
+  style: "percent",
+})
+
 function getAssetOptions(markets: TradeMarket[]): ToolbarOption[] {
   const assetMap = new Map<string, ToolbarOption>()
 
   markets.forEach((market) => {
-    const existingAsset = assetMap.get(market.assetSymbol)
-
-    if (existingAsset) {
-      existingAsset.count = (existingAsset.count ?? 0) + 1
-      return
-    }
-
     assetMap.set(market.assetSymbol, {
-      count: 1,
       label: market.assetSymbol,
       value: market.assetSymbol,
     })
@@ -66,6 +72,12 @@ function getSelectedAsset(assetOptions: ToolbarOption[], assetParam?: string) {
 
 function getSelectedExpiry(expiryParam: string | null) {
   return expiryParam && expiryParam in expiryMsByValue ? expiryParam : undefined
+}
+
+function getSelectedSort(sortParam: string | null): MarketSort {
+  return sortParam === "volume" || sortParam === "move"
+    ? sortParam
+    : defaultSort
 }
 
 function filterMarketsByAsset(markets: TradeMarket[], selectedAsset?: string) {
@@ -103,15 +115,40 @@ function filterMarketsBySearch(markets: TradeMarket[], searchQuery: string) {
   })
 }
 
-function sortMarkets(markets: TradeMarket[]) {
-  return markets
-    .slice()
-    .sort(
-      (firstMarket, secondMarket) =>
-        firstMarket.expiryMs - secondMarket.expiryMs ||
+function filterMarketsByRecentTrades(
+  markets: TradeMarket[],
+  withTradesOnly: boolean
+) {
+  return withTradesOnly
+    ? markets.filter((market) => market.tradeCount > 0)
+    : markets
+}
+
+function sortMarkets(markets: TradeMarket[], sort: MarketSort = defaultSort) {
+  return markets.slice().sort((firstMarket, secondMarket) => {
+    if (sort === "volume") {
+      return (
         secondMarket.volumeUsd - firstMarket.volumeUsd ||
+        firstMarket.expiryMs - secondMarket.expiryMs ||
         firstMarket.assetSymbol.localeCompare(secondMarket.assetSymbol)
+      )
+    }
+
+    if (sort === "move") {
+      return (
+        Math.abs(secondMarket.priceChangePercent) -
+          Math.abs(firstMarket.priceChangePercent) ||
+        firstMarket.expiryMs - secondMarket.expiryMs ||
+        firstMarket.assetSymbol.localeCompare(secondMarket.assetSymbol)
+      )
+    }
+
+    return (
+      firstMarket.expiryMs - secondMarket.expiryMs ||
+      secondMarket.volumeUsd - firstMarket.volumeUsd ||
+      firstMarket.assetSymbol.localeCompare(secondMarket.assetSymbol)
     )
+  })
 }
 
 function formatCompactUsd(value: number) {
@@ -124,6 +161,10 @@ function formatCompactUsd(value: number) {
   }
 
   return formatUsd(value, 0)
+}
+
+function formatPercent(value: number) {
+  return percentFormatter.format(value)
 }
 
 function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
@@ -159,97 +200,120 @@ function getTopMarkets(markets: TradeMarket[]) {
     .slice(0, 3)
 }
 
-function getPulseStats(markets: TradeMarket[]) {
-  const assets = new Set(markets.map((market) => market.assetSymbol))
-  const totalVolumeUsd = markets.reduce(
-    (totalVolume, market) => totalVolume + market.volumeUsd,
-    0
-  )
-  const totalTradeCount = markets.reduce(
-    (totalTrades, market) => totalTrades + market.tradeCount,
-    0
-  )
-  const nearestMarket = sortMarkets(markets)[0]
+function formatUpShare(activity: PredictionActivity) {
+  const directionalVolumeUsd = activity.upVolumeUsd + activity.downVolumeUsd
 
-  return {
-    assets: assets.size,
-    nearestMarket,
-    totalTradeCount,
-    totalVolumeUsd,
+  if (directionalVolumeUsd <= 0) {
+    return "--"
   }
+
+  return formatPercent(activity.upVolumeUsd / directionalVolumeUsd)
 }
 
-export function Page({ markets }: PageProps) {
+export function Page({ markets, predictionActivity }: PageProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   const [searchQuery, setSearchQuery] = useState("")
   const assetOptions = getAssetOptions(markets)
   const assetParam = searchParams.get("asset") ?? undefined
   const selectedAsset = getSelectedAsset(assetOptions, assetParam)
   const selectedExpiry = getSelectedExpiry(searchParams.get("expiry"))
+  const selectedSort = getSelectedSort(searchParams.get("sort"))
+  const withTradesOnly = searchParams.get("traded") === "1"
   const assetFilteredMarkets = filterMarketsByAsset(markets, selectedAsset)
   const visibleMarkets = sortMarkets(
-    filterMarketsBySearch(
-      filterMarketsByExpiry(assetFilteredMarkets, selectedExpiry),
-      searchQuery
-    )
+    filterMarketsByRecentTrades(
+      filterMarketsBySearch(
+        filterMarketsByExpiry(assetFilteredMarkets, selectedExpiry),
+        searchQuery
+      ),
+      withTradesOnly
+    ),
+    selectedSort
   )
   const topMarkets = getTopMarkets(markets)
-  const pulseStats = getPulseStats(markets)
+  const nearestMarket = sortMarkets(markets)[0]
 
-  function updateFilterParam(key: string, value?: string) {
-    const nextSearchParams = new URLSearchParams(searchParams)
-
+  function setFilterParam(
+    nextSearchParams: URLSearchParams,
+    key: string,
+    value?: string
+  ) {
     if (value) {
       nextSearchParams.set(key, value)
     } else {
       nextSearchParams.delete(key)
     }
+  }
 
+  function updateFilterParam(key: string, value?: string) {
+    const nextSearchParams = new URLSearchParams(searchParams)
+
+    setFilterParam(nextSearchParams, key, value)
     setSearchParams(nextSearchParams)
+  }
+
+  function resetFilters() {
+    const nextSearchParams = new URLSearchParams(searchParams)
+
+    for (const key of ["asset", "expiry", "sort", "traded"]) {
+      nextSearchParams.delete(key)
+    }
+
+    setSearchQuery("")
+    setSearchParams(nextSearchParams)
+  }
+
+  function updateSort(sort: MarketSort) {
+    updateFilterParam("sort", sort === defaultSort ? undefined : sort)
+  }
+
+  function updateWithTradesOnly(nextWithTradesOnly: boolean) {
+    updateFilterParam("traded", nextWithTradesOnly ? "1" : undefined)
   }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         {markets.length > 0 ? (
-          <div className="flex flex-col gap-6">
-            <LiveShowcase markets={topMarkets} pulseStats={pulseStats} />
+          <div className="flex flex-col gap-8">
+            <LiveShowcase
+              liveMarketCount={markets.length}
+              markets={topMarkets}
+              nearestMarket={nearestMarket}
+              predictionActivity={predictionActivity}
+            />
 
-            <div className="space-y-2">
-              <div className="text-md font-medium text-foreground">Markets</div>
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-sm font-medium text-foreground">
+                    Markets
+                  </div>
 
-              <Toolbar
-                assetOptions={assetOptions}
-                expiryOptions={expiryTabs}
-                onAssetChange={(asset) => updateFilterParam("asset", asset)}
-                onExpiryChange={(expiry) => updateFilterParam("expiry", expiry)}
-                onSearchChange={setSearchQuery}
-                searchQuery={searchQuery}
-                selectedAsset={selectedAsset}
-                selectedExpiry={selectedExpiry}
-                totalCount={markets.length}
-                visibleCount={visibleMarkets.length}
-              />
-
-              <Table
-                markets={visibleMarkets}
-                toolbar={
-                  <Toolbar
-                    assetOptions={assetOptions}
-                    expiryOptions={expiryTabs}
-                    onAssetChange={(asset) => updateFilterParam("asset", asset)}
-                    onExpiryChange={(expiry) =>
-                      updateFilterParam("expiry", expiry)
-                    }
+                  <MarketSearchControls
+                    onResetFilters={resetFilters}
                     onSearchChange={setSearchQuery}
+                    onSortChange={updateSort}
+                    onWithTradesOnlyChange={updateWithTradesOnly}
                     searchQuery={searchQuery}
-                    selectedAsset={selectedAsset}
-                    selectedExpiry={selectedExpiry}
-                    totalCount={markets.length}
-                    visibleCount={visibleMarkets.length}
+                    selectedSort={selectedSort}
+                    withTradesOnly={withTradesOnly}
                   />
-                }
-              />
+                </div>
+
+                <Toolbar
+                  assetOptions={assetOptions}
+                  expiryOptions={expiryTabs}
+                  onAssetChange={(asset) => updateFilterParam("asset", asset)}
+                  onExpiryChange={(expiry) =>
+                    updateFilterParam("expiry", expiry)
+                  }
+                  selectedAsset={selectedAsset}
+                  selectedExpiry={selectedExpiry}
+                />
+              </div>
+
+              <Table markets={visibleMarkets} />
             </div>
           </div>
         ) : (
@@ -263,14 +327,16 @@ export function Page({ markets }: PageProps) {
 }
 
 function LiveShowcase({
+  liveMarketCount,
   markets,
-  pulseStats,
+  nearestMarket,
+  predictionActivity,
 }: {
+  liveMarketCount: number
   markets: TradeMarket[]
-  pulseStats: ReturnType<typeof getPulseStats>
+  nearestMarket?: TradeMarket
+  predictionActivity: PredictionActivity
 }) {
-  const [featuredMarket] = markets
-
   return (
     <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.64fr)]">
       <div className="rounded-md border-0 bg-card p-3 shadow-none ring-0">
@@ -295,7 +361,7 @@ function LiveShowcase({
                 className="size-6"
               />
               <div className="min-w-0">
-                <div className="truncate text-xs font-medium text-foreground">
+                <div className="truncate text-xs text-foreground">
                   {market.assetSymbol} Prediction · expires in{" "}
                   {formatExpiryDistance(market.expiryMs)}
                 </div>
@@ -329,45 +395,40 @@ function LiveShowcase({
 
       <div className="relative overflow-hidden rounded-md border-0 bg-card p-3 shadow-none ring-0">
         <div className="relative flex h-full min-h-36 flex-col justify-between gap-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                Market pulse
-              </div>
-              <div className="mt-1 text-sm font-medium text-foreground">
-                Active Predict flow
-              </div>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5 text-sm leading-none font-medium text-foreground">
+              <TimerIcon className="size-3.5 translate-y-px text-primary" />
+              Prediction Activity
             </div>
-            <TimerIcon className="size-5 text-primary" />
           </div>
 
-          {featuredMarket && (
-            <Sparkline
-              className="relative h-10 opacity-90"
-              points={featuredMarket.priceHistory}
-            />
-          )}
+          <Sparkline
+            className="relative h-10 opacity-90"
+            points={predictionActivity.volumeSparkline}
+          />
 
           <div className="relative grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-            <PulseMetric label="Markets" value={markets.length.toString()} />
-            <PulseMetric label="Assets" value={pulseStats.assets.toString()} />
+            <PulseMetric label="Live" value={liveMarketCount.toString()} />
             <PulseMetric
               label="Volume"
-              value={formatCompactUsd(pulseStats.totalVolumeUsd)}
+              value={formatCompactUsd(predictionActivity.recentVolumeUsd)}
             />
             <PulseMetric
               label="Txns"
-              value={pulseStats.totalTradeCount.toString()}
+              value={predictionActivity.recentTradeCount.toString()}
+            />
+            <PulseMetric
+              label="Up Share"
+              value={formatUpShare(predictionActivity)}
             />
           </div>
 
-          {pulseStats.nearestMarket && (
+          {nearestMarket && (
             <Link
               className="relative inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
-              to={`/markets/${pulseStats.nearestMarket.oracleId}?strike=${pulseStats.nearestMarket.strikePriceUsd}`}
+              to={`/markets/${nearestMarket.oracleId}?strike=${nearestMarket.strikePriceUsd}`}
             >
-              Next expiry in{" "}
-              {formatExpiryDistance(pulseStats.nearestMarket.expiryMs)}
+              Next expiry in {formatExpiryDistance(nearestMarket.expiryMs)}
               <ArrowUpRightIcon className="size-3.5" />
             </Link>
           )}
