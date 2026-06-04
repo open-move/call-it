@@ -5,5 +5,6 @@ export default [
   route("shield", "routes/shield.tsx"),
   route("shield/:oracleId", "routes/shield-detail.tsx"),
   route("earn", "routes/earn.tsx"),
+  route("portfolio", "routes/portfolio.tsx"),
   route("markets/:oracleId", "routes/market.tsx"),
 ] satisfies RouteConfig

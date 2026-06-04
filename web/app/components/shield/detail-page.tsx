@@ -14,7 +14,7 @@ import {
 } from "~/components/shared/ticket/ticket"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
-import { formatUsd } from "~/lib/callit/format"
+import { formatRelativeTime, formatUsd } from "~/lib/callit/format"
 import { type ExpiryOption } from "~/lib/callit/market/types"
 import {
   getShieldProductHref,
@@ -25,7 +25,11 @@ import {
   formatDecimalUnits,
   parseDecimalUnits,
 } from "~/lib/callit/trading/amounts"
-import { getPredictManagers } from "~/lib/deepbook/predict-client"
+import {
+  getManagerPositionSummaries,
+  getPredictManagers,
+  getPredictVaultSummary,
+} from "~/lib/deepbook/predict-client"
 import {
   getShieldPositions,
   type ShieldPositionRow,
@@ -42,10 +46,19 @@ import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "~/lib/dynamic/sui-wallet"
+import { type ManagerPositionSummary } from "~/lib/deepbook/predict-types"
 import { cn } from "~/lib/utils"
 
 interface ManagerState {
   managerId?: string
+}
+
+interface EstimatedShieldPosition extends ShieldPositionRow {
+  estimatedPnlPercent?: number
+  estimatedPnlUsd?: number
+  estimatedValueUsd?: number
+  hedgeValueUsd?: number
+  plpValueUsd?: number
 }
 
 export interface DetailPageProps {
@@ -81,6 +94,109 @@ function sleep(ms: number) {
 
 function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
+}
+
+function formatPnlUsd(value: number) {
+  const formatted = formatUsd(Math.abs(value))
+
+  if (value > 0) {
+    return `+${formatted}`
+  }
+
+  if (value < 0) {
+    return `-${formatted}`
+  }
+
+  return formatted
+}
+
+function formatPnlPercent(value: number) {
+  const displayValue = Math.abs(value) < 0.00005 ? 0 : value
+  const formatted = Math.abs(displayValue * 100).toFixed(2)
+
+  if (displayValue > 0) {
+    return `+${formatted}%`
+  }
+
+  if (displayValue < 0) {
+    return `-${formatted}%`
+  }
+
+  return `${formatted}%`
+}
+
+function toQuoteAmount(value: number) {
+  return value / 10 ** PREDICT_QUOTE_DECIMALS
+}
+
+function toQuoteAmountFromBigInt(value: bigint) {
+  return Number(value) / 10 ** PREDICT_QUOTE_DECIMALS
+}
+
+function getHedgeSummary(
+  position: ShieldPositionRow,
+  summaries: ManagerPositionSummary[]
+) {
+  return summaries.find(
+    (summary) =>
+      summary.manager_id === position.managerId &&
+      summary.oracle_id === position.oracleId &&
+      summary.expiry === position.hedgeExpiryMs &&
+      BigInt(summary.strike) === position.hedgeStrike &&
+      !summary.is_up &&
+      summary.open_quantity > 0
+  )
+}
+
+async function enrichShieldPositions(
+  positions: ShieldPositionRow[]
+): Promise<EstimatedShieldPosition[]> {
+  if (positions.length === 0) {
+    return []
+  }
+
+  const managerIds = Array.from(
+    new Set(positions.map((position) => position.managerId))
+  )
+  const [vaultResult, summariesResult] = await Promise.allSettled([
+    getPredictVaultSummary(),
+    Promise.all(
+      managerIds.map((managerId) => getManagerPositionSummaries(managerId))
+    ),
+  ])
+  const vaultSummary =
+    vaultResult.status === "fulfilled" ? vaultResult.value : undefined
+  const summaries =
+    summariesResult.status === "fulfilled" ? summariesResult.value.flat() : []
+
+  return positions.map((position) => {
+    if (!vaultSummary || position.settled) {
+      return position
+    }
+
+    const hedgeSummary = getHedgeSummary(position, summaries)
+
+    if (!hedgeSummary || hedgeSummary.mark_value === null) {
+      return position
+    }
+
+    const depositUsd = toQuoteAmountFromBigInt(position.depositAmount)
+    const plpValueUsd =
+      toQuoteAmountFromBigInt(position.plpAmount) * vaultSummary.plp_share_price
+    const hedgeValueUsd = toQuoteAmount(hedgeSummary.mark_value)
+    const estimatedValueUsd = plpValueUsd + hedgeValueUsd
+    const estimatedPnlUsd = estimatedValueUsd - depositUsd
+
+    return {
+      ...position,
+      estimatedPnlPercent:
+        depositUsd > 0 ? estimatedPnlUsd / depositUsd : undefined,
+      estimatedPnlUsd,
+      estimatedValueUsd,
+      hedgeValueUsd,
+      plpValueUsd,
+    }
+  })
 }
 
 async function loadManagerState(walletAddress: string): Promise<ManagerState> {
@@ -506,7 +622,7 @@ function PositionsContentClient({
   const walletAddress = primaryWallet?.address
   const [errorMessage, setErrorMessage] = useState<string>()
   const [isLoading, setIsLoading] = useState(false)
-  const [positions, setPositions] = useState<ShieldPositionRow[]>([])
+  const [positions, setPositions] = useState<EstimatedShieldPosition[]>([])
 
   useEffect(() => {
     let isStale = false
@@ -523,13 +639,13 @@ function PositionsContentClient({
 
       try {
         const nextPositions = await getShieldPositions(walletAddress)
+        const marketPositions = nextPositions.filter(
+          (position) => position.oracleId === product.market.oracleId
+        )
+        const enrichedPositions = await enrichShieldPositions(marketPositions)
 
         if (!isStale) {
-          setPositions(
-            nextPositions.filter(
-              (position) => position.oracleId === product.market.oracleId
-            )
-          )
+          setPositions(enrichedPositions)
         }
       } catch (error) {
         if (!isStale) {
@@ -570,10 +686,11 @@ function PositionsContentClient({
   }
 
   return (
-    <div className="h-full min-h-0 overflow-auto">
-      <div className="space-y-2">
+    <div className="min-h-0 flex-1 overflow-auto">
+      <div className="min-w-[52rem]">
+        <ShieldPositionHeaderRow />
         {positions.map((position) => (
-          <ShieldPositionCard key={position.ownerCapId} position={position} />
+          <ShieldPositionRowView key={position.ownerCapId} position={position} />
         ))}
       </div>
     </div>
@@ -588,47 +705,78 @@ function PositionsEmptyState({ message }: { message: string }) {
   )
 }
 
-function ShieldPositionCard({ position }: { position: ShieldPositionRow }) {
+function ShieldPositionHeaderRow() {
   return (
-    <div className="rounded-md bg-muted px-3 py-3">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="truncate text-sm font-medium text-foreground">
-            Below {formatUsd(position.hedgeStrikeUsd, 0)} Shield
-          </div>
-          <div className="mt-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            {position.settled ? "Settled" : "Active"}
-          </div>
-        </div>
-        <div className="shrink-0 text-right font-mono text-xs text-foreground tabular-nums">
-          {formatDusdc(position.depositAmount)}
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <PositionMetric label="PLP" value={formatDusdc(position.plpAmount)} />
-        <PositionMetric
-          label="Hedge budget"
-          value={formatDusdc(position.hedgeBudgetAmount)}
-        />
-        <PositionMetric
-          label="Expires"
-          value={formatExpiryDistance(position.hedgeExpiryMs)}
-        />
-      </div>
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+      <span>Shield</span>
+      <span>Deposit</span>
+      <span>PLP</span>
+      <span>Hedge</span>
+      <span>Est. Value</span>
+      <span className="text-right">Est. PnL</span>
+      <span className="text-right">Status</span>
     </div>
   )
 }
 
-function PositionMetric({ label, value }: { label: string; value: string }) {
+function ShieldPositionRowView({
+  position,
+}: {
+  position: EstimatedShieldPosition
+}) {
+  const pnlClassName =
+    position.estimatedPnlUsd === undefined
+      ? "text-muted-foreground"
+      : position.estimatedPnlUsd > 0
+        ? "text-outcome-up"
+        : position.estimatedPnlUsd < 0
+          ? "text-outcome-down"
+          : "text-muted-foreground"
+
   return (
-    <div>
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide text-primary uppercase">
+            SHLD
+          </span>
+          <span className="truncate font-medium text-foreground">
+            Below {formatUsd(position.hedgeStrikeUsd, 0)} Shield
+          </span>
+        </div>
+        <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
+          Opened {formatRelativeTime(position.createdAtMs)} · Expires{" "}
+          {formatExpiryDistance(position.hedgeExpiryMs)}
+        </div>
       </div>
-      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
-        {value}
-      </div>
+      <span className="font-mono text-muted-foreground tabular-nums">
+        {formatDusdc(position.depositAmount)}
+      </span>
+      <span className="font-mono tabular-nums">
+        {position.plpValueUsd === undefined
+          ? "--"
+          : formatUsd(position.plpValueUsd)}
+      </span>
+      <span className="font-mono tabular-nums">
+        {position.hedgeValueUsd === undefined
+          ? "--"
+          : formatUsd(position.hedgeValueUsd)}
+      </span>
+      <span className="font-mono tabular-nums">
+        {position.estimatedValueUsd === undefined
+          ? "--"
+          : formatUsd(position.estimatedValueUsd)}
+      </span>
+      <span className={cn("text-right font-mono tabular-nums", pnlClassName)}>
+        {position.estimatedPnlUsd === undefined
+          ? "--"
+          : `${formatPnlUsd(position.estimatedPnlUsd)} (${formatPnlPercent(
+              position.estimatedPnlPercent ?? 0
+            )})`}
+      </span>
+      <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
+        {position.settled ? "Settled" : "Active"}
+      </span>
     </div>
   )
 }
