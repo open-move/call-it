@@ -22,17 +22,16 @@ import { AppNavStatus, appNavItems } from "./app-nav"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-white/62 transition-colors outline-none hover:bg-white/[0.06] hover:text-white focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none data-active:bg-white/[0.08] data-active:text-white",
-    status === AppNavStatus.Active && "bg-white/[0.08] text-white",
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-normal text-white/62 transition-colors outline-none hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
+    status === AppNavStatus.Active && "text-primary",
     status === AppNavStatus.Soon && "text-white/45"
   )
 }
 
 function getMobileNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center justify-between rounded-md px-3 py-3 text-sm text-white/62 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
-    status === AppNavStatus.Active &&
-      "bg-white/[0.08] font-semibold text-white",
+    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-normal text-white/62 transition-colors hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
+    status === AppNavStatus.Active && "text-primary",
     status === AppNavStatus.Soon && "text-white/45"
   )
 }
@@ -89,7 +88,11 @@ export function AppHeader() {
                 {appNavItems.map((item) => (
                   <NavigationMenuItem key={item.href}>
                     <NavigationMenuLink
-                      active={getItemStatus(item) === AppNavStatus.Active}
+                      aria-current={
+                        getItemStatus(item) === AppNavStatus.Active
+                          ? "page"
+                          : undefined
+                      }
                       className={getNavLinkClassName(getItemStatus(item))}
                       render={<Link to={item.href} />}
                     >

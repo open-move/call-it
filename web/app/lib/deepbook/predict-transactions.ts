@@ -52,7 +52,7 @@ export interface DirectionalRedeemParams {
   isUp: boolean
   kind?: "binary"
   oracleId: string
-  orderId: string
+  quantity: bigint
   strikePriceUsd: number
   walletAddress: string
 }
@@ -63,7 +63,7 @@ export interface RangeRedeemParams {
   kind: "range"
   lowerStrikePriceUsd: number
   oracleId: string
-  orderId: string
+  quantity: bigint
   walletAddress: string
 }
 
@@ -159,14 +159,6 @@ function isRangeRedeemParams(
   params: PredictRedeemParams
 ): params is RangeRedeemParams {
   return params.kind === "range"
-}
-
-function toOrderId(value: string) {
-  if (!/^\d+$/.test(value)) {
-    throw new Error("Invalid order ID")
-  }
-
-  return BigInt(value)
 }
 
 function readU64Output(output: SuiClientTypes.CommandOutput) {
@@ -400,7 +392,6 @@ export function buildPredictRedeemTransaction({
 }) {
   const tx = new Transaction()
   tx.setSender(params.walletAddress)
-  const orderId = toOrderId(params.orderId)
 
   if (isRangeRedeemParams(params)) {
     const key = buildRedeemRangeKey(tx, params)
@@ -413,7 +404,7 @@ export function buildPredictRedeemTransaction({
         tx.object(managerId),
         tx.object(params.oracleId),
         key,
-        tx.pure.u64(orderId),
+        tx.pure.u64(params.quantity),
         tx.object(PREDICT_CLOCK_ID),
       ],
     })
@@ -430,7 +421,7 @@ export function buildPredictRedeemTransaction({
       tx.object(managerId),
       tx.object(params.oracleId),
       key,
-      tx.pure.u64(orderId),
+      tx.pure.u64(params.quantity),
       tx.object(PREDICT_CLOCK_ID),
     ],
   })

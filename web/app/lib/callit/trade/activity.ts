@@ -158,7 +158,6 @@ interface RangePositionAccumulator {
   lastActivityAt: number
   lowerStrike: number
   mintedQuantity: number
-  orderIds: Set<string>
   totalCost: number
   totalPayout: number
   redeemedQuantity: number
@@ -188,7 +187,6 @@ export function getRangePositionsFromActivity(
       lastActivityAt: event.checkpoint_timestamp_ms,
       lowerStrike: event.lower_strike,
       mintedQuantity: 0,
-      orderIds: new Set<string>(),
       redeemedQuantity: 0,
       totalCost: 0,
       totalPayout: 0,
@@ -207,9 +205,6 @@ export function getRangePositionsFromActivity(
 
       position.mintedQuantity += event.quantity
       position.totalCost += event.cost
-      if (event.order_id) {
-        position.orderIds.add(event.order_id)
-      }
       position.lastActivityAt = Math.max(
         position.lastActivityAt,
         event.checkpoint_timestamp_ms
@@ -225,12 +220,6 @@ export function getRangePositionsFromActivity(
 
       position.redeemedQuantity += event.quantity
       position.totalPayout += event.payout
-      if (event.order_id) {
-        position.orderIds.delete(event.order_id)
-      }
-      if (event.replacement_order_id) {
-        position.orderIds.add(event.replacement_order_id)
-      }
       position.lastActivityAt = Math.max(
         position.lastActivityAt,
         event.checkpoint_timestamp_ms
@@ -261,7 +250,6 @@ export function getRangePositionsFromActivity(
           openCostBasisUsd:
             averageEntryPrice === null ? 0 : averageEntryPrice * openQuantity,
           openQuantity,
-          orderIds: Array.from(position.orderIds),
           realizedPnlUsd:
             toQuoteAmount(position.totalPayout) - redeemedCostBasis,
           status: "open",

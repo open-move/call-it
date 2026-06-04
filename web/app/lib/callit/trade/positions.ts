@@ -42,7 +42,6 @@ export function filterPositions(
         summary.mark_value === null ? null : toQuoteAmount(summary.mark_value),
       openCostBasisUsd: toQuoteAmount(summary.open_cost_basis),
       openQuantity: toQuoteAmount(summary.open_quantity),
-      orderIds: summary.order_ids ?? [],
       realizedPnlUsd: toQuoteAmount(summary.realized_pnl),
       side: summary.is_up ? ("above" as const) : ("below" as const),
       status: summary.status,

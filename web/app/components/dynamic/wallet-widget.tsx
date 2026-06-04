@@ -203,7 +203,7 @@ function AccountDropdown({
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="text-red-400 focus:bg-red-500/10 focus:text-red-400 [&_svg]:text-red-400 focus:[&_svg]:text-red-400"
+            className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
             variant="destructive"
             onClick={() => void onSignOut()}
           >

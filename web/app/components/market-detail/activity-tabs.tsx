@@ -10,6 +10,8 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/primitives/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs"
@@ -27,17 +29,10 @@ import {
   type TradeActivityRow,
 } from "~/lib/callit/trade/types"
 import {
-  getDirectionalPositionMints,
-  getDirectionalPositionRedeems,
   getManagerRanges,
   getManagerPositionSummaries,
   getPredictManagers,
 } from "~/lib/deepbook/predict-client"
-import {
-  applyDirectionalActivityOrderIds,
-  hydrateDirectionalActivityOrderIds,
-  hydrateRangeActivityOrderIds,
-} from "~/lib/deepbook/predict-order-ids"
 import {
   buildPredictRedeemTransaction,
   executeSuiTransaction,
@@ -97,7 +92,7 @@ interface ActivityTabsFrameProps {
 type ActivityTabValue = "positions" | "trades" | "redemptions"
 type ContractTone = "above" | "below" | "range"
 
-const DIRECTIONAL_ORDER_EVENT_LIMIT = 1_000
+const POSITION_QUANTITY_SCALE = 1_000_000
 
 interface ContractToneInput {
   kind: "directional" | "range"
@@ -139,6 +134,10 @@ function formatPositionQuantity(quantity: number) {
   return quantity.toLocaleString("en-US", {
     maximumFractionDigits: 4,
   })
+}
+
+function toOnchainPositionQuantity(quantity: number) {
+  return BigInt(Math.round(quantity * POSITION_QUANTITY_SCALE))
 }
 
 function formatCompactCostUsd(value: number) {
@@ -234,9 +233,9 @@ function getPositionRedeemParams({
   position: PositionRow
   walletAddress: string
 }): PredictRedeemParams | undefined {
-  const [orderId] = position.orderIds
+  const quantity = toOnchainPositionQuantity(position.openQuantity)
 
-  if (!orderId) {
+  if (quantity <= 0n) {
     return undefined
   }
 
@@ -246,7 +245,7 @@ function getPositionRedeemParams({
         isUp: position.side === "above",
         kind: "binary",
         oracleId: market.oracleId,
-        orderId,
+        quantity,
         strikePriceUsd: position.strikePriceUsd,
         walletAddress,
       }
@@ -256,7 +255,7 @@ function getPositionRedeemParams({
         kind: "range",
         lowerStrikePriceUsd: position.lowerStrikePriceUsd,
         oracleId: market.oracleId,
-        orderId,
+        quantity,
         walletAddress,
       }
 }
@@ -308,51 +307,17 @@ async function loadWalletMarketPositions({
     return { positions: [] }
   }
 
-  const [summaries, rangeActivity, directionalMinted, directionalRedeemed] =
-    await Promise.all([
-      getManagerPositionSummaries(manager.manager_id),
-      getManagerRanges(manager.manager_id),
-      getDirectionalPositionMints(
-        DIRECTIONAL_ORDER_EVENT_LIMIT,
-        market.oracleId
-      ),
-      getDirectionalPositionRedeems(
-        DIRECTIONAL_ORDER_EVENT_LIMIT,
-        market.oracleId
-      ),
-    ])
-  const managerDirectionalMinted = directionalMinted.filter(
-    (event) =>
-      event.manager_id === manager.manager_id &&
-      event.oracle_id === market.oracleId &&
-      event.expiry === market.expiryMs
-  )
-  const managerDirectionalRedeemed = directionalRedeemed.filter(
-    (event) =>
-      event.manager_id === manager.manager_id &&
-      event.oracle_id === market.oracleId &&
-      event.expiry === market.expiryMs
-  )
-  const [hydratedDirectionalActivity, hydratedRangeActivity] =
-    await Promise.all([
-      hydrateDirectionalActivityOrderIds({
-        minted: managerDirectionalMinted,
-        redeemed: managerDirectionalRedeemed,
-      }),
-      hydrateRangeActivityOrderIds(rangeActivity),
-    ])
-  const summariesWithOrderIds = applyDirectionalActivityOrderIds({
-    minted: hydratedDirectionalActivity.minted,
-    redeemed: hydratedDirectionalActivity.redeemed,
-    summaries,
-  })
-  const directionalPositions = filterPositions(summariesWithOrderIds, {
+  const [summaries, rangeActivity] = await Promise.all([
+    getManagerPositionSummaries(manager.manager_id),
+    getManagerRanges(manager.manager_id),
+  ])
+  const directionalPositions = filterPositions(summaries, {
     expiryMs: market.expiryMs,
     oracleId: market.oracleId,
   })
   const rangePositions = getRangePositionsFromActivity(
-    hydratedRangeActivity.minted,
-    hydratedRangeActivity.redeemed,
+    rangeActivity.minted,
+    rangeActivity.redeemed,
     {
       expiryMs: market.expiryMs,
       oracleId: market.oracleId,
@@ -462,7 +427,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       return undefined
     }
 
-    if (positionState.managerId && position.orderIds.length > 0) {
+    if (positionState.managerId) {
       return {
         managerId: positionState.managerId,
         position,
@@ -471,7 +436,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
     setPreviewState({
       isLoading: true,
-      message: "Resolving position orders.",
+      message: "Resolving position.",
       positionId: position.id,
     })
 
@@ -500,16 +465,6 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         return undefined
       }
 
-      if (resolvedPosition.orderIds.length === 0) {
-        setPreviewState({
-          errorMessage:
-            "Could not resolve the order ID for this position yet. Try again after activity syncs.",
-          isLoading: false,
-          positionId: position.id,
-        })
-        return undefined
-      }
-
       return {
         managerId: loadedPositions.managerId,
         position: resolvedPosition,
@@ -519,7 +474,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         errorMessage:
           error instanceof Error
             ? error.message
-            : "Could not resolve position orders.",
+            : "Could not resolve position.",
         isLoading: false,
         positionId: position.id,
       })
@@ -570,7 +525,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
     if (!params) {
       setPreviewState({
-        errorMessage: "This position is missing order-level data.",
+        errorMessage: "This position has no redeemable quantity.",
         isLoading: false,
         positionId: position.id,
       })
@@ -917,16 +872,14 @@ function LifecycleConfirmBanner({
   position: PositionRow
 }) {
   const actionLabel = getPositionLifecycleActionLabel(position)
-  const orderId = position.orderIds[0]
 
   return (
     <div className="mb-2 flex shrink-0 flex-col gap-2 rounded-md bg-primary/10 px-3 py-2 text-xs text-primary sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <div className="font-medium">Confirm {actionLabel.toLowerCase()}</div>
-        <div className="truncate font-mono text-[10px] text-primary/80">
+        <div className="truncate text-[10px] text-primary/80">
           {getPositionContract(position, assetSymbol)} ·{" "}
-          {formatPositionQuantity(position.openQuantity)} contracts · order{" "}
-          {orderId}
+          {formatPositionQuantity(position.openQuantity)} contracts
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-2">
@@ -941,12 +894,20 @@ function LifecycleConfirmBanner({
   )
 }
 
-function PositionHeaderRow({ columns }: { columns: string[] }) {
+interface PositionHeaderColumn {
+  align?: "left" | "right"
+  label: string
+}
+
+function PositionHeaderRow({ columns }: { columns: PositionHeaderColumn[] }) {
   return (
     <div className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       {columns.map((column, index) => (
-        <span className="truncate last:text-right" key={`${column}-${index}`}>
-          {column}
+        <span
+          className={cn("truncate", column.align === "right" && "text-right")}
+          key={`${column.label}-${index}`}
+        >
+          {column.label}
         </span>
       ))}
     </div>
@@ -982,13 +943,13 @@ function PositionsTable({
       <div className="min-w-[52rem]">
         <PositionHeaderRow
           columns={[
-            "Contract",
-            "Position Size",
-            "Entry",
-            "Mark",
-            "Cost",
-            "PnL",
-            "",
+            { label: "Contract" },
+            { label: "Position Size" },
+            { label: "Entry" },
+            { label: "Mark" },
+            { label: "Cost" },
+            { align: "right", label: "PnL" },
+            { align: "right", label: "" },
           ]}
         />
         {positions.map((position) => {
@@ -1088,6 +1049,10 @@ function PositionActionMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44">
           <DropdownMenuGroup>
+            <DropdownMenuLabel className="font-sans text-xs font-medium tracking-normal text-muted-foreground normal-case">
+              Manage Position
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {canAddToPosition(position) ? (
               <DropdownMenuItem
                 onClick={() => onAddPosition(getPositionAddIntent(position))}

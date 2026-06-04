@@ -64,7 +64,6 @@ export interface Redemption {
 
 export interface Position {
   id: string
-  orderIds: string[]
   strikePriceUsd: number
   side: "above" | "below"
   openQuantity: number
@@ -80,7 +79,6 @@ export interface Position {
 
 export interface RangePosition {
   id: string
-  orderIds: string[]
   lowerStrikePriceUsd: number
   higherStrikePriceUsd: number
   openQuantity: number

@@ -26,7 +26,7 @@ function AppDropdownMenuContent({
   return (
     <BaseDropdownMenuContent
       className={cn(
-        "rounded-md bg-card p-1.5 text-card-foreground shadow-none ring-0",
+        "rounded-md bg-[color-mix(in_oklch,var(--card)_92%,white)] p-1.5 text-card-foreground shadow-none ring-0",
         className
       )}
       {...props}
@@ -116,7 +116,7 @@ function AppDropdownMenuSubContent({
   return (
     <BaseDropdownMenuSubContent
       className={cn(
-        "rounded-md bg-card p-1.5 text-card-foreground shadow-none ring-0",
+        "rounded-md bg-[color-mix(in_oklch,var(--card)_92%,white)] p-1.5 text-card-foreground shadow-none ring-0",
         className
       )}
       {...props}
@@ -130,7 +130,7 @@ function AppDropdownMenuSeparator({
 }: ComponentProps<typeof BaseDropdownMenuSeparator>) {
   return (
     <BaseDropdownMenuSeparator
-      className={cn("-mx-1.5 my-1 h-px bg-border/70", className)}
+      className={cn("-mx-1.5 my-1 h-px bg-foreground/10", className)}
       {...props}
     />
   )
