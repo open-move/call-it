@@ -26,6 +26,10 @@ import {
   parseDecimalUnits,
 } from "~/lib/callit/trading/amounts"
 import { getPredictManagers } from "~/lib/deepbook/predict-client"
+import {
+  getShieldPositions,
+  type ShieldPositionRow,
+} from "~/lib/deepbook/shield-client"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import { formatPredictTradeError } from "~/lib/deepbook/predict-quotes"
 import { prepareShieldOpenTransaction } from "~/lib/deepbook/shield-transactions"
@@ -110,6 +114,7 @@ export function DetailPage({
   product,
 }: DetailPageProps) {
   const expiryOptions = getShieldExpiryOptions(expiryProducts)
+  const [positionRefreshKey, setPositionRefreshKey] = useState(0)
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
@@ -159,11 +164,17 @@ export function DetailPage({
             />
           </div>
 
-          <ShieldInfoTabs product={product} />
+          <ShieldInfoTabs
+            product={product}
+            refreshKey={positionRefreshKey}
+          />
         </section>
 
         <aside className="h-full min-w-0">
-          <ShieldTicket product={product} />
+          <ShieldTicket
+            onOpened={() => setPositionRefreshKey((key) => key + 1)}
+            product={product}
+          />
         </aside>
       </div>
     </main>
@@ -180,8 +191,10 @@ function getShieldExpiryOptions(products: ShieldProduct[]): ExpiryOption[] {
 }
 
 function ShieldTicket({
+  onOpened,
   product,
 }: {
+  onOpened?: () => void
   product: ShieldProduct
 }) {
   const [isClient, setIsClient] = useState(false)
@@ -191,15 +204,17 @@ function ShieldTicket({
   }, [])
 
   if (!isClient) {
-    return <ShieldTicketFrame product={product} />
+    return <ShieldTicketFrame onOpened={onOpened} product={product} />
   }
 
-  return <ShieldTicketClient product={product} />
+  return <ShieldTicketClient onOpened={onOpened} product={product} />
 }
 
 function ShieldTicketClient({
+  onOpened,
   product,
 }: {
+  onOpened?: () => void
   product: ShieldProduct
 }) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
@@ -207,6 +222,7 @@ function ShieldTicketClient({
 
   return (
     <ShieldTicketFrame
+      onOpened={onOpened}
       onConnect={() => setShowAuthFlow(true)}
       product={product}
       revalidate={() => revalidator.revalidate()}
@@ -218,12 +234,14 @@ function ShieldTicketClient({
 
 function ShieldTicketFrame({
   onConnect,
+  onOpened,
   product,
   revalidate,
   wallet,
   walletAddress,
 }: {
   onConnect?: () => void
+  onOpened?: () => void
   product: ShieldProduct
   revalidate?: () => void
   wallet?: unknown
@@ -358,6 +376,7 @@ function ShieldTicketFrame({
       setStatusMessage("Shield opened")
       setStatusKind("success")
       setAmount("")
+      onOpened?.()
       revalidate?.()
       window.setTimeout(() => revalidate?.(), 1_500)
     } catch (error) {
@@ -433,7 +452,13 @@ function ShieldTicketFrame({
   )
 }
 
-function ShieldInfoTabs({ product }: { product: ShieldProduct }) {
+function ShieldInfoTabs({
+  product,
+  refreshKey,
+}: {
+  product: ShieldProduct
+  refreshKey: number
+}) {
   return (
     <DetailTabs
       className="h-[24rem] min-w-0"
@@ -441,7 +466,7 @@ function ShieldInfoTabs({ product }: { product: ShieldProduct }) {
       defaultValue="positions"
       tabs={[
         {
-          content: <PositionsContent />,
+          content: <PositionsContent product={product} refreshKey={refreshKey} />,
           label: "Positions",
           value: "positions",
         },
@@ -456,10 +481,157 @@ function ShieldInfoTabs({ product }: { product: ShieldProduct }) {
   )
 }
 
-function PositionsContent() {
+function PositionsContent({
+  product,
+  refreshKey,
+}: {
+  product: ShieldProduct
+  refreshKey: number
+}) {
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  if (!isClient) {
+    return <PositionsEmptyState message="Sign in to view Shield positions" />
+  }
+
+  return <PositionsContentClient product={product} refreshKey={refreshKey} />
+}
+
+function PositionsContentClient({
+  product,
+  refreshKey,
+}: {
+  product: ShieldProduct
+  refreshKey: number
+}) {
+  const { primaryWallet } = useDynamicContext()
+  const walletAddress = primaryWallet?.address
+  const [errorMessage, setErrorMessage] = useState<string>()
+  const [isLoading, setIsLoading] = useState(false)
+  const [positions, setPositions] = useState<ShieldPositionRow[]>([])
+
+  useEffect(() => {
+    let isStale = false
+
+    async function loadPositions() {
+      if (!walletAddress) {
+        setPositions([])
+        setErrorMessage(undefined)
+        return
+      }
+
+      setIsLoading(true)
+      setErrorMessage(undefined)
+
+      try {
+        const nextPositions = await getShieldPositions(walletAddress)
+
+        if (!isStale) {
+          setPositions(
+            nextPositions.filter(
+              (position) => position.oracleId === product.market.oracleId
+            )
+          )
+        }
+      } catch (error) {
+        if (!isStale) {
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : "Failed to load Shield positions"
+          )
+        }
+      } finally {
+        if (!isStale) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadPositions()
+
+    return () => {
+      isStale = true
+    }
+  }, [product.market.oracleId, refreshKey, walletAddress])
+
+  if (!walletAddress) {
+    return <PositionsEmptyState message="Sign in to view Shield positions" />
+  }
+
+  if (isLoading) {
+    return <PositionsEmptyState message="Loading Shield positions" />
+  }
+
+  if (errorMessage) {
+    return <PositionsEmptyState message={errorMessage} />
+  }
+
+  if (positions.length === 0) {
+    return <PositionsEmptyState message="No Shield positions yet" />
+  }
+
+  return (
+    <div className="h-full min-h-0 overflow-auto">
+      <div className="space-y-2">
+        {positions.map((position) => (
+          <ShieldPositionCard key={position.ownerCapId} position={position} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function PositionsEmptyState({ message }: { message: string }) {
   return (
     <div className="flex h-full min-h-0 items-center justify-center text-center text-sm text-muted-foreground">
-      No Shield positions yet.
+      {message}
+    </div>
+  )
+}
+
+function ShieldPositionCard({ position }: { position: ShieldPositionRow }) {
+  return (
+    <div className="rounded-md bg-muted px-3 py-3">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <div className="truncate text-sm font-medium text-foreground">
+            Below {formatUsd(position.hedgeStrikeUsd, 0)} Shield
+          </div>
+          <div className="mt-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+            {position.settled ? "Settled" : "Active"}
+          </div>
+        </div>
+        <div className="shrink-0 text-right font-mono text-xs text-foreground tabular-nums">
+          {formatDusdc(position.depositAmount)}
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <PositionMetric label="PLP" value={formatDusdc(position.plpAmount)} />
+        <PositionMetric
+          label="Hedge budget"
+          value={formatDusdc(position.hedgeBudgetAmount)}
+        />
+        <PositionMetric label="Expires" value={formatExpiryDistance(position.hedgeExpiryMs)} />
+      </div>
+    </div>
+  )
+}
+
+function PositionMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        {label}
+      </div>
+      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
+        {value}
+      </div>
     </div>
   )
 }
