@@ -142,6 +142,117 @@
   --shadow-2xl: 0 1px 5px 0px hsl(0 0% 0% / 0.13);
 }
 
+#dynamic-widget,
+#dynamic-modal,
+.dynamic-shadow-dom {
+  --dynamic-font-family-primary: var(--font-sans);
+  --dynamic-font-family-numbers: var(--font-mono);
+  --dynamic-base-1: var(--popover);
+  --dynamic-base-2: var(--card);
+  --dynamic-base-3: var(--muted);
+  --dynamic-base-4: var(--accent);
+  --dynamic-base-5: var(--border);
+  --dynamic-brand-primary-color: var(--primary);
+  --dynamic-brand-hover-color: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--foreground)
+  );
+  --dynamic-brand-secondary-color: color-mix(
+    in oklch,
+    var(--primary) 18%,
+    transparent
+  );
+  --dynamic-connection-green: var(--outcome-up);
+  --dynamic-border-radius: var(--radius-md);
+  --dynamic-hover: var(--muted);
+  --dynamic-error-1: var(--outcome-down-foreground);
+  --dynamic-error-2: color-mix(in oklch, var(--outcome-down) 14%, transparent);
+  --dynamic-success-1: var(--outcome-up-foreground);
+  --dynamic-success-2: color-mix(in oklch, var(--outcome-up) 14%, transparent);
+  --dynamic-footer-background-color: var(--popover);
+  --dynamic-footer-text-color: var(--muted-foreground);
+  --dynamic-footer-icon-color: var(--primary);
+  --dynamic-footer-arrow-color: var(--muted-foreground);
+  --dynamic-loading-animation-gradient: linear-gradient(
+    90deg,
+    transparent 0,
+    color-mix(in oklch, var(--foreground) 8%, transparent) 35%,
+    color-mix(in oklch, var(--foreground) 16%, transparent) 60%,
+    transparent 100%
+  );
+  --dynamic-overlay: color-mix(in oklch, var(--background) 78%, transparent);
+  --dynamic-shadow-down-1: none;
+  --dynamic-shadow-down-2: none;
+  --dynamic-shadow-down-3: none;
+  --dynamic-shadow-up-1: none;
+  --dynamic-text-link: var(--primary);
+  --dynamic-text-primary: var(--foreground);
+  --dynamic-text-secondary: var(--muted-foreground);
+  --dynamic-text-tertiary: color-mix(
+    in oklch,
+    var(--muted-foreground) 78%,
+    transparent
+  );
+  --dynamic-text-size-body-mini: 11px;
+  --dynamic-text-size-body-small: 12px;
+  --dynamic-text-size-body-normal: 14px;
+  --dynamic-text-size-button-primary: 14px;
+  --dynamic-text-size-button-secondary: 13px;
+  --dynamic-text-size-numbers-small: 11px;
+  --dynamic-text-size-numbers-medium: 12px;
+  --dynamic-text-size-numbers-big: 14px;
+  --dynamic-text-size-title: 16px;
+  --dynamic-badge-background: var(--muted);
+  --dynamic-badge-color: var(--foreground);
+  --dynamic-badge-dot-background: var(--primary);
+  --dynamic-badge-primary-background: var(--primary);
+  --dynamic-badge-primary-color: var(--primary-foreground);
+  --dynamic-recommended-badge-background: var(--primary);
+  --dynamic-recommended-badge-color: var(--primary-foreground);
+  --dynamic-search-bar-background: var(--input);
+  --dynamic-search-bar-background-hover: var(--input);
+  --dynamic-search-bar-background-focus: var(--input);
+  --dynamic-search-bar-border: 1px solid var(--border);
+  --dynamic-search-bar-border-hover: 1px solid var(--border);
+  --dynamic-search-bar-border-focus: 1px solid var(--ring);
+  --dynamic-modal-border: 1px solid var(--border);
+  --dynamic-modal-width: 32rem;
+  --dynamic-modal-padding: 1.25rem;
+  --dynamic-modal-backdrop-background: color-mix(
+    in oklch,
+    var(--background) 72%,
+    transparent
+  );
+  --dynamic-modal-backdrop-filter: blur(4px);
+  --dynamic-footer-padding: 1rem 1.25rem;
+  --dynamic-footer-border: 1px solid var(--border);
+  --dynamic-wallet-list-max-height: 18rem;
+  --dynamic-wallet-list-tile-gap: 0.5rem;
+  --dynamic-wallet-list-tile-padding: 0.75rem;
+  --dynamic-wallet-list-tile-background: var(--card);
+  --dynamic-wallet-list-tile-border: 1px solid var(--border);
+  --dynamic-wallet-list-tile-shadow: none;
+  --dynamic-wallet-list-tile-background-hover: var(--muted);
+  --dynamic-wallet-list-tile-border-hover: 1px solid var(--border);
+  --dynamic-wallet-list-tile-shadow-hover: none;
+  --dynamic-connect-button-background: var(--primary);
+  --dynamic-connect-button-color: var(--primary-foreground);
+  --dynamic-connect-button-border: 1px solid transparent;
+  --dynamic-connect-button-shadow: none;
+  --dynamic-connect-button-background-hover: color-mix(
+    in oklch,
+    var(--primary) 88%,
+    var(--foreground)
+  );
+  --dynamic-connect-button-color-hover: var(--primary-foreground);
+  --dynamic-connect-button-border-hover: 1px solid transparent;
+  --dynamic-connect-button-shadow-hover: none;
+  --dynamic-connect-button-radius: var(--radius-md);
+  --dynamic-tooltip-color: var(--foreground);
+  --dynamic-tooltip-text-color: var(--background);
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
