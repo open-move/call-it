@@ -11,6 +11,21 @@ export interface DynamicProviderProps {
 
 type DynamicTheme = "dark" | "light"
 
+const dynamicCssOverrides = `
+  .modal-card,
+  .dynamic-widget-modal {
+    background: var(--dynamic-base-1) !important;
+    border: var(--dynamic-modal-border) !important;
+    border-radius: var(--dynamic-border-radius) !important;
+    box-shadow: none !important;
+  }
+
+  .modal-card--sharp-mobile-bottom-radius {
+    border-bottom-left-radius: var(--dynamic-border-radius) !important;
+    border-bottom-right-radius: var(--dynamic-border-radius) !important;
+  }
+`
+
 function getDocumentTheme(): DynamicTheme {
   return document.documentElement.classList.contains("dark") ? "dark" : "light"
 }
@@ -54,6 +69,7 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
   return (
     <DynamicContextProvider
       settings={{
+        cssOverrides: dynamicCssOverrides,
         environmentId: import.meta.env.VITE_DYNAMIC_ENVIRONMENT_ID,
         initialAuthenticationMode: "connect-and-sign",
         walletConnectors: [SuiWalletConnectors],
