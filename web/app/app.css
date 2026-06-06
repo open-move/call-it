@@ -217,7 +217,7 @@
   --dynamic-search-bar-border-hover: 1px solid var(--border);
   --dynamic-search-bar-border-focus: 1px solid var(--ring);
   --dynamic-modal-border: 1px solid var(--border);
-  --dynamic-modal-width: 32rem;
+  --dynamic-modal-width: 24rem;
   --dynamic-modal-padding: 1.25rem;
   --dynamic-modal-backdrop-background: color-mix(
     in oklch,
