@@ -1,12 +1,12 @@
-import { reactRouter } from "@react-router/dev/vite"
-import tailwindcss from "@tailwindcss/vite"
 import { defineConfig } from "vite"
-import tsconfigPaths from "vite-tsconfig-paths"
+import { devtools } from "@tanstack/devtools-vite"
+import { tanstackStart } from "@tanstack/react-start/plugin/vite"
+import viteReact from "@vitejs/plugin-react"
+import tailwindcss from "@tailwindcss/vite"
 
-export default defineConfig({
-  define: {
-    "process.env": {},
-    global: "globalThis",
-  },
-  plugins: [tailwindcss(), reactRouter(), tsconfigPaths()],
+const config = defineConfig({
+  resolve: { tsconfigPaths: true },
+  plugins: [devtools(), tailwindcss(), tanstackStart(), viteReact()],
 })
+
+export default config
