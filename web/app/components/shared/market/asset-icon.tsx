@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 export interface AssetIconProps {
   assetIconUrl?: string
   assetName: string
@@ -11,11 +13,14 @@ export function AssetIcon({
   assetSymbol,
   className = "size-7 sm:size-8",
 }: AssetIconProps) {
-  if (assetIconUrl) {
+  const [hasError, setHasError] = useState(false)
+
+  if (assetIconUrl && !hasError) {
     return (
       <img
         alt={`${assetName} icon`}
         className={`${className} shrink-0 rounded-full`}
+        onError={() => setHasError(true)}
         src={assetIconUrl}
       />
     )

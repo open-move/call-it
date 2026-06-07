@@ -77,7 +77,7 @@ export function AppHeader() {
                 <span className="text-lg leading-none font-semibold tracking-tight text-white">
                   CallIt
                 </span>
-                <span className="font-mono text-[10px] leading-none font-semibold tracking-[0.32em] text-primary uppercase">
+                <span className="text-[10px] leading-none font-semibold tracking-[0.32em] text-primary uppercase">
                   Predict
                 </span>
               </span>

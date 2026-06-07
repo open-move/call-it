@@ -284,36 +284,30 @@ export function Page({ markets, predictionActivity }: PageProps) {
             />
 
             <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-sm font-medium text-foreground">
-                    Markets
-                  </div>
-
-                  <MarketSearchControls
-                    onResetFilters={resetFilters}
-                    onSearchChange={setSearchQuery}
-                    onSortChange={updateSort}
-                    onWithTradesOnlyChange={updateWithTradesOnly}
-                    searchQuery={searchQuery}
-                    selectedSort={selectedSort}
-                    withTradesOnly={withTradesOnly}
-                  />
-                </div>
-
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Toolbar
                   assetOptions={assetOptions}
-                  expiryOptions={expiryTabs}
                   onAssetChange={(asset) => updateFilterParam("asset", asset)}
+                  selectedAsset={selectedAsset}
+                />
+
+                <MarketSearchControls
+                  expiryOptions={expiryTabs}
                   onExpiryChange={(expiry) =>
                     updateFilterParam("expiry", expiry)
                   }
-                  selectedAsset={selectedAsset}
+                  onResetFilters={resetFilters}
+                  onSearchChange={setSearchQuery}
+                  onSortChange={updateSort}
+                  onWithTradesOnlyChange={updateWithTradesOnly}
+                  searchQuery={searchQuery}
                   selectedExpiry={selectedExpiry}
+                  selectedSort={selectedSort}
+                  withTradesOnly={withTradesOnly}
                 />
               </div>
 
-              <Table markets={visibleMarkets} />
+              <Table markets={visibleMarkets} onResetFilters={resetFilters} />
             </div>
           </div>
         ) : (
@@ -365,9 +359,8 @@ function LiveShowcase({
                   {market.assetSymbol} Prediction · expires in{" "}
                   {formatExpiryDistance(market.expiryMs)}
                 </div>
-                <div className="mt-0.5 font-mono text-[10px] text-muted-foreground uppercase">
-                  {formatCompactUsd(market.volumeUsd)} volume ·{" "}
-                  {market.tradeCount} txns
+                <div className="mt-0.5 text-xs font-mono text-muted-foreground tabular-nums">
+                  {formatCompactUsd(market.volumeUsd)} vol · {market.tradeCount} txns
                 </div>
               </div>
               <div className="text-right font-mono tabular-nums">
@@ -410,7 +403,7 @@ function LiveShowcase({
           <div className="relative grid grid-cols-2 gap-1.5 sm:grid-cols-4">
             <PulseMetric label="Live" value={liveMarketCount.toString()} />
             <PulseMetric
-              label="Volume"
+              label="Vol"
               value={formatCompactUsd(predictionActivity.recentVolumeUsd)}
             />
             <PulseMetric
@@ -441,10 +434,10 @@ function LiveShowcase({
 function PulseMetric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-md border border-border/40 bg-background/40 px-2.5 py-1.5">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+      <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="mt-0.5 font-mono text-xs font-medium text-foreground tabular-nums">
+      <div className="mt-0.5 text-xs font-medium text-foreground font-mono tabular-nums">
         {value}
       </div>
     </div>

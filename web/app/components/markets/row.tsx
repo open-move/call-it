@@ -86,14 +86,10 @@ function formatFairUpProbability(value: number | undefined) {
   return value === undefined ? "--" : `${Math.round(value * 100)}%`
 }
 
-function getMarketHref(market: TradeMarket, side?: "up" | "down") {
+function getMarketHref(market: TradeMarket) {
   const searchParams = new URLSearchParams({
     strike: market.strikePriceUsd.toString(),
   })
-
-  if (side) {
-    searchParams.set("side", side)
-  }
 
   return `/markets/${market.oracleId}?${searchParams.toString()}`
 }
@@ -104,44 +100,137 @@ export function Row({ market }: RowProps) {
   const priceChangedUp = market.priceChangePercent >= 0
 
   return (
-    <div className="border-b border-border/35 last:border-b-0">
-      <div className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
-        <MarketIdentity market={market} />
+    <div className="lg:border-b lg:border-border/35 lg:last:border-b-0">
+      {/* Desktop row */}
+      <Link
+        aria-label={`Open ${market.assetName} market`}
+        className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center"
+        to={getMarketHref(market)}
+      >
+        {/* Column 1: Identity */}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <AssetIcon
+            assetIconUrl={market.assetIconUrl}
+            assetName={market.assetName}
+            assetSymbol={market.assetSymbol}
+            className="size-6"
+          />
+          <div className="min-w-0">
+            <div className="truncate text-xs text-foreground">
+              {market.assetSymbol} Prediction ·{" "}
+              {formatMarketTitleExpiry(market.expiryMs)}
+            </div>
+            <div className="mt-0.5 text-[10px] tracking-wide text-muted-foreground uppercase">
+              Spot {formatUsd(market.currentPriceUsd, 0)}
+            </div>
+          </div>
+        </div>
+
+        {/* Column 2: Sparkline (no header label) */}
         <div className="border-l border-border/25 pl-3">
           <Sparkline className="h-6" points={market.priceHistory} />
         </div>
-        <Metric
-          className="text-outcome-up"
-          subValue={`${priceChangedUp ? "+" : ""}${market.priceChangePercent.toFixed(2)}%`}
-          subValueClassName={
-            priceChangedUp ? "text-outcome-up" : "text-outcome-down"
-          }
-          value={formatFairUpProbability(market.fairUpProbability)}
-        />
-        <Metric
-          subValue={`${market.tradeCount} txns`}
-          value={formatCompactUsd(market.volumeUsd)}
-        />
-        <Metric
-          className={isAboveStrike ? "text-outcome-up" : "text-outcome-down"}
-          subValue={formatSignedPercent(distance.distancePercent)}
-          value={formatSignedUsd(distance.distanceUsd)}
-        />
-        <Metric
-          subValue={formatExpiryTime(market.expiryMs)}
-          value={formatExpiryDistance(market.expiryMs)}
-        />
-        <ActionButtons market={market} />
-      </div>
 
-      <div className="space-y-2 px-3 py-2 lg:hidden">
+        {/* Column 3: Prob. */}
+        <div className="border-l border-border/25 pl-3 text-right font-mono tabular-nums">
+          <div
+            className={cn(
+              "text-xs font-medium text-foreground",
+              priceChangedUp ? "text-outcome-up" : "text-outcome-down"
+            )}
+          >
+            {formatFairUpProbability(market.fairUpProbability)}
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 text-[10px] uppercase",
+              priceChangedUp ? "text-outcome-up" : "text-outcome-down"
+            )}
+          >
+            {priceChangedUp ? "+" : ""}
+            {market.priceChangePercent.toFixed(2)}%
+          </div>
+        </div>
+
+        {/* Column 4: Volume */}
+        <div className="border-l border-border/25 pl-3 text-right font-mono tabular-nums">
+          <div className="text-xs font-medium text-foreground">
+            {formatCompactUsd(market.volumeUsd)}
+          </div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground uppercase">
+            {market.tradeCount} txns
+          </div>
+        </div>
+
+        {/* Column 5: Distance */}
+        <div className="border-l border-border/25 pl-3 text-right font-mono tabular-nums">
+          <div
+            className={cn(
+              "text-xs font-medium text-foreground",
+              isAboveStrike ? "text-outcome-up" : "text-outcome-down"
+            )}
+          >
+            {formatSignedUsd(distance.distanceUsd)}
+          </div>
+          <div
+            className={cn(
+              "mt-0.5 text-[10px] uppercase",
+              isAboveStrike ? "text-outcome-up" : "text-outcome-down"
+            )}
+          >
+            {formatSignedPercent(distance.distancePercent)}
+          </div>
+        </div>
+
+        {/* Column 6: Expires */}
+        <div className="border-l border-border/25 pl-3 text-right font-mono tabular-nums">
+          <div className="text-xs font-medium text-foreground">
+            {formatExpiryDistance(market.expiryMs)}
+          </div>
+          <div className="mt-0.5 text-[10px] text-muted-foreground uppercase">
+            {formatExpiryTime(market.expiryMs)}
+          </div>
+        </div>
+
+        {/* Column 7: Action */}
+        <div className="flex items-center justify-end lg:border-l lg:border-border/25 lg:pl-3">
+          <span className="inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-md border border-border/50 bg-background px-3 text-xs font-medium text-foreground shadow-xs">
+            Trade
+          </span>
+        </div>
+      </Link>
+
+      {/* Mobile card */}
+      <Link
+        aria-label={`Open ${market.assetName} market`}
+        className="block space-y-2 rounded-md bg-card p-3 transition-colors hover:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:hidden"
+        to={getMarketHref(market)}
+      >
         <div className="flex items-start justify-between gap-3">
-          <MarketIdentity market={market} />
-          <div className="text-right font-mono text-xs font-medium text-outcome-up tabular-nums">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <AssetIcon
+              assetIconUrl={market.assetIconUrl}
+              assetName={market.assetName}
+              assetSymbol={market.assetSymbol}
+              className="size-6"
+            />
+            <div className="min-w-0">
+              <div className="truncate text-xs text-foreground">
+                {market.assetSymbol} Prediction ·{" "}
+                {formatMarketTitleExpiry(market.expiryMs)}
+              </div>
+              <div className="mt-0.5 text-[10px] tracking-wide text-muted-foreground uppercase">
+                Spot {formatUsd(market.currentPriceUsd, 0)}
+              </div>
+            </div>
+          </div>
+          <div className="text-right text-xs font-medium text-foreground tabular-nums">
             {formatFairUpProbability(market.fairUpProbability)}
           </div>
         </div>
-        <Sparkline points={market.priceHistory} />
+
+        <Sparkline className="h-6" points={market.priceHistory} />
+
         <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-4">
           <MobileMetric
             label="Volume"
@@ -161,64 +250,11 @@ export function Row({ market }: RowProps) {
             value={formatRelativeTime(market.priceUpdatedMs)}
           />
         </div>
-        <ActionButtons market={market} />
-      </div>
-    </div>
-  )
-}
 
-function MarketIdentity({ market }: { market: TradeMarket }) {
-  return (
-    <Link
-      aria-label={`Open ${market.assetName} market`}
-      className="group flex min-w-0 items-center gap-2.5 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-      to={getMarketHref(market)}
-    >
-      <AssetIcon
-        assetIconUrl={market.assetIconUrl}
-        assetName={market.assetName}
-        assetSymbol={market.assetSymbol}
-        className="size-6"
-      />
-      <div className="min-w-0">
-        <div className="truncate text-xs text-foreground group-hover:text-primary">
-          {market.assetSymbol} Prediction ·{" "}
-          {formatMarketTitleExpiry(market.expiryMs)}
-        </div>
-        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          <span>Spot {formatUsd(market.currentPriceUsd, 0)}</span>
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function Metric({
-  className,
-  subValue,
-  subValueClassName,
-  value,
-}: {
-  className?: string
-  subValue?: string
-  subValueClassName?: string
-  value: string
-}) {
-  return (
-    <div className="border-l border-border/25 pl-3 text-right font-mono tabular-nums">
-      <div className={cn("text-xs font-medium text-foreground", className)}>
-        {value}
-      </div>
-      {subValue && (
-        <div
-          className={cn(
-            "mt-0.5 text-[10px] text-muted-foreground uppercase",
-            subValueClassName
-          )}
-        >
-          {subValue}
-        </div>
-      )}
+        <span className="inline-flex w-full items-center justify-center rounded-md border border-border/50 bg-background px-3 py-2 text-xs font-medium text-foreground shadow-xs">
+          Trade
+        </span>
+      </Link>
     </div>
   )
 }
@@ -234,40 +270,17 @@ function MobileMetric({
 }) {
   return (
     <div className="rounded-md border border-border/40 bg-background/40 px-2.5 py-1.5">
-      <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+      <div className="text-[10px] tracking-wide text-muted-foreground uppercase">
         {label}
       </div>
       <div
         className={cn(
-          "mt-0.5 font-mono text-xs font-medium text-foreground tabular-nums",
+          "mt-0.5 text-xs font-medium text-foreground tabular-nums",
           className
         )}
       >
         {value}
       </div>
-    </div>
-  )
-}
-
-function ActionButtons({ market }: { market: TradeMarket }) {
-  return (
-    <div className="flex items-center justify-end gap-1.5 lg:border-l lg:border-border/25 lg:pl-3">
-      <Button
-        className="min-w-11 bg-outcome-up/10 text-xs text-outcome-up shadow-none hover:bg-outcome-up/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        render={<Link to={getMarketHref(market, "up")} />}
-        size="sm"
-        variant="ghost"
-      >
-        Up
-      </Button>
-      <Button
-        className="min-w-11 bg-outcome-down/10 text-xs text-outcome-down shadow-none hover:bg-outcome-down/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        render={<Link to={getMarketHref(market, "down")} />}
-        size="sm"
-        variant="ghost"
-      >
-        Down
-      </Button>
     </div>
   )
 }

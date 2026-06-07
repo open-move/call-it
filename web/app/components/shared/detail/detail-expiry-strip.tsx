@@ -72,7 +72,7 @@ export function DetailExpiryStrip({
             <Link
               aria-current={isSelected ? "page" : undefined}
               className={cn(
-                "flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border/45 bg-muted/30 px-2.5 font-mono text-[10px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                "flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border/45 bg-muted/30 px-2.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
                 isSelected && isExpiryActive
                   ? "border-primary/80 bg-primary/10 text-foreground ring-1 ring-primary/30"
                   : isSelected &&

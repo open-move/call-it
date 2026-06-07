@@ -30,13 +30,11 @@ function getStatusTone(status: string) {
   return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
 }
 
-export function Header({
-  market,
-  selectedStrikePriceUsd,
-  toolbarQuote,
-}: HeaderProps) {
+export function Header({ market, toolbarQuote }: HeaderProps) {
   const quoteValue = formatToolbarPrice(toolbarQuote?.aboveAsk)
   const spreadValue = formatToolbarPrice(toolbarQuote?.spread)
+
+  console.log(market)
 
   return (
     <DetailHeader
@@ -49,10 +47,7 @@ export function Header({
         { label: "Price (Up)", value: quoteValue },
         { label: "Spread", value: spreadValue },
         { label: "Spot", value: formatUsd(market.currentPriceUsd, 0) },
-        {
-          label: "Selected Strike",
-          value: formatUsd(selectedStrikePriceUsd, 0),
-        },
+        { label: "Min Strike", value: formatUsd(market.minStrikeUsd, 0) },
         { label: "Expires", value: formatExpiryDistance(market.expiryMs) },
       ]}
       title={`${market.assetSymbol} Prediction · ${formatMarketTitleExpiry(market.expiryMs)}`}

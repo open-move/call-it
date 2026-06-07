@@ -1,4 +1,4 @@
-import { SearchIcon, SlidersHorizontalIcon } from "lucide-react"
+import { ClockIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react"
 
 import { Button } from "~/components/ui/button"
 import {
@@ -23,11 +23,8 @@ export interface ToolbarOption {
 
 export interface ToolbarProps {
   assetOptions: ToolbarOption[]
-  expiryOptions: ToolbarOption[]
   onAssetChange: (asset?: string) => void
-  onExpiryChange: (expiry?: string) => void
   selectedAsset?: string
-  selectedExpiry?: string
 }
 
 export interface MarketSearchControlsProps {
@@ -38,31 +35,23 @@ export interface MarketSearchControlsProps {
   searchQuery: string
   selectedSort: "expiry" | "move" | "volume"
   withTradesOnly: boolean
+  expiryOptions: ToolbarOption[]
+  onExpiryChange: (expiry?: string) => void
+  selectedExpiry?: string
 }
 
 export function Toolbar({
   assetOptions,
-  expiryOptions,
   onAssetChange,
-  onExpiryChange,
   selectedAsset,
-  selectedExpiry,
 }: ToolbarProps) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <div className="flex min-w-0">
+      <div className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-x-auto scrollbar-hide">
         <ToolbarTabs
           onChange={onAssetChange}
           options={assetOptions}
           selectedValue={selectedAsset}
-        />
-      </div>
-
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-        <ToolbarTabs
-          onChange={onExpiryChange}
-          options={expiryOptions}
-          selectedValue={selectedExpiry}
         />
       </div>
     </div>
@@ -77,19 +66,28 @@ export function MarketSearchControls({
   searchQuery,
   selectedSort,
   withTradesOnly,
+  expiryOptions,
+  onExpiryChange,
+  selectedExpiry,
 }: MarketSearchControlsProps) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
-          aria-label="Search markets"
+          aria-label="Search"
           className="border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search markets"
+          placeholder="Filter markets..."
           value={searchQuery}
         />
       </div>
+
+      <ExpirySelect
+        onChange={onExpiryChange}
+        options={expiryOptions}
+        selectedValue={selectedExpiry}
+      />
 
       <FilterMenu
         onResetFilters={onResetFilters}
@@ -166,6 +164,54 @@ function FilterMenu({
   )
 }
 
+function ExpirySelect({
+  onChange,
+  options,
+  selectedValue,
+}: {
+  onChange: (value?: string) => void
+  options: ToolbarOption[]
+  selectedValue?: string
+}) {
+  const selectedOption = options.find((option) => option.value === selectedValue)
+  const label = selectedOption?.label ?? "Any"
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            className="h-8 gap-1.5 border-0 bg-muted/60 px-2.5 text-xs text-muted-foreground shadow-none hover:bg-accent focus-visible:ring-1"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <ClockIcon className="size-3.5" />
+        <span>{label}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-32">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Expiry</DropdownMenuLabel>
+          <DropdownMenuRadioGroup
+            value={selectedValue}
+            onValueChange={(value) => onChange(value || undefined)}
+          >
+            {options.map((option) => (
+              <DropdownMenuRadioItem
+                key={option.value ?? "all"}
+                value={option.value}
+              >
+                {option.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 function ToolbarTabs({
   onChange,
   options,
@@ -176,7 +222,7 @@ function ToolbarTabs({
   selectedValue?: string
 }) {
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+    <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
       {options.map((option) => {
         const isSelected = selectedValue === option.value
 

@@ -73,7 +73,7 @@ export function Trades({ redemptions, trades }: TradesProps) {
             {tapeRows.map((row) => (
               <div
                 className={cn(
-                  "grid grid-cols-[minmax(0,1fr)_3rem_4.75rem] items-center gap-2 rounded-sm px-2 py-1.5 text-xs tabular-nums sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem]",
+                  "grid grid-cols-[minmax(0,1fr)_3rem_4.75rem] items-center gap-2 rounded-sm px-2 py-1.5 text-[10px] tabular-nums sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem]",
                   row.action === "mint"
                     ? "bg-outcome-up/10"
                     : "bg-outcome-down/10"

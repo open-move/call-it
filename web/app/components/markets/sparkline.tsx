@@ -66,7 +66,7 @@ export function Sparkline({ className, points }: SparklineProps) {
     return (
       <div
         className={cn(
-          "flex h-8 items-center justify-center rounded-md bg-muted/35 text-[10px] text-muted-foreground uppercase",
+          "flex h-8 items-center justify-center rounded-md bg-muted/35 text-[10px] text-muted-foreground",
           className
         )}
       >
