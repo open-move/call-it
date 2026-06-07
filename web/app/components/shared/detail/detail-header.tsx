@@ -16,6 +16,7 @@ export interface DetailHeaderProps {
   assetSymbol: string
   badgeLabel: string
   badgeTone: BadgeTone
+  identity?: ReactNode
   metrics: DetailMetric[]
   title: ReactNode
 }
@@ -26,6 +27,7 @@ export function DetailHeader({
   assetSymbol,
   badgeLabel,
   badgeTone,
+  identity,
   metrics,
   title,
 }: DetailHeaderProps) {
@@ -33,19 +35,21 @@ export function DetailHeader({
     <header className="border-b border-border/40">
       <div className="flex min-w-0 flex-col gap-3 px-3 py-2.5">
         <div className="flex min-w-0 items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <AssetIcon
-              assetIconUrl={assetIconUrl}
-              assetName={assetName}
-              assetSymbol={assetSymbol}
-              className="size-5"
-            />
-            <div className="flex min-w-0 items-center gap-1.5 text-left">
-              <span className="truncate text-sm leading-none font-medium tracking-tight text-foreground">
-                {title}
-              </span>
+          {identity ?? (
+            <div className="flex min-w-0 items-center gap-2.5">
+              <AssetIcon
+                assetIconUrl={assetIconUrl}
+                assetName={assetName}
+                assetSymbol={assetSymbol}
+                className="size-5"
+              />
+              <div className="flex min-w-0 items-center gap-1.5 text-left">
+                <span className="truncate text-sm leading-none font-medium tracking-tight text-foreground">
+                  {title}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex shrink-0 items-center gap-2">
             <Badge

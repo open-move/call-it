@@ -2,7 +2,10 @@ import type { Route } from "./+types/market"
 import { redirect } from "react-router"
 import { AppFrame } from "~/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "~/components/market-detail/page"
-import { loadMarketSnapshot } from "~/lib/callit/market/loaders"
+import {
+  loadActiveMarketSnapshots,
+  loadMarketSnapshot,
+} from "~/lib/callit/market/loaders"
 import {
   type ExpiryOption,
   type MarketSnapshot,
@@ -14,6 +17,7 @@ import {
 } from "~/lib/callit/trade/activity"
 import { getQuoteableTradeStrike } from "~/lib/callit/trade/strikes"
 import { type ToolbarQuote } from "~/lib/callit/trade/types"
+import { presentTradeMarkets } from "~/lib/callit/trade/presenter"
 import { filterTrades } from "~/lib/callit/trade/trades"
 import { PREDICT_QUOTE_DECIMALS } from "~/lib/deepbook/config"
 import {
@@ -115,6 +119,18 @@ async function loadToolbarQuote({
   }
 }
 
+async function loadMarketOptions(market: MarketSnapshot) {
+  const activeMarkets = await loadActiveMarketSnapshots()
+  const hasCurrentMarket = activeMarkets.some(
+    (activeMarket) => activeMarket.oracleId === market.oracleId
+  )
+  const marketSnapshots = hasCurrentMarket
+    ? activeMarkets
+    : [...activeMarkets, market]
+
+  return presentTradeMarkets(marketSnapshots)
+}
+
 export async function loader({ params, request }: Route.LoaderArgs) {
   const oracleId = params.oracleId
 
@@ -141,6 +157,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     positionRedeems,
     rangeMints,
     rangeRedeems,
+    marketOptions,
     toolbarQuote,
   ] = await Promise.all([
     loadExpiryOptions(market),
@@ -148,6 +165,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     getDirectionalPositionRedeems(250, market.oracleId),
     getRangeMints(250, market.oracleId),
     getRangeRedeems(250, market.oracleId),
+    loadMarketOptions(market),
     loadToolbarQuote({
       expiryMs: market.expiryMs,
       oracleId: market.oracleId,
@@ -163,6 +181,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     expiryOptions,
     initialSide,
     market,
+    marketOptions,
     rangeRedemptions: filterRangeRedemptions(rangeRedeems, activityOptions),
     rangeTrades: filterRangeTrades(rangeMints, activityOptions),
     redemptions: filterRedemptions(positionRedeems, activityOptions),
@@ -179,6 +198,7 @@ export default function Market({ loaderData }: Route.ComponentProps) {
         expiryOptions={loaderData.expiryOptions}
         initialSide={loaderData.initialSide}
         market={loaderData.market}
+        marketOptions={loaderData.marketOptions}
         rangeRedemptions={loaderData.rangeRedemptions}
         rangeTrades={loaderData.rangeTrades}
         redemptions={loaderData.redemptions}

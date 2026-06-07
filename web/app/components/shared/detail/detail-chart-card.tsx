@@ -19,6 +19,7 @@ export interface DetailChartCardProps {
   badgeTone: BadgeTone
   expiryOptions: ExpiryOption[]
   getExpiryHref: (option: ExpiryOption) => string
+  identity?: ReactNode
   metrics: DetailMetric[]
   points: MarketPricePoint[]
   referenceLabel: string
@@ -35,6 +36,7 @@ export function DetailChartCard({
   badgeTone,
   expiryOptions,
   getExpiryHref,
+  identity,
   metrics,
   points,
   referenceLabel,
@@ -50,6 +52,7 @@ export function DetailChartCard({
         assetSymbol={assetSymbol}
         badgeLabel={badgeLabel}
         badgeTone={badgeTone}
+        identity={identity}
         metrics={metrics}
         title={title}
       />

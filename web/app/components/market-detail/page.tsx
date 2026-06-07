@@ -9,6 +9,7 @@ import {
   type RangeRedemption,
   type RangeTrade,
   type Redemption,
+  type TradeMarket,
   type ToolbarQuote,
   type Trade,
 } from "~/lib/callit/trade/types"
@@ -29,6 +30,7 @@ export interface PageProps {
   expiryOptions: ExpiryOption[]
   initialSide?: "above" | "below"
   market: MarketSnapshot
+  marketOptions: TradeMarket[]
   rangeRedemptions: RangeRedemption[]
   rangeTrades: RangeTrade[]
   redemptions: Redemption[]
@@ -41,6 +43,7 @@ export function Page({
   expiryOptions,
   initialSide,
   market,
+  marketOptions,
   rangeRedemptions,
   rangeTrades,
   redemptions,
@@ -63,6 +66,7 @@ export function Page({
             <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
               <Header
                 market={market}
+                marketOptions={marketOptions}
                 selectedStrikePriceUsd={selectedStrikePriceUsd}
                 toolbarQuote={toolbarQuote}
               />
