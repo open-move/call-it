@@ -13,41 +13,42 @@ import {
 } from "@/components/shared/ticket/ticket"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { formatRelativeTime, formatUsd } from "@/lib/callit/format"
-import { type ExpiryOption } from "@/lib/callit/market/types"
+import { QUOTE_SCALE, PREDICT_QUOTE_DECIMALS  } from "@/lib/config"
+import { formatExpiryDistance, formatRelativeTime, formatSignedUsd, formatUsd } from "@/lib/format"
+import type {ExpiryOption} from "@/lib/types/market";
 import {
   getShieldProductHref,
   getShieldTenorLabel,
-} from "@/lib/callit/shield/products"
-import { type ShieldProduct } from "@/lib/callit/shield/types"
+} from "@/lib/shield-products"
+import type {ShieldProduct} from "@/lib/types/shield";
 import {
   formatDecimalUnits,
   parseDecimalUnits,
-} from "@/lib/callit/trading/amounts"
+} from "@/lib/amounts"
 import {
   getManagerPositionSummaries,
   getPredictManagers,
   getPredictVaultSummary,
-} from "@/lib/deepbook/predict-client"
+} from "@/services/predict-client"
 import {
-  getShieldPositions,
-  type ShieldPositionRow,
-} from "@/lib/deepbook/shield-client"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/deepbook/config"
-import { formatPredictTradeError } from "@/lib/deepbook/predict-quotes"
-import { prepareShieldOpenTransaction } from "@/lib/deepbook/shield-transactions"
+  getShieldPositions
+  
+} from "@/services/shield-client"
+import type {ShieldPositionRow} from "@/services/shield-client";
+import { formatPredictTradeError } from "@/services/predict-quotes"
+import { prepareShieldOpenTransaction } from "@/services/shield-transactions"
 import {
   buildCreateManagerTransaction,
   executeSuiTransaction,
   findCreatedManagerId,
-} from "@/lib/deepbook/predict-transactions"
+} from "@/services/predict-transactions"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
-import { type ManagerPositionSummary } from "@/lib/deepbook/predict-types"
-import { useAppRouteRefresh } from "@/lib/router/hooks"
-import { cn } from "@/lib/utils"
+import type {ManagerPositionSummary} from "@/lib/types/predict";
+import { useAppRouteRefresh } from "@/lib/hooks/router"
+import { cn, sleep } from "@/lib/utils"
 
 interface ManagerState {
   managerId?: string
@@ -64,32 +65,6 @@ interface EstimatedShieldPosition extends ShieldPositionRow {
 export interface DetailPageProps {
   expiryProducts: ShieldProduct[]
   product: ShieldProduct
-}
-
-function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Expired"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h`
-  }
-
-  return `${Math.round(hours / 24)}d`
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
 }
 
 function formatDusdc(value: bigint) {
@@ -126,11 +101,11 @@ function formatPnlPercent(value: number) {
 }
 
 function toQuoteAmount(value: number) {
-  return value / 10 ** PREDICT_QUOTE_DECIMALS
+  return value / QUOTE_SCALE
 }
 
 function toQuoteAmountFromBigInt(value: bigint) {
-  return Number(value) / 10 ** PREDICT_QUOTE_DECIMALS
+  return Number(value) / QUOTE_SCALE
 }
 
 function getHedgeSummary(
@@ -202,6 +177,7 @@ async function enrichShieldPositions(
 async function loadManagerState(walletAddress: string): Promise<ManagerState> {
   const [manager] = await getPredictManagers(walletAddress)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!manager) {
     return {}
   }

@@ -15,14 +15,16 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { formatUsd } from "@/lib/callit/format"
-import { type MarketSnapshot } from "@/lib/callit/market/types"
-import { type TradeMarket, type ToolbarQuote } from "@/lib/callit/trade/types"
-import { formatUnitPrice } from "@/lib/callit/trading/amounts"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/deepbook/config"
+import { formatUsd,
+  formatExpiryDistance,
+  formatMarketTitleExpiry,
+  formatProbability,
+  formatStatus } from "@/lib/format"
+import type {MarketSnapshot} from "@/lib/types/market";
+import type {TradeMarket, ToolbarQuote} from "@/lib/types/trade";
+import { formatUnitPrice } from "@/lib/amounts"
+import { QUOTE_QUANTITY as TOOLBAR_QUOTE_QUANTITY } from "@/lib/config"
 import { cn } from "@/lib/utils"
-
-import { formatExpiryDistance, formatMarketTitleExpiry } from "./utils"
 
 export interface HeaderProps {
   market: MarketSnapshot
@@ -31,24 +33,14 @@ export interface HeaderProps {
   toolbarQuote: ToolbarQuote | null
 }
 
-const TOOLBAR_QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
-
 function formatToolbarPrice(value: number | undefined) {
   return value === undefined
     ? "--"
     : formatUnitPrice(BigInt(value), TOOLBAR_QUOTE_QUANTITY)
 }
 
-function getStatusLabel(status: string) {
-  return status === "active" ? "Live" : status
-}
-
 function getStatusTone(status: string) {
   return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
-}
-
-function formatProbability(value: number | undefined) {
-  return value === undefined ? "--" : `${Math.round(value * 100)}%`
 }
 
 function getMarketHref(market: TradeMarket) {
@@ -225,7 +217,7 @@ export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
       assetIconUrl={market.assetIconUrl}
       assetName={market.assetName}
       assetSymbol={market.assetSymbol}
-      badgeLabel={getStatusLabel(market.status)}
+      badgeLabel={formatStatus(market.status)}
       badgeTone={getStatusTone(market.status)}
       identity={
         <MarketSelector

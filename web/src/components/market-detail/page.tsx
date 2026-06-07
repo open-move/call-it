@@ -1,22 +1,11 @@
 import { useState } from "react"
 
-import {
-  type ExpiryOption,
-  type MarketSnapshot,
-} from "@/lib/callit/market/types"
-import {
-  type PositionTradeIntent,
-  type RangeRedemption,
-  type RangeTrade,
-  type Redemption,
-  type TradeMarket,
-  type ToolbarQuote,
-  type Trade,
-} from "@/lib/callit/trade/types"
+import type {ExpiryOption, MarketSnapshot} from "@/lib/types/market";
+import type {PositionTradeIntent, RangeRedemption, RangeTrade, Redemption, TradeMarket, ToolbarQuote, Trade} from "@/lib/types/trade";
 import {
   getRedemptionActivityRows,
   getTradeActivityRows,
-} from "@/lib/callit/trade/activity"
+} from "@/lib/trade-activity"
 
 import { ActivityTabs } from "./activity-tabs"
 import { ChartPanel } from "./chart-panel"

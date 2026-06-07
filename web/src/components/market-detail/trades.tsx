@@ -1,8 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  type RedemptionActivityRow,
-  type TradeActivityRow,
-} from "@/lib/callit/trade/types"
+import { formatPriceCents, formatQuantity, formatTradeTime } from "@/lib/format"
+import type {RedemptionActivityRow, TradeActivityRow} from "@/lib/types/trade";
 import { cn } from "@/lib/utils"
 
 export interface TradesProps {
@@ -13,25 +11,6 @@ export interface TradesProps {
 type TapeRow =
   | ({ action: "mint" } & TradeActivityRow)
   | ({ action: "sell" } & RedemptionActivityRow)
-
-function formatPriceCents(price: number) {
-  return `${(price * 100).toFixed(1)}¢`
-}
-
-function formatQuantity(quantity: number) {
-  return quantity.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-  })
-}
-
-function formatTradeTime(timestampMs: number) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "2-digit",
-    hour12: false,
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(timestampMs)
-}
 
 function getTapePrice(row: TapeRow) {
   return row.action === "mint" ? row.price : row.bidPrice

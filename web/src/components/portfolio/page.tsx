@@ -17,35 +17,29 @@ import { Card } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
+  ChartTooltipContent
+  
 } from "@/components/ui/chart"
+import type {ChartConfig} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatRelativeTime, formatUsd } from "@/lib/callit/format"
+import { formatRelativeTime, formatUsd } from "@/lib/format"
 import {
   PREDICT_LP_ASSET,
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
-} from "@/lib/deepbook/config"
+  PREDICT_PRICE_SCALE as PRICE_SCALE,
+  QUOTE_SCALE,
+} from "@/lib/config"
 import {
   getDirectionalPositionMints,
   getDirectionalPositionRedeems,
   getManagerPositionSummaries,
   getManagerRanges,
   getPredictManagers,
-} from "@/lib/deepbook/predict-client"
-import {
-  type DirectionalPositionMintEvent,
-  type DirectionalPositionRedeemEvent,
-  type ManagerPositionSummary,
-  type ManagerRangeActivityResponse,
-  type OracleInfo,
-  type RangeMintEvent,
-  type RangeRedeemEvent,
-  type VaultSummary,
-} from "@/lib/deepbook/predict-types"
-import { getSuiGrpcClient } from "@/lib/deepbook/sui-client"
+} from "@/services/predict-client"
+import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
+import { getSuiGrpcClient } from "@/services/sui-client"
 import { cn } from "@/lib/utils"
 
 export interface PageProps {
@@ -123,8 +117,6 @@ interface RealizedPnlPoint extends RealizedPnlEvent {
   cumulativePnlUsd: number
 }
 
-const PRICE_SCALE = 1_000_000_000
-const QUOTE_SCALE = 10 ** PREDICT_QUOTE_DECIMALS
 const REALIZED_ACTIVITY_LIMIT = 2_000
 
 const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
@@ -761,6 +753,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         ])
         const [manager] = managers
 
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!manager) {
           if (!isStale) {
             setPortfolioState({
@@ -1022,6 +1015,7 @@ function formatPnlAxisTick(value: number) {
 function getDisplayRealizedPnlPoints(points: RealizedPnlPoint[]) {
   const [firstPoint] = points
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!firstPoint) {
     return []
   }

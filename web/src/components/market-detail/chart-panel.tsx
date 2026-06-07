@@ -1,5 +1,5 @@
 import { ChartPanel as SharedChartPanel } from "@/components/shared/detail/chart-panel"
-import { type MarketPricePoint } from "@/lib/callit/market/types"
+import type {MarketPricePoint} from "@/lib/types/market";
 
 export interface ChartPanelProps {
   assetName: string

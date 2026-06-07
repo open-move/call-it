@@ -16,35 +16,37 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatUsd } from "@/lib/callit/format"
+import { formatUsd } from "@/lib/format"
 import {
   formatDecimalUnits,
   formatUnitPrice,
   parseDecimalUnits,
-} from "@/lib/callit/trading/amounts"
-import { type MarketSnapshot } from "@/lib/callit/market/types"
-import { type PositionTradeIntent } from "@/lib/callit/trade/types"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/deepbook/config"
+} from "@/lib/amounts"
+import type {MarketSnapshot} from "@/lib/types/market";
+import type {PositionTradeIntent} from "@/lib/types/trade";
+import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   buildCreateManagerTransaction,
   executeSuiTransaction,
   findCreatedManagerId,
-  preparePredictMintTransaction,
-  type PredictTradeParams,
-} from "@/lib/deepbook/predict-transactions"
+  preparePredictMintTransaction
+  
+} from "@/services/predict-transactions"
+import type {PredictTradeParams} from "@/services/predict-transactions";
 import {
   formatPredictTradeError,
   formatPredictQuoteMessage,
-  quotePredictTradeSafe,
-  type PredictQuoteResult,
-} from "@/lib/deepbook/predict-quotes"
+  quotePredictTradeSafe
+  
+} from "@/services/predict-quotes"
+import type {PredictQuoteResult} from "@/services/predict-quotes";
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
-import { getPredictManagers } from "@/lib/deepbook/predict-client"
-import { useAppRouteRefresh, useAppSearchParams } from "@/lib/router/hooks"
-import { cn } from "@/lib/utils"
+import { getPredictManagers } from "@/services/predict-client"
+import { useAppRouteRefresh, useAppSearchParams } from "@/lib/hooks/router"
+import { cn, sleep } from "@/lib/utils"
 
 type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
@@ -148,13 +150,10 @@ function pinStrikeSearchParam(strikePriceUsd: number) {
   window.history.replaceState(window.history.state, "", url)
 }
 
-function sleep(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms))
-}
-
 async function loadManagerState(walletAddress: string): Promise<ManagerState> {
   const [manager] = await getPredictManagers(walletAddress)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!manager) {
     return {}
   }
@@ -249,7 +248,7 @@ export function OrderTicket(props: OrderTicketProps) {
   return <OrderTicketClient {...props} />
 }
 
-function OrderTicketFallback({}: OrderTicketProps) {
+function OrderTicketFallback(_props: OrderTicketProps) {
   return (
     <TicketCard>
       <Button className="w-full" disabled type="button">

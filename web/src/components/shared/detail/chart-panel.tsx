@@ -1,14 +1,9 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
-import {
-  type CandlestickData,
-  type IChartApi,
-  type IPriceLine,
-  type ISeriesApi,
-  type UTCTimestamp,
-} from "lightweight-charts"
+import { useEffect, useMemo, useRef, useState  } from "react"
+import type {RefObject} from "react";
+import type {CandlestickData, IChartApi, IPriceLine, ISeriesApi, UTCTimestamp} from "lightweight-charts";
 
-import { formatUsd } from "@/lib/callit/format"
-import { type MarketPricePoint } from "@/lib/callit/market/types"
+import { formatUsd } from "@/lib/format"
+import type {MarketPricePoint} from "@/lib/types/market";
 
 export interface ChartPanelProps {
   points: MarketPricePoint[]
@@ -66,6 +61,7 @@ function toCandlestickData(points: MarketPricePoint[]): CandlestickData[] {
 
   return dedupedPoints.map((point, index) => {
     const previousPoint = dedupedPoints[index - 1]
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     const open = previousPoint?.value ?? point.value
     const close = point.value
 
@@ -128,6 +124,7 @@ function useElementSize(ref: RefObject<HTMLElement | null>): ElementSize {
     updateSize(getElementSize(element))
 
     const resizeObserver = new ResizeObserver(([entry]) => {
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
       if (!entry) {
         return
       }

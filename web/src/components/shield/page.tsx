@@ -16,18 +16,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
 import { Input } from "@/components/ui/input"
-import { formatUsd } from "@/lib/callit/format"
+import {
+  formatExpiryDistance,
+  formatExpiryTime,
+  formatSignedPercent,
+  formatUsd,
+} from "@/lib/format"
 import {
   getShieldPresetLabel,
   getShieldProductHref,
   getShieldTenorLabel,
-} from "@/lib/callit/shield/products"
-import {
-  type ShieldPreset,
-  type ShieldProduct,
-  type ShieldTenor,
-} from "@/lib/callit/shield/types"
-import { useAppSearchParams } from "@/lib/router/hooks"
+} from "@/lib/shield-products"
+import type {ShieldPreset, ShieldProduct, ShieldTenor} from "@/lib/types/shield";
+import { useAppSearchParams } from "@/lib/hooks/router"
 import { cn } from "@/lib/utils"
 
 export interface PageProps {
@@ -43,27 +44,18 @@ type ShieldSort = "expiry" | "budget" | "distance"
 
 const defaultSort: ShieldSort = "expiry"
 
-const tenorOptions = [
+const TENOR_OPTIONS = [
   { label: "All", value: undefined },
   { label: "Standard", value: "standard" },
   { label: "Weekly", value: "weekly" },
 ] satisfies FilterOption[]
 
-const protectionOptions = [
+const PROTECTION_OPTIONS = [
   { label: "All", value: undefined },
   { label: "Light", value: "light" },
   { label: "Balanced", value: "balanced" },
   { label: "Tail", value: "tail" },
 ] satisfies FilterOption[]
-
-const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "2-digit",
-  hour: "2-digit",
-  hour12: false,
-  minute: "2-digit",
-  month: "short",
-  timeZone: "UTC",
-})
 
 const columnLabels = ["Product", "Trigger", "Budget", "Expires", "Action"]
 
@@ -99,38 +91,6 @@ function getSelectedSort(sortParam: string | null): ShieldSort {
   return sortParam === "budget" || sortParam === "distance"
     ? sortParam
     : defaultSort
-}
-
-function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Expired"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h`
-  }
-
-  return `${Math.round(hours / 24)}d`
-}
-
-function formatExpiryTime(expiryMs: number) {
-  return expiryTimeFormatter.format(new Date(expiryMs))
-}
-
-function formatSignedPercent(value: number) {
-  const displayValue = Math.abs(value) < 0.005 ? 0 : value
-
-  return `${displayValue >= 0 ? "+" : ""}${displayValue.toFixed(2)}%`
 }
 
 function filterProducts({
@@ -220,11 +180,11 @@ export function Page({ products }: PageProps) {
     searchParams.get("asset")
   )
   const selectedTenor = getSelectedOption(
-    tenorOptions,
+    TENOR_OPTIONS,
     searchParams.get("tenor")
   )
   const selectedProtection = getSelectedOption(
-    protectionOptions,
+    PROTECTION_OPTIONS,
     searchParams.get("protection")
   )
   const selectedSort = getSelectedSort(searchParams.get("sort"))
@@ -290,13 +250,13 @@ export function Page({ products }: PageProps) {
               onSearchChange={setSearchQuery}
               onSortChange={updateSort}
               onTenorChange={(tenor) => updateFilterParam("tenor", tenor)}
-              protectionOptions={protectionOptions}
+              protectionOptions={PROTECTION_OPTIONS}
               searchQuery={searchQuery}
               selectedAsset={selectedAsset}
               selectedProtection={selectedProtection as ShieldPreset}
               selectedSort={selectedSort}
               selectedTenor={selectedTenor as ShieldTenor}
-              tenorOptions={tenorOptions}
+              tenorOptions={TENOR_OPTIONS}
             />
           </div>
 

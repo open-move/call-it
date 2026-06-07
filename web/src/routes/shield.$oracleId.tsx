@@ -3,12 +3,12 @@ import { z } from "zod"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { DetailPage as ShieldDetailPage } from "@/components/shield/detail-page"
-import { loadActiveMarketSnapshots } from "@/lib/callit/market/loaders"
+import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
 import {
   createShieldProducts,
   findShieldProduct,
   isShieldPreset,
-} from "@/lib/callit/shield/products"
+} from "@/lib/shield-products"
 
 const shieldSearchSchema = z.object({
   preset: z.string().optional().catch(undefined),
@@ -31,6 +31,7 @@ export const Route = createFileRoute("/shield/$oracleId")({
       isShieldPreset(deps.preset) ? deps.preset : undefined
     )
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     if (!product) {
       throw notFound()
     }

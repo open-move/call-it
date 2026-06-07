@@ -11,11 +11,12 @@ import { Card } from "@/components/ui/card"
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
+  ChartTooltipContent
+  
 } from "@/components/ui/chart"
-import { formatUsd } from "@/lib/callit/format"
-import { type MarketPricePoint } from "@/lib/callit/market/types"
+import type {ChartConfig} from "@/components/ui/chart";
+import { formatUsd } from "@/lib/format"
+import type {MarketPricePoint} from "@/lib/types/market";
 import { cn } from "@/lib/utils"
 
 export interface PriceChartProps {

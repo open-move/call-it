@@ -22,12 +22,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
-import { formatDecimalUnits } from "@/lib/callit/trading/amounts"
+import { formatDecimalUnits } from "@/lib/amounts"
 import {
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
-} from "@/lib/deepbook/config"
-import { getSuiGrpcClient } from "@/lib/deepbook/sui-client"
+} from "@/lib/config"
+import { getSuiGrpcClient } from "@/services/sui-client"
 
 const walletButtonClassName =
   "border-0 bg-white/[0.06] text-white/88 shadow-none hover:bg-white/[0.1] hover:text-white focus-visible:ring-white/20"

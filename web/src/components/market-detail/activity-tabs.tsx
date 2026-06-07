@@ -1,4 +1,5 @@
-import { type ReactNode, useEffect, useState } from "react"
+import {  useEffect, useState } from "react"
+import type {ReactNode} from "react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { MoreHorizontalIcon } from "lucide-react"
 
@@ -14,36 +15,34 @@ import {
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatRelativeTime, formatUsd } from "@/lib/callit/format"
-import { type MarketSnapshot } from "@/lib/callit/market/types"
+import { formatRelativeTime, formatUsd } from "@/lib/format"
+import type {MarketSnapshot} from "@/lib/types/market";
 import {
   getPositionRows,
   getRangePositionsFromActivity,
-} from "@/lib/callit/trade/activity"
-import { filterPositions } from "@/lib/callit/trade/positions"
-import {
-  type PositionRow,
-  type PositionTradeIntent,
-  type RedemptionActivityRow,
-  type TradeActivityRow,
-} from "@/lib/callit/trade/types"
+} from "@/lib/trade-activity"
+import { filterPositions } from "@/lib/trade-positions"
+import type {PositionRow, PositionTradeIntent, RedemptionActivityRow, TradeActivityRow} from "@/lib/types/trade";
 import {
   getManagerRanges,
   getManagerPositionSummaries,
   getPredictManagers,
-} from "@/lib/deepbook/predict-client"
+} from "@/services/predict-client"
 import {
   buildPredictRedeemTransaction,
   executeSuiTransaction,
-  simulatePredictRedeemTransaction,
-  type PredictRedeemParams,
-} from "@/lib/deepbook/predict-transactions"
+  simulatePredictRedeemTransaction
+  
+} from "@/services/predict-transactions"
+import type {PredictRedeemParams} from "@/services/predict-transactions";
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
-import { useAppRouteRefresh } from "@/lib/router/hooks"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { cn } from "@/lib/utils"
+
+import { QUOTE_SCALE as POSITION_QUANTITY_SCALE } from "@/lib/config"
 
 interface PositionLoadState {
   errorMessage?: string
@@ -91,8 +90,6 @@ interface ActivityTabsFrameProps {
 
 type ActivityTabValue = "positions" | "trades" | "redemptions"
 type ContractTone = "above" | "below" | "range"
-
-const POSITION_QUANTITY_SCALE = 1_000_000
 
 interface ContractToneInput {
   kind: "directional" | "range"
@@ -303,6 +300,7 @@ async function loadWalletMarketPositions({
 }): Promise<LoadedPositions> {
   const [manager] = await getPredictManagers(walletAddress)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!manager) {
     return { positions: [] }
   }

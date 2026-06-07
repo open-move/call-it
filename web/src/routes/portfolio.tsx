@@ -5,7 +5,7 @@ import { Page as PortfolioPage } from "@/components/portfolio/page"
 import {
   getPredictOracles,
   getPredictVaultSummary,
-} from "@/lib/deepbook/predict-client"
+} from "@/services/predict-client"
 
 export const Route = createFileRoute("/portfolio")({
   loader: async () => {

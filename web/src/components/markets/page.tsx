@@ -3,17 +3,20 @@ import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 
 import { AssetIcon } from "@/components/shared/market/asset-icon"
-import { formatUsd } from "@/lib/callit/format"
 import {
-  type PredictionActivity,
-  type TradeMarket,
-} from "@/lib/callit/trade/types"
-import { useAppSearchParams } from "@/lib/router/hooks"
+  formatCompactUsd,
+  formatExpiryDistance,
+  formatPercent,
+  formatUsd,
+} from "@/lib/format"
+import type {PredictionActivity, TradeMarket} from "@/lib/types/trade";
+import { useAppSearchParams } from "@/lib/hooks/router"
 import { cn } from "@/lib/utils"
 
 import { Sparkline } from "./sparkline"
 import { Table } from "./table"
-import { MarketSearchControls, Toolbar, type ToolbarOption } from "./toolbar"
+import { MarketSearchControls, Toolbar  } from "./toolbar"
+import type {ToolbarOption} from "./toolbar";
 
 export interface PageProps {
   markets: TradeMarket[]
@@ -40,12 +43,6 @@ const expiryMsByValue: Record<string, number> = {
 type MarketSort = "expiry" | "move" | "volume"
 
 const defaultSort: MarketSort = "expiry"
-
-const percentFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 1,
-  minimumFractionDigits: 1,
-  style: "percent",
-})
 
 function getAssetOptions(markets: TradeMarket[]): ToolbarOption[] {
   const assetMap = new Map<string, ToolbarOption>()
@@ -150,44 +147,6 @@ function sortMarkets(markets: TradeMarket[], sort: MarketSort = defaultSort) {
       firstMarket.assetSymbol.localeCompare(secondMarket.assetSymbol)
     )
   })
-}
-
-function formatCompactUsd(value: number) {
-  if (value >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`
-  }
-
-  if (value >= 1_000) {
-    return `$${(value / 1_000).toFixed(1)}K`
-  }
-
-  return formatUsd(value, 0)
-}
-
-function formatPercent(value: number) {
-  return percentFormatter.format(value)
-}
-
-function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Expired"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h`
-  }
-
-  return `${Math.round(hours / 24)}d`
 }
 
 function getTopMarkets(markets: TradeMarket[]) {

@@ -2,50 +2,24 @@ import { Link } from "@tanstack/react-router"
 
 import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { Button } from "@/components/ui/button"
-import { formatRelativeTime, formatUsd } from "@/lib/callit/format"
-import { type TradeMarket } from "@/lib/callit/trade/types"
+import {
+  formatCompactUsd,
+  formatExpiryDistance,
+  formatExpiryTime,
+  formatMarketTitleExpiry,
+  formatProbability,
+  formatRelativeTime,
+  formatSignedPercent,
+  formatSignedUsd,
+  formatUsd,
+} from "@/lib/format"
+import type {TradeMarket} from "@/lib/types/trade";
 import { cn } from "@/lib/utils"
 
-import { formatMarketTitleExpiry } from "../market-detail/utils"
 import { Sparkline } from "./sparkline"
 
 export interface RowProps {
   market: TradeMarket
-}
-
-const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "2-digit",
-  hour: "2-digit",
-  hour12: false,
-  minute: "2-digit",
-  month: "short",
-  timeZone: "UTC",
-})
-
-function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Expired"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h`
-  }
-
-  return `${Math.round(hours / 24)}d`
-}
-
-function formatExpiryTime(expiryMs: number) {
-  return expiryTimeFormatter.format(new Date(expiryMs))
 }
 
 function getDistance(market: TradeMarket) {
@@ -56,34 +30,6 @@ function getDistance(market: TradeMarket) {
       : (distanceUsd / market.strikePriceUsd) * 100
 
   return { distancePercent, distanceUsd }
-}
-
-function formatSignedUsd(value: number) {
-  const displayValue = Math.abs(value) < 0.5 ? 0 : value
-
-  return `${displayValue >= 0 ? "+" : ""}${formatUsd(displayValue, 0)}`
-}
-
-function formatSignedPercent(value: number) {
-  const displayValue = Math.abs(value) < 0.005 ? 0 : value
-
-  return `${displayValue >= 0 ? "+" : ""}${displayValue.toFixed(2)}%`
-}
-
-function formatCompactUsd(value: number) {
-  if (value >= 1_000_000) {
-    return `$${(value / 1_000_000).toFixed(1)}M`
-  }
-
-  if (value >= 1_000) {
-    return `$${(value / 1_000).toFixed(1)}K`
-  }
-
-  return formatUsd(value, 0)
-}
-
-function formatFairUpProbability(value: number | undefined) {
-  return value === undefined ? "--" : `${Math.round(value * 100)}%`
 }
 
 function getMarketHref(market: TradeMarket) {
@@ -139,7 +85,7 @@ export function Row({ market }: RowProps) {
               priceChangedUp ? "text-outcome-up" : "text-outcome-down"
             )}
           >
-            {formatFairUpProbability(market.fairUpProbability)}
+            {formatProbability(market.fairUpProbability)}
           </div>
           <div
             className={cn(
@@ -225,7 +171,7 @@ export function Row({ market }: RowProps) {
             </div>
           </div>
           <div className="text-right text-xs font-medium text-foreground tabular-nums">
-            {formatFairUpProbability(market.fairUpProbability)}
+            {formatProbability(market.fairUpProbability)}
           </div>
         </div>
 

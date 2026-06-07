@@ -1,6 +1,6 @@
 import { useId } from "react"
 
-import { type MarketPricePoint } from "@/lib/callit/market/types"
+import type {MarketPricePoint} from "@/lib/types/market";
 import { cn } from "@/lib/utils"
 
 export interface SparklineProps {
@@ -47,6 +47,7 @@ function getTone(points: MarketPricePoint[]) {
   const firstPoint = points[0]
   const lastPoint = points.at(-1)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!firstPoint || !lastPoint) {
     return "neutral"
   }

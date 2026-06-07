@@ -1,55 +1,13 @@
 import { Link } from "@tanstack/react-router"
 
-import { type ExpiryOption } from "@/lib/callit/market/types"
+import { formatExpiryDate, formatExpiryDistance, formatExpiryTime } from "@/lib/format"
+import type {ExpiryOption} from "@/lib/types/market";
 import { cn } from "@/lib/utils"
 
 export interface DetailExpiryStripProps {
   expiryOptions: ExpiryOption[]
   getHref: (option: ExpiryOption) => string
   selectedOracleId: string
-}
-
-const expiryDateFormatter = new Intl.DateTimeFormat("en-US", {
-  day: "numeric",
-  month: "short",
-  timeZone: "UTC",
-})
-
-const expiryTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  hour: "2-digit",
-  hour12: false,
-  minute: "2-digit",
-  timeZone: "UTC",
-})
-
-function formatExpiryDate(expiryMs: number) {
-  return expiryDateFormatter.format(new Date(expiryMs)).toUpperCase()
-}
-
-function formatExpiryTime(expiryMs: number) {
-  return expiryTimeFormatter.format(new Date(expiryMs))
-}
-
-function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
-  const remainingMs = expiryMs - nowMs
-
-  if (remainingMs <= 0) {
-    return "Expired"
-  }
-
-  const minutes = Math.round(remainingMs / 60_000)
-
-  if (minutes < 60) {
-    return `${minutes}m`
-  }
-
-  const hours = Math.round(minutes / 60)
-
-  if (hours < 48) {
-    return `${hours}h`
-  }
-
-  return `${Math.round(hours / 24)}d`
 }
 
 export function DetailExpiryStrip({

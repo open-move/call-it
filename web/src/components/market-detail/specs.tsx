@@ -1,9 +1,8 @@
-import { type ReactNode } from "react"
+import type {ReactNode} from "react";
 
-import { formatUsd } from "@/lib/callit/format"
-import { type MarketSnapshot } from "@/lib/callit/market/types"
-
-import { formatExpiry, formatStatus, formatUpdated } from "./utils"
+import { formatExpiry, formatStatus, formatUpdated, formatUsd } from "@/lib/format"
+import type {MarketSnapshot} from "@/lib/types/market";
+import { cn } from "@/lib/utils"
 
 export interface SpecsProps {
   market: MarketSnapshot

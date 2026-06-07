@@ -2,8 +2,8 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as ShieldPage } from "@/components/shield/page"
-import { loadActiveMarketSnapshots } from "@/lib/callit/market/loaders"
-import { createShieldProducts } from "@/lib/callit/shield/products"
+import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
+import { createShieldProducts } from "@/lib/shield-products"
 
 export const Route = createFileRoute("/shield")({
   loader: async () => {

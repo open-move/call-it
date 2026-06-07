@@ -1,6 +1,7 @@
-import { type ReactNode } from "react"
+import type {ReactNode} from "react";
 
-import { Badge, type BadgeTone } from "@/components/primitives/badge"
+import { Badge  } from "@/components/primitives/badge"
+import type {BadgeTone} from "@/components/primitives/badge";
 import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { cn } from "@/lib/utils"
 

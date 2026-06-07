@@ -20,22 +20,23 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { formatRelativeTime, formatUsd } from "@/lib/callit/format"
+import { formatRelativeTime, formatUsd } from "@/lib/format"
 import {
   formatDecimalUnits,
   parseDecimalUnits,
-} from "@/lib/callit/trading/amounts"
+} from "@/lib/amounts"
 import {
   PREDICT_LP_ASSET,
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
-} from "@/lib/deepbook/config"
+  QUOTE_SCALE,
+} from "@/lib/config"
 import {
   buildSupplyLiquidityTransaction,
   buildWithdrawLiquidityTransaction,
   executeSuiTransaction,
-} from "@/lib/deepbook/predict-transactions"
-import { formatPredictTradeError } from "@/lib/deepbook/predict-quotes"
+} from "@/services/predict-transactions"
+import { formatPredictTradeError } from "@/services/predict-quotes"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -45,9 +46,9 @@ import type {
   LpWithdrawalEvent,
   VaultPerformanceResponse,
   VaultSummary,
-} from "@/lib/deepbook/predict-types"
-import { getSuiGrpcClient } from "@/lib/deepbook/sui-client"
-import { useAppRouteRefresh } from "@/lib/router/hooks"
+} from "@/lib/types/predict"
+import { getSuiGrpcClient } from "@/services/sui-client"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { cn } from "@/lib/utils"
 
 export interface PageProps {
@@ -103,7 +104,7 @@ const dateFormatter = new Intl.DateTimeFormat("en-US", {
 })
 
 function toQuoteUsd(value: number) {
-  return value / 10 ** PREDICT_QUOTE_DECIMALS
+  return value / QUOTE_SCALE
 }
 
 function formatQuoteUsd(value: number, maximumFractionDigits = 2) {
@@ -159,6 +160,7 @@ function getPerformanceReturn(performance: VaultPerformanceResponse) {
   const firstPoint = performance.points[0]
   const lastPoint = performance.points.at(-1)
 
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
   if (!firstPoint || !lastPoint || firstPoint.share_price === 0) {
     return 0
   }

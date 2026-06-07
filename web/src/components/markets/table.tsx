@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button"
-import { type TradeMarket } from "@/lib/callit/trade/types"
+import type {TradeMarket} from "@/lib/types/trade";
 import { cn } from "@/lib/utils"
 
 import { Row } from "./row"

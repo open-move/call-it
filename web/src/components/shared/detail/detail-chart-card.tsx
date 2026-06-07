@@ -1,15 +1,13 @@
-import { type ReactNode } from "react"
+import type {ReactNode} from "react";
 
-import { type BadgeTone } from "@/components/primitives/badge"
+import type {BadgeTone} from "@/components/primitives/badge";
 import { Card } from "@/components/ui/card"
-import {
-  type ExpiryOption,
-  type MarketPricePoint,
-} from "@/lib/callit/market/types"
+import type {ExpiryOption, MarketPricePoint} from "@/lib/types/market";
 
 import { ChartPanel } from "./chart-panel"
 import { DetailExpiryStrip } from "./detail-expiry-strip"
-import { DetailHeader, type DetailMetric } from "./detail-header"
+import { DetailHeader  } from "./detail-header"
+import type {DetailMetric} from "./detail-header";
 
 export interface DetailChartCardProps {
   assetIconUrl?: string

@@ -1,4 +1,4 @@
-import { type SuiTransactionSigner } from "@/lib/deepbook/predict-transactions"
+import type {SuiTransactionSigner} from "@/services/predict-transactions";
 
 export const RECONNECT_SUI_WALLET_MESSAGE =
   "Reconnect wallet to approve Sui transactions."

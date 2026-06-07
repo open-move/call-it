@@ -7,7 +7,7 @@ import {
   getLpWithdrawals,
   getPredictVaultPerformance,
   getPredictVaultSummary,
-} from "@/lib/deepbook/predict-client"
+} from "@/services/predict-client"
 
 export const Route = createFileRoute("/earn")({
   loader: async () => {
