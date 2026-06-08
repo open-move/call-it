@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { PortfolioSkeleton } from "@/components/shared/pending-skeleton"
-
-import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as PortfolioPage } from "@/components/portfolio/page"
 import {
   getPredictOracles,
@@ -24,9 +22,5 @@ export const Route = createFileRoute("/portfolio")({
 function Portfolio() {
   const { oracles, vaultSummary } = Route.useLoaderData()
 
-  return (
-    <AppFrame>
-      <PortfolioPage oracles={oracles} vaultSummary={vaultSummary} />
-    </AppFrame>
-  )
+  return <PortfolioPage oracles={oracles} vaultSummary={vaultSummary} />
 }

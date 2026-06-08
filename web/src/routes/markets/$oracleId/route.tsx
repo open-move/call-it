@@ -1,7 +1,6 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
 import { MarketDetailSkeleton } from "@/components/shared/pending-skeleton"
 
-import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "@/components/market-detail/page"
 import {
   loadMarketSnapshot,
@@ -98,7 +97,6 @@ function Market() {
   const loaderData = Route.useLoaderData()
 
   return (
-    <AppFrame>
       <MarketDetailPage
         expiryOptions={loaderData.expiryOptions}
         initialSide={loaderData.initialSide}
@@ -111,6 +109,5 @@ function Market() {
         toolbarQuote={loaderData.toolbarQuote}
         trades={loaderData.trades}
       />
-    </AppFrame>
   )
 }

@@ -2,6 +2,7 @@ import { HeadContent, Scripts, createRootRoute } from "@tanstack/react-router"
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools"
 import { TanStackDevtools } from "@tanstack/react-devtools"
 
+import { AppFrame } from "@/components/app-frame/app-frame"
 import { DynamicProvider } from "@/lib/providers/dynamic"
 import appCss from "../styles.css?url"
 
@@ -53,7 +54,9 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <DynamicProvider>{children}</DynamicProvider>
+        <DynamicProvider>
+          <AppFrame>{children}</AppFrame>
+        </DynamicProvider>
         <TanStackDevtools
           config={{
             position: "bottom-right",

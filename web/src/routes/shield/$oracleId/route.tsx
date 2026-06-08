@@ -1,8 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import { z } from "zod"
 import { ShieldDetailSkeleton } from "@/components/shared/pending-skeleton"
-
-import { AppFrame } from "@/components/app-frame/app-frame"
 import { DetailPage as ShieldDetailPage } from "@/components/shield/detail-page"
 import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
 import {
@@ -53,9 +51,5 @@ export const Route = createFileRoute("/shield/$oracleId")({
 function ShieldDetail() {
   const { expiryProducts, product } = Route.useLoaderData()
 
-  return (
-    <AppFrame>
-      <ShieldDetailPage expiryProducts={expiryProducts} product={product} />
-    </AppFrame>
-  )
+  return <ShieldDetailPage expiryProducts={expiryProducts} product={product} />
 }

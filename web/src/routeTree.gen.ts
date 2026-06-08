@@ -9,74 +9,84 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as ShieldRouteImport } from './routes/shield'
-import { Route as PortfolioRouteImport } from './routes/portfolio'
-import { Route as EarnRouteImport } from './routes/earn'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ShieldOracleIdRouteImport } from './routes/shield.$oracleId'
-import { Route as MarketsOracleIdRouteImport } from './routes/markets.$oracleId'
+import { Route as ShieldRouteRouteImport } from './routes/shield/route'
+import { Route as PortfolioRouteRouteImport } from './routes/portfolio/route'
+import { Route as MarketsRouteRouteImport } from './routes/markets/route'
+import { Route as EarnRouteRouteImport } from './routes/earn/route'
+import { Route as IndexRouteRouteImport } from './routes/index/route'
+import { Route as ShieldOracleIdRouteRouteImport } from './routes/shield/$oracleId/route'
+import { Route as MarketsOracleIdRouteRouteImport } from './routes/markets/$oracleId/route'
 
-const ShieldRoute = ShieldRouteImport.update({
+const ShieldRouteRoute = ShieldRouteRouteImport.update({
   id: '/shield',
   path: '/shield',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PortfolioRoute = PortfolioRouteImport.update({
+const PortfolioRouteRoute = PortfolioRouteRouteImport.update({
   id: '/portfolio',
   path: '/portfolio',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EarnRoute = EarnRouteImport.update({
+const MarketsRouteRoute = MarketsRouteRouteImport.update({
+  id: '/markets',
+  path: '/markets',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EarnRouteRoute = EarnRouteRouteImport.update({
   id: '/earn',
   path: '/earn',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
+const IndexRouteRoute = IndexRouteRouteImport.update({
   id: '/',
-  path: '/',
+  path: '',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ShieldOracleIdRoute = ShieldOracleIdRouteImport.update({
+const ShieldOracleIdRouteRoute = ShieldOracleIdRouteRouteImport.update({
   id: '/$oracleId',
   path: '/$oracleId',
-  getParentRoute: () => ShieldRoute,
+  getParentRoute: () => ShieldRouteRoute,
 } as any)
-const MarketsOracleIdRoute = MarketsOracleIdRouteImport.update({
-  id: '/markets/$oracleId',
-  path: '/markets/$oracleId',
-  getParentRoute: () => rootRouteImport,
+const MarketsOracleIdRouteRoute = MarketsOracleIdRouteRouteImport.update({
+  id: '/$oracleId',
+  path: '/$oracleId',
+  getParentRoute: () => MarketsRouteRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/earn': typeof EarnRoute
-  '/portfolio': typeof PortfolioRoute
-  '/shield': typeof ShieldRouteWithChildren
-  '/markets/$oracleId': typeof MarketsOracleIdRoute
-  '/shield/$oracleId': typeof ShieldOracleIdRoute
+  '/': typeof IndexRouteRoute
+  '/earn': typeof EarnRouteRoute
+  '/markets': typeof MarketsRouteRouteWithChildren
+  '/portfolio': typeof PortfolioRouteRoute
+  '/shield': typeof ShieldRouteRouteWithChildren
+  '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/earn': typeof EarnRoute
-  '/portfolio': typeof PortfolioRoute
-  '/shield': typeof ShieldRouteWithChildren
-  '/markets/$oracleId': typeof MarketsOracleIdRoute
-  '/shield/$oracleId': typeof ShieldOracleIdRoute
+  '/': typeof IndexRouteRoute
+  '/earn': typeof EarnRouteRoute
+  '/markets': typeof MarketsRouteRouteWithChildren
+  '/portfolio': typeof PortfolioRouteRoute
+  '/shield': typeof ShieldRouteRouteWithChildren
+  '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/earn': typeof EarnRoute
-  '/portfolio': typeof PortfolioRoute
-  '/shield': typeof ShieldRouteWithChildren
-  '/markets/$oracleId': typeof MarketsOracleIdRoute
-  '/shield/$oracleId': typeof ShieldOracleIdRoute
+  '/': typeof IndexRouteRoute
+  '/earn': typeof EarnRouteRoute
+  '/markets': typeof MarketsRouteRouteWithChildren
+  '/portfolio': typeof PortfolioRouteRoute
+  '/shield': typeof ShieldRouteRouteWithChildren
+  '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/earn'
+    | '/markets'
     | '/portfolio'
     | '/shield'
     | '/markets/$oracleId'
@@ -85,6 +95,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/earn'
+    | '/markets'
     | '/portfolio'
     | '/shield'
     | '/markets/$oracleId'
@@ -93,6 +104,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/earn'
+    | '/markets'
     | '/portfolio'
     | '/shield'
     | '/markets/$oracleId'
@@ -100,11 +112,11 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  EarnRoute: typeof EarnRoute
-  PortfolioRoute: typeof PortfolioRoute
-  ShieldRoute: typeof ShieldRouteWithChildren
-  MarketsOracleIdRoute: typeof MarketsOracleIdRoute
+  IndexRouteRoute: typeof IndexRouteRoute
+  EarnRouteRoute: typeof EarnRouteRoute
+  MarketsRouteRoute: typeof MarketsRouteRouteWithChildren
+  PortfolioRouteRoute: typeof PortfolioRouteRoute
+  ShieldRouteRoute: typeof ShieldRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -113,64 +125,84 @@ declare module '@tanstack/react-router' {
       id: '/shield'
       path: '/shield'
       fullPath: '/shield'
-      preLoaderRoute: typeof ShieldRouteImport
+      preLoaderRoute: typeof ShieldRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
       id: '/portfolio'
       path: '/portfolio'
       fullPath: '/portfolio'
-      preLoaderRoute: typeof PortfolioRouteImport
+      preLoaderRoute: typeof PortfolioRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/markets': {
+      id: '/markets'
+      path: '/markets'
+      fullPath: '/markets'
+      preLoaderRoute: typeof MarketsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/earn': {
       id: '/earn'
       path: '/earn'
       fullPath: '/earn'
-      preLoaderRoute: typeof EarnRouteImport
+      preLoaderRoute: typeof EarnRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
       id: '/'
-      path: '/'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+      preLoaderRoute: typeof IndexRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/shield/$oracleId': {
       id: '/shield/$oracleId'
       path: '/$oracleId'
       fullPath: '/shield/$oracleId'
-      preLoaderRoute: typeof ShieldOracleIdRouteImport
-      parentRoute: typeof ShieldRoute
+      preLoaderRoute: typeof ShieldOracleIdRouteRouteImport
+      parentRoute: typeof ShieldRouteRoute
     }
     '/markets/$oracleId': {
       id: '/markets/$oracleId'
-      path: '/markets/$oracleId'
+      path: '/$oracleId'
       fullPath: '/markets/$oracleId'
-      preLoaderRoute: typeof MarketsOracleIdRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof MarketsOracleIdRouteRouteImport
+      parentRoute: typeof MarketsRouteRoute
     }
   }
 }
 
-interface ShieldRouteChildren {
-  ShieldOracleIdRoute: typeof ShieldOracleIdRoute
+interface MarketsRouteRouteChildren {
+  MarketsOracleIdRouteRoute: typeof MarketsOracleIdRouteRoute
 }
 
-const ShieldRouteChildren: ShieldRouteChildren = {
-  ShieldOracleIdRoute: ShieldOracleIdRoute,
+const MarketsRouteRouteChildren: MarketsRouteRouteChildren = {
+  MarketsOracleIdRouteRoute: MarketsOracleIdRouteRoute,
 }
 
-const ShieldRouteWithChildren =
-  ShieldRoute._addFileChildren(ShieldRouteChildren)
+const MarketsRouteRouteWithChildren = MarketsRouteRoute._addFileChildren(
+  MarketsRouteRouteChildren,
+)
+
+interface ShieldRouteRouteChildren {
+  ShieldOracleIdRouteRoute: typeof ShieldOracleIdRouteRoute
+}
+
+const ShieldRouteRouteChildren: ShieldRouteRouteChildren = {
+  ShieldOracleIdRouteRoute: ShieldOracleIdRouteRoute,
+}
+
+const ShieldRouteRouteWithChildren = ShieldRouteRoute._addFileChildren(
+  ShieldRouteRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  EarnRoute: EarnRoute,
-  PortfolioRoute: PortfolioRoute,
-  ShieldRoute: ShieldRouteWithChildren,
-  MarketsOracleIdRoute: MarketsOracleIdRoute,
+  IndexRouteRoute: IndexRouteRoute,
+  EarnRouteRoute: EarnRouteRoute,
+  MarketsRouteRoute: MarketsRouteRouteWithChildren,
+  PortfolioRouteRoute: PortfolioRouteRoute,
+  ShieldRouteRoute: ShieldRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

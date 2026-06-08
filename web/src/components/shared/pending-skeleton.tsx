@@ -1,4 +1,3 @@
-import { AppFrame } from "@/components/app-frame/app-frame"
 
 function PulsingBlock({ className }: { className?: string }) {
   return <div className={`animate-pulse bg-muted/50 ${className}`} />
@@ -36,7 +35,6 @@ function TableSkeleton({
 
 export function MarketsSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <section className="space-y-3">
           <div className="flex flex-col gap-8">
@@ -103,13 +101,11 @@ export function MarketsSkeleton() {
           </div>
         </section>
       </main>
-    </AppFrame>
   )
 }
 
 export function MarketDetailSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
@@ -260,13 +256,11 @@ export function MarketDetailSkeleton() {
           </aside>
         </div>
       </main>
-    </AppFrame>
   )
 }
 
 export function ShieldSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <section className="space-y-3">
           <div className="flex flex-col gap-4">
@@ -305,13 +299,11 @@ export function ShieldSkeleton() {
           </div>
         </section>
       </main>
-    </AppFrame>
   )
 }
 
 export function ShieldDetailSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
         <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <section className="grid min-w-0 gap-3">
@@ -421,13 +413,11 @@ export function ShieldDetailSkeleton() {
           </aside>
         </div>
       </main>
-    </AppFrame>
   )
 }
 
 export function PortfolioSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <div className="flex flex-col gap-3">
           <div className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
@@ -497,13 +487,11 @@ export function PortfolioSkeleton() {
           </div>
         </div>
       </main>
-    </AppFrame>
   )
 }
 
 export function EarnSkeleton() {
   return (
-    <AppFrame>
       <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
         <section className="space-y-3">
           <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -591,6 +579,5 @@ export function EarnSkeleton() {
           </div>
         </section>
       </main>
-    </AppFrame>
   )
 }

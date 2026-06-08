@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { EarnSkeleton } from "@/components/shared/pending-skeleton"
-
-import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as EarnPage } from "@/components/earn/page"
 import {
   getLpSupplies,
@@ -29,13 +27,11 @@ function Earn() {
   const { performance, supplies, summary, withdrawals } = Route.useLoaderData()
 
   return (
-    <AppFrame>
       <EarnPage
         performance={performance}
         supplies={supplies}
         summary={summary}
         withdrawals={withdrawals}
       />
-    </AppFrame>
   )
 }

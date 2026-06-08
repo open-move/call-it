@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { MarketsSkeleton } from "@/components/shared/pending-skeleton"
-import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as MarketsPage } from "@/components/markets/page"
 import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
 import { presentTradeMarkets } from "@/lib/trade-presenter"
@@ -13,7 +12,7 @@ import {
   getRangeMints,
 } from "@/services/predict-client"
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/markets")({
   pendingComponent: MarketsSkeleton,
   loader: async () => {
     const [markets, positionMints, rangeMints] = await Promise.all([
@@ -31,15 +30,10 @@ export const Route = createFileRoute("/")({
       predictionActivity,
     }
   },
-  component: Home,
+  component: Markets,
 })
 
-function Home() {
+function Markets() {
   const { markets, predictionActivity } = Route.useLoaderData()
-
-  return (
-    <AppFrame>
-      <MarketsPage markets={markets} predictionActivity={predictionActivity} />
-    </AppFrame>
-  )
+  return <MarketsPage markets={markets} predictionActivity={predictionActivity} />
 }

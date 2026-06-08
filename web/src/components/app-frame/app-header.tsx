@@ -19,6 +19,7 @@ import {
 import { cn } from "@/lib/utils"
 
 import { AppNavStatus, appNavItems } from "./app-nav"
+import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
@@ -33,17 +34,6 @@ function getMobileNavLinkClassName(status: AppNavStatus) {
     "flex items-center justify-between rounded-md px-3 py-3 text-sm font-normal text-white/62 transition-colors hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
     status === AppNavStatus.Active && "text-primary",
     status === AppNavStatus.Soon && "text-white/45"
-  )
-}
-
-function BrandMark() {
-  return (
-    <span
-      aria-hidden="true"
-      className="grid size-8 place-items-center rounded-md bg-primary text-[15px] font-black text-primary-foreground shadow-[0_0_24px_oklch(0.8974_0.1487_115.6236_/_18%)]"
-    >
-      C
-    </span>
   )
 }
 
