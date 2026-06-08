@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { EarnSkeleton } from "@/components/shared/pending-skeleton"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as EarnPage } from "@/components/earn/page"
@@ -10,6 +11,7 @@ import {
 } from "@/services/predict-client"
 
 export const Route = createFileRoute("/earn")({
+  pendingComponent: EarnSkeleton,
   loader: async () => {
     const [summary, performance, supplies, withdrawals] = await Promise.all([
       getPredictVaultSummary(),

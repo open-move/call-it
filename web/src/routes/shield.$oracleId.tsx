@@ -1,5 +1,6 @@
 import { createFileRoute, notFound } from "@tanstack/react-router"
 import { z } from "zod"
+import { ShieldDetailSkeleton } from "@/components/shared/pending-skeleton"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { DetailPage as ShieldDetailPage } from "@/components/shield/detail-page"
@@ -17,6 +18,7 @@ const shieldSearchSchema = z.object({
 
 export const Route = createFileRoute("/shield/$oracleId")({
   validateSearch: shieldSearchSchema,
+  pendingComponent: ShieldDetailSkeleton,
   loaderDeps: ({ search }) => ({
     preset: search.preset,
     strike: search.strike,

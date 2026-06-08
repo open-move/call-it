@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { ShieldSkeleton } from "@/components/shared/pending-skeleton"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as ShieldPage } from "@/components/shield/page"
@@ -6,6 +7,7 @@ import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
 import { createShieldProducts } from "@/lib/shield-products"
 
 export const Route = createFileRoute("/shield")({
+  pendingComponent: ShieldSkeleton,
   loader: async () => {
     const markets = await loadActiveMarketSnapshots()
 

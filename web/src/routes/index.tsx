@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
+import { MarketsSkeleton } from "@/components/shared/pending-skeleton"
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as MarketsPage } from "@/components/markets/page"
 import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
@@ -13,6 +14,7 @@ import {
 } from "@/services/predict-client"
 
 export const Route = createFileRoute("/")({
+  pendingComponent: MarketsSkeleton,
   loader: async () => {
     const [markets, positionMints, rangeMints] = await Promise.all([
       loadActiveMarketSnapshots(),

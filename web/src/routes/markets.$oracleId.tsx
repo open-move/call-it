@@ -1,4 +1,5 @@
 import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
+import { MarketDetailSkeleton } from "@/components/shared/pending-skeleton"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { Page as MarketDetailPage } from "@/components/market-detail/page"
@@ -89,6 +90,7 @@ export const Route = createFileRoute("/markets/$oracleId")({
       trades: filterTrades(positionMints, activityOptions),
     }
   },
+  pendingComponent: MarketDetailSkeleton,
   component: Market,
 })
 
