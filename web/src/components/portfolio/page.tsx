@@ -1478,7 +1478,7 @@ function TradingAccountDialog({
           {!managerId ? (
             <div className="grid gap-3">
               <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                Create a trading account first, then manage deposits and withdrawals here.
+                Create a trading account to start moving funds in and out.
               </div>
               {createManagerError ? (
                 <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -1508,7 +1508,7 @@ function TradingAccountDialog({
                   id="deposit-amount"
                   className="mt-2"
                   inputMode="decimal"
-                  placeholder="0.00"
+                  placeholder="Enter DUSDC amount"
                   value={depositAmount}
                   onChange={(event) => onDepositAmountChange(event.target.value)}
                 />
@@ -1554,7 +1554,7 @@ function TradingAccountDialog({
                   id="withdraw-amount"
                   className="mt-2"
                   inputMode="decimal"
-                  placeholder="0.00"
+                  placeholder="Enter DUSDC amount"
                   value={withdrawAmount}
                   onChange={(event) => onWithdrawAmountChange(event.target.value)}
                 />
@@ -1583,9 +1583,9 @@ function TradingAccountDialog({
           <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
             {managerId
               ? isDepositMode
-                ? "Use wallet DUSDC to fund the trading account used for Predict positions."
-                : "Withdraw available trading-account balance back to the connected wallet."
-              : "Create a trading account first, then return here to manage deposits and withdrawals."}
+                ? "Funds move from your wallet into the trading account."
+                : "Funds move from the trading account back to your wallet."
+              : "Create a trading account first."}
           </div>
         </div>
 
@@ -1599,7 +1599,7 @@ function TradingAccountDialog({
                 void onCreateManager()
               }}
             >
-              {isCreatingManager ? "Creating..." : "Create Trading Account"}
+              {isCreatingManager ? "Creating..." : "Create Account"}
             </Button>
           ) : isDepositMode ? (
             <Button
