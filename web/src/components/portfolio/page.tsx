@@ -46,7 +46,18 @@ import {
   getManagerRanges,
   getPredictManagers,
 } from "@/services/predict-client"
-import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
+import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
+import {
+  buildPredictRedeemTransaction,
+  executeSuiTransaction,
+  simulatePredictRedeemTransaction,
+} from "@/services/predict-transactions"
+import type {PredictRedeemParams} from "@/services/predict-transactions";
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "@/lib/dynamic/sui-wallet"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { getSuiGrpcClient } from "@/services/sui-client"
 import { cn } from "@/lib/utils"
 
@@ -91,6 +102,7 @@ interface PortfolioState {
   errorMessage?: string
   isLoading: boolean
   managerId?: string
+  managerSummary?: ManagerSummary
   plpBalance: bigint
   positions: PortfolioPosition[]
   realizedPnlPoints: RealizedPnlPoint[]
@@ -130,6 +142,11 @@ interface RealizedPnlEvent {
 
 interface RealizedPnlPoint extends RealizedPnlEvent {
   cumulativePnlUsd: number
+}
+
+interface RedeemState {
+  errorMessage?: string
+  positionId?: string
 }
 
 const REALIZED_ACTIVITY_LIMIT = 2_000
@@ -673,6 +690,46 @@ function getFilteredPositions({
   })
 }
 
+function canRedeemPortfolioPosition(position: PortfolioPosition) {
+  return (
+    position.status.toLowerCase() === "redeemable" &&
+    position.manageSearch.side !== undefined &&
+    position.size > 0
+  )
+}
+
+function toOnchainPositionQuantity(quantity: number) {
+  return BigInt(Math.round(quantity * QUOTE_SCALE))
+}
+
+function getPortfolioRedeemParams({
+  position,
+  walletAddress,
+}: {
+  position: PortfolioPosition
+  walletAddress: string
+}): PredictRedeemParams | undefined {
+  if (!canRedeemPortfolioPosition(position)) {
+    return undefined
+  }
+
+  const quantity = toOnchainPositionQuantity(position.size)
+
+  if (quantity <= 0n) {
+    return undefined
+  }
+
+  return {
+    expiryMs: position.expiryMs,
+    isUp: position.manageSearch.side === "up",
+    kind: "binary",
+    oracleId: position.oracleId,
+    quantity,
+    strikePriceUsd: position.manageSearch.strike,
+    walletAddress,
+  }
+}
+
 function getTabCount(positions: PortfolioPosition[], tab: PortfolioTab) {
   return getFilteredPositions({ positions, searchQuery: "", tab }).length
 }
@@ -697,6 +754,7 @@ export function Page(props: PageProps) {
 
 function PageClient({ oracles, vaultSummary }: PageProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const refreshRoute = useAppRouteRefresh()
   const [portfolioState, setPortfolioState] = useState<PortfolioState>({
     dusdcBalance: 0n,
     isLoading: false,
@@ -705,6 +763,8 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     realizedPnlPoints: [],
   })
   const [activeTab, setActiveTab] = useState<PortfolioTab>("open")
+  const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
+  const [redeemState, setRedeemState] = useState<RedeemState>({})
   const [tradingAccountModalMode, setTradingAccountModalMode] =
     useState<TradingAccountModalMode | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
@@ -829,7 +889,71 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     return () => {
       isStale = true
     }
-  }, [oracles, walletAddress])
+  }, [oracles, positionRefreshNonce, walletAddress])
+
+  async function handleRedeemPosition(position: PortfolioPosition) {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setRedeemState({
+        errorMessage: RECONNECT_SUI_WALLET_MESSAGE,
+        positionId: position.id,
+      })
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!portfolioState.managerId) {
+      setRedeemState({
+        errorMessage: "Could not resolve trading account.",
+        positionId: position.id,
+      })
+      return
+    }
+
+    const params = getPortfolioRedeemParams({ position, walletAddress })
+
+    if (!params) {
+      setRedeemState({
+        errorMessage: "This position is not redeemable yet.",
+        positionId: position.id,
+      })
+      return
+    }
+
+    setRedeemState({ positionId: position.id })
+
+    try {
+      await simulatePredictRedeemTransaction({
+        managerId: portfolioState.managerId,
+        params,
+      })
+
+      await executeSuiTransaction(
+        signer,
+        buildPredictRedeemTransaction({
+          managerId: portfolioState.managerId,
+          params,
+        })
+      )
+
+      setRedeemState({})
+      setPositionRefreshNonce((current) => current + 1)
+      refreshRoute()
+      window.setTimeout(refreshRoute, 1_500)
+    } catch (error) {
+      setRedeemState({
+        errorMessage:
+          error instanceof Error ? error.message : "Redeem failed.",
+        positionId: position.id,
+      })
+    }
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -840,6 +964,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
               <AccountCard
+                managerSummary={portfolioState.managerSummary}
                 summary={summary}
                 onOpenDeposit={() => setTradingAccountModalMode("deposit")}
                 onOpenWithdraw={() => setTradingAccountModalMode("withdraw")}
@@ -871,11 +996,18 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 {portfolioState.errorMessage}
               </div>
             ) : null}
+            {redeemState.errorMessage ? (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {redeemState.errorMessage}
+              </div>
+            ) : null}
 
             <PositionsLedger
               activeTab={activeTab}
               isLoading={portfolioState.isLoading}
+              onRedeemPosition={handleRedeemPosition}
               positions={filteredPositions}
+              redeemingPositionId={redeemState.positionId}
               searchQuery={searchQuery}
               totalPositions={portfolioState.positions}
               onSearchChange={setSearchQuery}
@@ -910,14 +1042,19 @@ function ConnectPortfolioCard({ onConnect }: { onConnect: () => void }) {
 }
 
 function AccountCard({
+  managerSummary,
   summary,
   onOpenDeposit,
   onOpenWithdraw,
 }: {
+  managerSummary?: ManagerSummary
   summary: PortfolioSummary
   onOpenDeposit: () => void
   onOpenWithdraw: () => void
 }) {
+  const managerBalance = toQuoteAmount(managerSummary?.trading_balance ?? 0)
+  const managerExposure = toQuoteAmount(managerSummary?.open_exposure ?? 0)
+
   return (
     <Card className="gap-2 rounded-md border-0 bg-card py-0 pt-3 shadow-none ring-0">
       <div className="grid gap-4 px-3 py-3">
@@ -942,26 +1079,34 @@ function AccountCard({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Metric
-            label="Cash Balance"
-            value={formatUsd(summary.availableDusdc)}
+        <div className="grid gap-3">
+          <AccountBucket
+            eyebrow="Wallet"
+            primaryLabel="Available DUSDC"
+            primaryValue={formatUsd(summary.availableDusdc)}
+            secondaryLabel="Wallet PLP"
+            secondaryValue={formatUsd(summary.plpValueUsd)}
           />
-          <Metric label="PLP Value" value={formatUsd(summary.plpValueUsd)} />
-          <Metric
-            label="Open Cost"
-            value={formatUsd(summary.openCostBasisUsd)}
+          <AccountBucket
+            eyebrow="Trading Account"
+            primaryLabel="Manager Balance"
+            primaryValue={formatUsd(managerBalance)}
+            secondaryLabel="Open Exposure"
+            secondaryValue={formatUsd(managerExposure)}
           />
-          <Metric
-            label="Realized PnL"
-            tone={
+          <AccountBucket
+            eyebrow="Vault"
+            primaryLabel="Vault Value"
+            primaryValue={formatUsd(summary.plpValueUsd)}
+            secondaryLabel="Realized PnL"
+            secondaryTone={
               summary.realizedPnlUsd === 0
                 ? "muted"
                 : summary.realizedPnlUsd > 0
                   ? "up"
                   : "down"
             }
-            value={formatSignedUsd(summary.realizedPnlUsd)}
+            secondaryValue={formatSignedUsd(summary.realizedPnlUsd)}
           />
         </div>
 
@@ -971,7 +1116,7 @@ function AccountCard({
             type="button"
             onClick={onOpenDeposit}
           >
-            Deposit to Trading Account
+            Deposit
           </Button>
           <Button
             className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
@@ -979,11 +1124,43 @@ function AccountCard({
             variant="secondary"
             onClick={onOpenWithdraw}
           >
-            Withdraw from Trading Account
+            Withdraw
           </Button>
         </div>
       </div>
     </Card>
+  )
+}
+
+function AccountBucket({
+  eyebrow,
+  primaryLabel,
+  primaryValue,
+  secondaryLabel,
+  secondaryTone = "default",
+  secondaryValue,
+}: {
+  eyebrow: string
+  primaryLabel: string
+  primaryValue: string
+  secondaryLabel: string
+  secondaryTone?: "default" | "muted" | "up" | "down"
+  secondaryValue: string
+}) {
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-3">
+      <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+        {eyebrow}
+      </div>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Metric label={primaryLabel} value={primaryValue} />
+        <Metric
+          label={secondaryLabel}
+          tone={secondaryTone}
+          value={secondaryValue}
+        />
+      </div>
+    </div>
   )
 }
 
@@ -1527,17 +1704,21 @@ function ExposureBar({
 function PositionsLedger({
   activeTab,
   isLoading,
+  onRedeemPosition,
   onSearchChange,
   onTabChange,
   positions,
+  redeemingPositionId,
   searchQuery,
   totalPositions,
 }: {
   activeTab: PortfolioTab
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   onSearchChange: (value: string) => void
   onTabChange: (value: PortfolioTab) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
   searchQuery: string
   totalPositions: PortfolioPosition[]
 }) {
@@ -1581,10 +1762,20 @@ function PositionsLedger({
       ) : (
         <>
           <div className="hidden overflow-auto lg:block">
-            <PositionsTable isLoading={isLoading} positions={positions} />
+            <PositionsTable
+              isLoading={isLoading}
+              onRedeemPosition={onRedeemPosition}
+              positions={positions}
+              redeemingPositionId={redeemingPositionId}
+            />
           </div>
           <div className="grid gap-2 p-3 lg:hidden">
-            <MobilePositionsList isLoading={isLoading} positions={positions} />
+            <MobilePositionsList
+              isLoading={isLoading}
+              onRedeemPosition={onRedeemPosition}
+              positions={positions}
+              redeemingPositionId={redeemingPositionId}
+            />
           </div>
         </>
       )}
@@ -1594,10 +1785,14 @@ function PositionsLedger({
 
 function PositionsTable({
   isLoading,
+  onRedeemPosition,
   positions,
+  redeemingPositionId,
 }: {
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
 }) {
   if (isLoading) {
     return <LedgerEmptyState message="Loading portfolio positions." />
@@ -1661,22 +1856,35 @@ function PositionsTable({
           <span className="truncate text-muted-foreground capitalize">
             {position.status}
           </span>
-          <Button
-            className="justify-self-end text-muted-foreground"
-            render={
-              <Link
-                params={{ oracleId: position.oracleId }}
-                search={position.manageSearch}
-                to="/markets/$oracleId"
-              />
-            }
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Manage
-            <ArrowUpRightIcon className="size-3" />
-          </Button>
+          {canRedeemPortfolioPosition(position) ? (
+            <Button
+              className="justify-self-end"
+              disabled={redeemingPositionId === position.id}
+              size="xs"
+              type="button"
+              variant="secondary"
+              onClick={() => onRedeemPosition(position)}
+            >
+              {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
+            </Button>
+          ) : (
+            <Button
+              className="justify-self-end text-muted-foreground"
+              render={
+                <Link
+                  params={{ oracleId: position.oracleId }}
+                  search={position.manageSearch}
+                  to="/markets/$oracleId"
+                />
+              }
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              Manage
+              <ArrowUpRightIcon className="size-3" />
+            </Button>
+          )}
         </div>
       ))}
     </div>
@@ -1707,10 +1915,14 @@ function LedgerEmptyState({ message }: { message: string }) {
 
 function MobilePositionsList({
   isLoading,
+  onRedeemPosition,
   positions,
+  redeemingPositionId,
 }: {
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
 }) {
   if (isLoading) {
     return <LedgerEmptyState message="Loading portfolio positions." />
@@ -1741,20 +1953,32 @@ function MobilePositionsList({
             {formatQuantity(position.size)} contracts
           </div>
         </div>
-        <Button
-          render={
-            <Link
-              params={{ oracleId: position.oracleId }}
-              search={position.manageSearch}
-              to="/markets/$oracleId"
-            />
-          }
-          size="xs"
-          type="button"
-          variant="ghost"
-        >
-          Manage
-        </Button>
+        {canRedeemPortfolioPosition(position) ? (
+          <Button
+            disabled={redeemingPositionId === position.id}
+            size="xs"
+            type="button"
+            variant="secondary"
+            onClick={() => onRedeemPosition(position)}
+          >
+            {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
+          </Button>
+        ) : (
+          <Button
+            render={
+              <Link
+                params={{ oracleId: position.oracleId }}
+                search={position.manageSearch}
+                to="/markets/$oracleId"
+              />
+            }
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Manage
+          </Button>
+        )}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <MobileStat
