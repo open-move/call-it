@@ -1448,8 +1448,6 @@ function TradingAccountDialog({
 }) {
   const isOpen = mode !== null
   const isDepositMode = mode === "deposit"
-  const managerBalance = toQuoteAmount(managerSummary?.trading_balance ?? 0)
-  const openPositions = managerSummary?.open_positions ?? 0
   const title = isDepositMode
     ? "Deposit to Trading Account"
     : "Withdraw from Trading Account"
@@ -1490,29 +1488,6 @@ function TradingAccountDialog({
             </div>
           ) : isDepositMode ? (
             <div className="grid gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ModalMetric
-                  detail="Spendable in connected wallet"
-                  label="Wallet DUSDC"
-                  value={formatUsd(summary.availableDusdc)}
-                />
-                <ModalMetric
-                  detail="Current PLP held in wallet"
-                  label="Wallet PLP Value"
-                  value={formatUsd(summary.plpValueUsd)}
-                />
-                <ModalMetric
-                  detail="Current balance inside the trading account"
-                  label="Manager Balance"
-                  value={formatUsd(managerBalance)}
-                />
-                <ModalMetric
-                  detail="Open directional and range contracts"
-                  label="Open Positions"
-                  value={openPositions.toString()}
-                />
-              </div>
-
               <div className="rounded-lg border border-border/60 bg-card/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <label
@@ -1537,9 +1512,12 @@ function TradingAccountDialog({
                   value={depositAmount}
                   onChange={(event) => onDepositAmountChange(event.target.value)}
                 />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Available:{" "}
-                  {`${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    Available:{" "}
+                    {`${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                  </span>
+                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
                 </div>
               </div>
 
@@ -1556,19 +1534,6 @@ function TradingAccountDialog({
             </div>
           ) : (
             <div className="grid gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ModalMetric
-                  detail="Available inside the trading account"
-                  label="Manager Balance"
-                  value={formatUsd(managerBalance)}
-                />
-                <ModalMetric
-                  detail="Current PLP held in wallet"
-                  label="Wallet PLP Value"
-                  value={formatUsd(summary.plpValueUsd)}
-                />
-              </div>
-
               <div className="rounded-lg border border-border/60 bg-card/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <label
@@ -1593,9 +1558,12 @@ function TradingAccountDialog({
                   value={withdrawAmount}
                   onChange={(event) => onWithdrawAmountChange(event.target.value)}
                 />
-                <div className="mt-2 text-xs text-muted-foreground">
-                  Available:{" "}
-                  {`${formatDecimalUnits(BigInt(Math.floor(managerSummary?.trading_balance ?? 0)), PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    Available:{" "}
+                    {`${formatDecimalUnits(BigInt(Math.floor(managerSummary?.trading_balance ?? 0)), PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                  </span>
+                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
                 </div>
               </div>
 
@@ -1675,28 +1643,6 @@ function AccountModalRow({
         {label}
       </span>
       <span className="font-mono text-sm text-foreground">{value}</span>
-    </div>
-  )
-}
-
-function ModalMetric({
-  detail,
-  label,
-  value,
-}: {
-  detail: string
-  label: string
-  value: string
-}) {
-  return (
-    <div className="rounded-lg border border-border/60 bg-card/70 p-4">
-      <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-2 font-mono text-lg font-medium text-foreground tabular-nums">
-        {value}
-      </div>
-      <div className="mt-2 text-xs text-muted-foreground">{detail}</div>
     </div>
   )
 }
