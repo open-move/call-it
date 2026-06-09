@@ -51,6 +51,12 @@ type PortfolioTab = "open" | "redeemable" | "closed" | "activity"
 type PositionType = "UP" | "DOWN" | "RNG"
 type ChartMode = "realized" | "exposure"
 type ChartInterval = "1d" | "1w" | "1m" | "max"
+type MarketSide = "up" | "down"
+
+interface MarketManageSearch {
+  side?: MarketSide
+  strike: number
+}
 
 interface PortfolioPosition {
   assetSymbol: string
@@ -61,7 +67,7 @@ interface PortfolioPosition {
   expiryMs: number
   id: string
   lastActivityAt: number
-  manageHref: string
+  manageSearch: MarketManageSearch
   markPrice: number | null
   oracleId: string
   realizedPnlUsd: number
@@ -243,10 +249,6 @@ function getPnlClassName(value: number | null) {
   return value > 0 ? "text-outcome-up" : "text-outcome-down"
 }
 
-function getMarketHref(position: PortfolioPosition) {
-  return position.manageHref
-}
-
 function getDirectionalPositions(
   summaries: ManagerPositionSummary[],
   oracleById: Map<string, OracleInfo>
@@ -256,12 +258,8 @@ function getDirectionalPositions(
     .map((summary) => {
       const assetSymbol = getAssetSymbol(oracleById, summary.oracle_id)
       const strikePriceUsd = toUsdPrice(summary.strike)
-      const side = summary.is_up ? "up" : "down"
+      const side: MarketSide = summary.is_up ? "up" : "down"
       const type = summary.is_up ? "UP" : "DOWN"
-      const searchParams = new URLSearchParams({
-        side,
-        strike: strikePriceUsd.toString(),
-      })
 
       return {
         assetSymbol,
@@ -278,7 +276,7 @@ function getDirectionalPositions(
         expiryMs: summary.expiry,
         id: `${summary.manager_id}:${summary.oracle_id}:${summary.strike}:${side}`,
         lastActivityAt: summary.last_activity_at,
-        manageHref: `/markets/${summary.oracle_id}?${searchParams.toString()}`,
+        manageSearch: { side, strike: strikePriceUsd },
         markPrice:
           summary.mark_price === null ? null : toUsdPrice(summary.mark_price),
         oracleId: summary.oracle_id,
@@ -360,9 +358,6 @@ function getRangePositions(
       const lowerStrikePriceUsd = toUsdPrice(position.lowerStrike)
       const higherStrikePriceUsd = toUsdPrice(position.higherStrike)
       const assetSymbol = getAssetSymbol(oracleById, position.oracleId)
-      const searchParams = new URLSearchParams({
-        strike: lowerStrikePriceUsd.toString(),
-      })
 
       return {
         assetSymbol,
@@ -373,7 +368,7 @@ function getRangePositions(
         expiryMs: oracleById.get(position.oracleId)?.expiry ?? 0,
         id,
         lastActivityAt: position.lastActivityAt,
-        manageHref: `/markets/${position.oracleId}?${searchParams.toString()}`,
+        manageSearch: { strike: lowerStrikePriceUsd },
         markPrice: null,
         oracleId: position.oracleId,
         realizedPnlUsd: toQuoteAmount(position.totalPayout) - redeemedCostBasis,
@@ -1493,7 +1488,13 @@ function PositionsTable({
           </span>
           <Button
             className="justify-self-end text-muted-foreground"
-            render={<Link to={getMarketHref(position)} />}
+            render={
+              <Link
+                params={{ oracleId: position.oracleId }}
+                search={position.manageSearch}
+                to="/markets/$oracleId"
+              />
+            }
             size="xs"
             type="button"
             variant="ghost"
@@ -1566,7 +1567,13 @@ function MobilePositionsList({
           </div>
         </div>
         <Button
-          render={<Link to={getMarketHref(position)} />}
+          render={
+            <Link
+              params={{ oracleId: position.oracleId }}
+              search={position.manageSearch}
+              to="/markets/$oracleId"
+            />
+          }
           size="xs"
           type="button"
           variant="ghost"

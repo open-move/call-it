@@ -43,14 +43,6 @@ function getStatusTone(status: string) {
   return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
 }
 
-function getMarketHref(market: TradeMarket) {
-  const searchParams = new URLSearchParams({
-    strike: market.strikePriceUsd.toString(),
-  })
-
-  return `/markets/${market.oracleId}?${searchParams.toString()}`
-}
-
 function filterMarketOptions(markets: TradeMarket[], query: string) {
   const normalizedQuery = query.trim().toLowerCase()
 
@@ -146,7 +138,9 @@ function MarketSelector({
                       isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
                     )}
                     key={option.oracleId}
-                    to={getMarketHref(option)}
+                    params={{ oracleId: option.oracleId }}
+                    search={{ strike: option.strikePriceUsd }}
+                    to="/markets/$oracleId"
                   >
                     <AssetIcon
                       assetIconUrl={option.assetIconUrl}

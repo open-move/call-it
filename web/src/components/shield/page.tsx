@@ -24,7 +24,6 @@ import {
 } from "@/lib/format"
 import {
   getShieldPresetLabel,
-  getShieldProductHref,
   getShieldTenorLabel,
 } from "@/lib/shield-products"
 import type {ShieldPreset, ShieldProduct, ShieldTenor} from "@/lib/types/shield";
@@ -38,6 +37,13 @@ export interface PageProps {
 interface FilterOption {
   label: string
   value?: string
+}
+
+function getShieldProductSearch(product: ShieldProduct) {
+  return {
+    preset: product.preset,
+    strike: product.protectionStrikeUsd,
+  }
 }
 
 type ShieldSort = "expiry" | "budget" | "distance"
@@ -354,7 +360,9 @@ function ProductIdentity({ product }: { product: ShieldProduct }) {
     <Link
       aria-label={`Open ${product.market.assetName} Shield`}
       className="group flex min-w-0 items-center gap-2.5 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-      to={getShieldProductHref(product)}
+      params={{ oracleId: product.market.oracleId }}
+      search={getShieldProductSearch(product)}
+      to="/shield/$oracleId"
     >
       <AssetIcon
         assetIconUrl={product.market.assetIconUrl}
@@ -431,7 +439,13 @@ function ActionButton({ product }: { product: ShieldProduct }) {
     <div className="flex items-center justify-end lg:border-l lg:border-border/25 lg:pl-3">
       <Button
         className="min-w-20 bg-primary/10 text-xs text-primary shadow-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-        render={<Link to={getShieldProductHref(product)} />}
+        render={
+          <Link
+            params={{ oracleId: product.market.oracleId }}
+            search={getShieldProductSearch(product)}
+            to="/shield/$oracleId"
+          />
+        }
         size="sm"
         variant="ghost"
       >

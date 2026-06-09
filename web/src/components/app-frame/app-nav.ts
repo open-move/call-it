@@ -5,10 +5,12 @@ export enum AppNavStatus {
 }
 
 export interface AppNavItem {
-  href: string
+  href: AppNavHref
   label: string
   status: AppNavStatus
 }
+
+export type AppNavHref = "/" | "/markets" | "/shield" | "/earn" | "/portfolio"
 
 export const appNavItems: AppNavItem[] = [
   { href: "/markets", label: "Trade", status: AppNavStatus.Active },
