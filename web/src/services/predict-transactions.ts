@@ -293,6 +293,54 @@ export function buildCreateManagerTransaction(walletAddress: string) {
   return tx
 }
 
+export async function buildManagerDepositTransaction({
+  amount,
+  managerId,
+  walletAddress,
+}: {
+  amount: bigint
+  managerId: string
+  walletAddress: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
+
+  tx.moveCall({
+    target: target("predict_manager", "deposit"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [tx.object(managerId), paymentCoin],
+  })
+
+  return tx
+}
+
+export function buildManagerWithdrawTransaction({
+  amount,
+  managerId,
+  walletAddress,
+}: {
+  amount: bigint
+  managerId: string
+  walletAddress: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  const quoteCoin = tx.moveCall({
+    target: target("predict_manager", "withdraw"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(managerId),
+      tx.pure.u64(amount),
+    ],
+  })
+
+  tx.transferObjects([quoteCoin], walletAddress)
+
+  return tx
+}
+
 export function buildPredictQuoteTransaction(params: PredictTradeParams) {
   const tx = new Transaction()
   tx.setSender(params.walletAddress)

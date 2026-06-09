@@ -227,6 +227,25 @@ export interface PredictManagerCreatedEvent {
   owner: string
 }
 
+export interface ManagerBalance {
+  quote_asset: string
+  balance: number
+}
+
+export interface ManagerSummary {
+  manager_id: string
+  owner: string
+  balances: ManagerBalance[]
+  trading_balance: number
+  open_exposure: number
+  redeemable_value: number
+  realized_pnl: number
+  unrealized_pnl: number
+  account_value: number
+  open_positions: number
+  awaiting_settlement_positions: number
+}
+
 export interface ManagerPositionSummary {
   predict_id: string
   manager_id: string
