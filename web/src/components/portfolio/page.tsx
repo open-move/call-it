@@ -15,6 +15,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
@@ -57,6 +65,7 @@ interface MarketManageSearch {
   side?: MarketSide
   strike: number
 }
+type TradingAccountModalMode = "deposit" | "withdraw"
 
 interface PortfolioPosition {
   assetSymbol: string
@@ -696,6 +705,8 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     realizedPnlPoints: [],
   })
   const [activeTab, setActiveTab] = useState<PortfolioTab>("open")
+  const [tradingAccountModalMode, setTradingAccountModalMode] =
+    useState<TradingAccountModalMode | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const walletAddress = primaryWallet?.address
   const oracleById = getOracleById(oracles)
@@ -828,7 +839,25 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         ) : (
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
-              <AccountCard summary={summary} />
+              <AccountCard
+                summary={summary}
+                onOpenDeposit={() => setTradingAccountModalMode("deposit")}
+                onOpenWithdraw={() => setTradingAccountModalMode("withdraw")}
+              />
+              <TradingAccountDialog
+                managerId={portfolioState.managerId}
+                mode={tradingAccountModalMode}
+                openPositionsCount={portfolioState.positions.filter(
+                  (position) => position.status !== "redeemed"
+                ).length}
+                summary={summary}
+                walletAddress={walletAddress}
+                onOpenChange={(open) =>
+                  setTradingAccountModalMode(
+                    open ? (tradingAccountModalMode ?? "deposit") : null
+                  )
+                }
+              />
 
               <PortfolioChartCard
                 isLoading={portfolioState.isLoading}
@@ -880,7 +909,15 @@ function ConnectPortfolioCard({ onConnect }: { onConnect: () => void }) {
   )
 }
 
-function AccountCard({ summary }: { summary: PortfolioSummary }) {
+function AccountCard({
+  summary,
+  onOpenDeposit,
+  onOpenWithdraw,
+}: {
+  summary: PortfolioSummary
+  onOpenDeposit: () => void
+  onOpenWithdraw: () => void
+}) {
   return (
     <Card className="gap-2 rounded-md border-0 bg-card py-0 pt-3 shadow-none ring-0">
       <div className="grid gap-4 px-3 py-3">
@@ -928,14 +965,152 @@ function AccountCard({ summary }: { summary: PortfolioSummary }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button type="button">Deposit</Button>
-          <Button type="button" variant="secondary">
-            Withdraw
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            type="button"
+            onClick={onOpenDeposit}
+          >
+            Deposit to Trading Account
+          </Button>
+          <Button
+            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            type="button"
+            variant="secondary"
+            onClick={onOpenWithdraw}
+          >
+            Withdraw from Trading Account
           </Button>
         </div>
       </div>
     </Card>
+  )
+}
+
+function TradingAccountDialog({
+  managerId,
+  mode,
+  openPositionsCount,
+  summary,
+  walletAddress,
+  onOpenChange,
+}: {
+  managerId?: string
+  mode: TradingAccountModalMode | null
+  openPositionsCount: number
+  summary: PortfolioSummary
+  walletAddress?: string
+  onOpenChange: (open: boolean) => void
+}) {
+  const isOpen = mode !== null
+  const isDepositMode = mode === "deposit"
+  const title = isDepositMode
+    ? "Deposit to Trading Account"
+    : "Withdraw from Trading Account"
+  const description = isDepositMode
+    ? "Move DUSDC from the connected wallet into the PredictManager used for trading."
+    : "Move available manager balance back from the PredictManager to the connected wallet."
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <AccountModalRow
+              label="Connected wallet"
+              value={walletAddress ? formatAddress(walletAddress) : "Unavailable"}
+            />
+            <AccountModalRow
+              label="Trading account"
+              value={managerId ? formatAddress(managerId) : "No manager found yet"}
+            />
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ModalMetric
+              detail="Spendable in connected wallet"
+              label="Wallet DUSDC"
+              value={formatUsd(summary.availableDusdc)}
+            />
+            <ModalMetric
+              detail="Current PLP held in wallet"
+              label="Wallet PLP Value"
+              value={formatUsd(summary.plpValueUsd)}
+            />
+            <ModalMetric
+              detail="Capital deployed across open positions"
+              label="Manager Exposure"
+              value={formatUsd(summary.openCostBasisUsd)}
+            />
+            <ModalMetric
+              detail="Open directional and range contracts"
+              label="Open Positions"
+              value={openPositionsCount.toString()}
+            />
+          </div>
+
+          <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+            {managerId
+              ? isDepositMode
+                ? "This modal is the right surface for manager funding. The current app already deposits into the manager during trade execution, and the next step is exposing that as a standalone flow here."
+                : "This modal is the right surface for manager withdrawals. The missing piece is a dedicated standalone withdraw transaction for manager balances."
+              : "This wallet does not currently have a resolved PredictManager. Create or use a trading account first, then return here to manage manager funding."}
+          </div>
+        </div>
+
+        <DialogFooter showCloseButton>
+          <Button disabled type="button" variant="outline">
+            {isDepositMode
+              ? "Deposit flow next"
+              : "Withdraw flow next"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AccountModalRow({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </span>
+      <span className="font-mono text-sm text-foreground">{value}</span>
+    </div>
+  )
+}
+
+function ModalMetric({
+  detail,
+  label,
+  value,
+}: {
+  detail: string
+  label: string
+  value: string
+}) {
+  return (
+    <div className="rounded-lg border border-border/60 bg-card/70 p-4">
+      <div className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </div>
+      <div className="mt-2 font-mono text-lg font-medium text-foreground tabular-nums">
+        {value}
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">{detail}</div>
+    </div>
   )
 }
 
