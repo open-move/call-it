@@ -15,6 +15,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent
@@ -23,6 +31,7 @@ import {
 import type {ChartConfig} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
 import { formatRelativeTime, formatUsd } from "@/lib/format"
 import {
   PREDICT_LP_ASSET,
@@ -36,9 +45,25 @@ import {
   getDirectionalPositionRedeems,
   getManagerPositionSummaries,
   getManagerRanges,
+  getManagerSummary,
   getPredictManagers,
 } from "@/services/predict-client"
-import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
+import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
+import {
+  buildCreateManagerTransaction,
+  buildManagerDepositTransaction,
+  buildManagerWithdrawTransaction,
+  buildPredictRedeemTransaction,
+  executeSuiTransaction,
+  findCreatedManagerId,
+  simulatePredictRedeemTransaction,
+} from "@/services/predict-transactions"
+import type {PredictRedeemParams} from "@/services/predict-transactions";
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "@/lib/dynamic/sui-wallet"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { getSuiGrpcClient } from "@/services/sui-client"
 import { cn } from "@/lib/utils"
 
@@ -57,6 +82,7 @@ interface MarketManageSearch {
   side?: MarketSide
   strike: number
 }
+type TradingAccountModalMode = "deposit" | "withdraw"
 
 interface PortfolioPosition {
   assetSymbol: string
@@ -82,6 +108,7 @@ interface PortfolioState {
   errorMessage?: string
   isLoading: boolean
   managerId?: string
+  managerSummary?: ManagerSummary
   plpBalance: bigint
   positions: PortfolioPosition[]
   realizedPnlPoints: RealizedPnlPoint[]
@@ -121,6 +148,15 @@ interface RealizedPnlEvent {
 
 interface RealizedPnlPoint extends RealizedPnlEvent {
   cumulativePnlUsd: number
+}
+
+interface RedeemState {
+  errorMessage?: string
+  positionId?: string
+}
+
+interface ManagerState {
+  managerId?: string
 }
 
 const REALIZED_ACTIVITY_LIMIT = 2_000
@@ -664,6 +700,70 @@ function getFilteredPositions({
   })
 }
 
+function canRedeemPortfolioPosition(position: PortfolioPosition) {
+  return (
+    position.status.toLowerCase() === "redeemable" &&
+    position.manageSearch.side !== undefined &&
+    position.size > 0
+  )
+}
+
+function toOnchainPositionQuantity(quantity: number) {
+  return BigInt(Math.round(quantity * QUOTE_SCALE))
+}
+
+function getPortfolioRedeemParams({
+  position,
+  walletAddress,
+}: {
+  position: PortfolioPosition
+  walletAddress: string
+}): PredictRedeemParams | undefined {
+  if (!canRedeemPortfolioPosition(position)) {
+    return undefined
+  }
+
+  const quantity = toOnchainPositionQuantity(position.size)
+
+  if (quantity <= 0n) {
+    return undefined
+  }
+
+  return {
+    expiryMs: position.expiryMs,
+    isUp: position.manageSearch.side === "up",
+    kind: "binary",
+    oracleId: position.oracleId,
+    quantity,
+    strikePriceUsd: position.manageSearch.strike,
+    walletAddress,
+  }
+}
+
+async function loadManagerState(walletAddress: string): Promise<ManagerState> {
+  const [manager] = await getPredictManagers(walletAddress)
+
+  return {
+    managerId: manager.manager_id,
+  }
+}
+
+async function waitForManagerState(walletAddress: string) {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const managerState = await loadManagerState(walletAddress)
+
+    if (managerState.managerId) {
+      return managerState
+    }
+
+    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
+  }
+
+  throw new Error(
+    "Trading account creation confirmed, but the indexer has not caught up"
+  )
+}
+
 function getTabCount(positions: PortfolioPosition[], tab: PortfolioTab) {
   return getFilteredPositions({ positions, searchQuery: "", tab }).length
 }
@@ -688,6 +788,7 @@ export function Page(props: PageProps) {
 
 function PageClient({ oracles, vaultSummary }: PageProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const refreshRoute = useAppRouteRefresh()
   const [portfolioState, setPortfolioState] = useState<PortfolioState>({
     dusdcBalance: 0n,
     isLoading: false,
@@ -696,8 +797,30 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     realizedPnlPoints: [],
   })
   const [activeTab, setActiveTab] = useState<PortfolioTab>("open")
+  const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
+  const [redeemState, setRedeemState] = useState<RedeemState>({})
+  const [createManagerError, setCreateManagerError] = useState<string>()
+  const [depositAmount, setDepositAmount] = useState("")
+  const [depositError, setDepositError] = useState<string>()
+  const [depositStatusMessage, setDepositStatusMessage] = useState<string>()
+  const [withdrawAmount, setWithdrawAmount] = useState("")
+  const [withdrawError, setWithdrawError] = useState<string>()
+  const [withdrawStatusMessage, setWithdrawStatusMessage] = useState<string>()
+  const [isCreatingManager, setIsCreatingManager] = useState(false)
+  const [isDepositing, setIsDepositing] = useState(false)
+  const [isWithdrawing, setIsWithdrawing] = useState(false)
+  const [tradingAccountModalMode, setTradingAccountModalMode] =
+    useState<TradingAccountModalMode | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const walletAddress = primaryWallet?.address
+  const selectedDepositAmount = parseDecimalUnits(
+    depositAmount,
+    PREDICT_QUOTE_DECIMALS
+  )
+  const selectedWithdrawAmount = parseDecimalUnits(
+    withdrawAmount,
+    PREDICT_QUOTE_DECIMALS
+  )
   const oracleById = getOracleById(oracles)
   const summary = getPortfolioSummary({
     dusdcBalance: portfolioState.dusdcBalance,
@@ -732,6 +855,9 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         errorMessage: undefined,
         isLoading: true,
       }))
+      setCreateManagerError(undefined)
+      setDepositError(undefined)
+      setWithdrawError(undefined)
 
       try {
         const client = getSuiGrpcClient()
@@ -763,11 +889,13 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         }
 
         const [
+          managerSummary,
           summaries,
           rangeActivity,
           directionalMinted,
           directionalRedeemed,
         ] = await Promise.all([
+          getManagerSummary(manager.manager_id),
           getManagerPositionSummaries(manager.manager_id),
           getManagerRanges(manager.manager_id),
           getDirectionalPositionMints(REALIZED_ACTIVITY_LIMIT),
@@ -781,6 +909,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
             dusdcBalance: BigInt(dusdcBalance.balance.balance),
             isLoading: false,
             managerId: manager.manager_id,
+            managerSummary,
             plpBalance: BigInt(plpBalance.balance.balance),
             positions: getPortfolioPositions({
               oracleById: currentOracleById,
@@ -818,7 +947,244 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     return () => {
       isStale = true
     }
-  }, [oracles, walletAddress])
+  }, [oracles, positionRefreshNonce, walletAddress])
+
+  function resetTradingAccountState() {
+    setCreateManagerError(undefined)
+    setDepositAmount("")
+    setDepositError(undefined)
+    setDepositStatusMessage(undefined)
+    setWithdrawAmount("")
+    setWithdrawError(undefined)
+    setWithdrawStatusMessage(undefined)
+  }
+
+  async function handleCreateTradingAccount() {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setCreateManagerError(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    setIsCreatingManager(true)
+    setCreateManagerError(undefined)
+
+    try {
+      const createResult = await executeSuiTransaction(
+        signer,
+        buildCreateManagerTransaction(walletAddress)
+      )
+      const createdManagerId =
+        findCreatedManagerId(createResult.events) ??
+        (await waitForManagerState(walletAddress)).managerId
+
+      if (!createdManagerId) {
+        throw new Error("Could not resolve trading account after creation")
+      }
+
+      setPortfolioState((currentState) => ({
+        ...currentState,
+        managerId: createdManagerId,
+      }))
+      setTradingAccountModalMode("deposit")
+      setPositionRefreshNonce((current) => current + 1)
+    } catch (error) {
+      setCreateManagerError(
+        error instanceof Error
+          ? error.message
+          : "Failed to create trading account."
+      )
+    } finally {
+      setIsCreatingManager(false)
+    }
+  }
+
+  async function handleDepositToTradingAccount() {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!portfolioState.managerId) {
+      setDepositError("Create a trading account first.")
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setDepositError(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!selectedDepositAmount) {
+      setDepositError("Enter a positive deposit amount")
+      return
+    }
+
+    if (selectedDepositAmount > portfolioState.dusdcBalance) {
+      setDepositError("Deposit amount exceeds wallet DUSDC balance")
+      return
+    }
+
+    setIsDepositing(true)
+    setDepositError(undefined)
+    setDepositStatusMessage("Submitting deposit")
+
+    try {
+      const transaction = await buildManagerDepositTransaction({
+        amount: selectedDepositAmount,
+        managerId: portfolioState.managerId,
+        walletAddress,
+      })
+
+      await executeSuiTransaction(signer, transaction)
+      resetTradingAccountState()
+      setTradingAccountModalMode(null)
+      setPositionRefreshNonce((current) => current + 1)
+    } catch (error) {
+      setDepositStatusMessage(undefined)
+      setDepositError(
+        error instanceof Error
+          ? error.message
+          : "Failed to deposit to trading account."
+      )
+    } finally {
+      setIsDepositing(false)
+    }
+  }
+
+  async function handleWithdrawFromTradingAccount() {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!portfolioState.managerId) {
+      setWithdrawError("Create a trading account first.")
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setWithdrawError(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!selectedWithdrawAmount) {
+      setWithdrawError("Enter a positive withdrawal amount")
+      return
+    }
+
+    const managerBalance = BigInt(
+      Math.floor(portfolioState.managerSummary?.trading_balance ?? 0)
+    )
+
+    if (selectedWithdrawAmount > managerBalance) {
+      setWithdrawError("Withdrawal amount exceeds manager balance")
+      return
+    }
+
+    setIsWithdrawing(true)
+    setWithdrawError(undefined)
+    setWithdrawStatusMessage("Submitting withdrawal")
+
+    try {
+      const transaction = buildManagerWithdrawTransaction({
+        amount: selectedWithdrawAmount,
+        managerId: portfolioState.managerId,
+        walletAddress,
+      })
+
+      await executeSuiTransaction(signer, transaction)
+      resetTradingAccountState()
+      setTradingAccountModalMode(null)
+      setPositionRefreshNonce((current) => current + 1)
+    } catch (error) {
+      setWithdrawStatusMessage(undefined)
+      setWithdrawError(
+        error instanceof Error
+          ? error.message
+          : "Failed to withdraw from trading account."
+      )
+    } finally {
+      setIsWithdrawing(false)
+    }
+  }
+
+  async function handleRedeemPosition(position: PortfolioPosition) {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setRedeemState({
+        errorMessage: RECONNECT_SUI_WALLET_MESSAGE,
+        positionId: position.id,
+      })
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!portfolioState.managerId) {
+      setRedeemState({
+        errorMessage: "Could not resolve trading account.",
+        positionId: position.id,
+      })
+      return
+    }
+
+    const params = getPortfolioRedeemParams({ position, walletAddress })
+
+    if (!params) {
+      setRedeemState({
+        errorMessage: "This position is not redeemable yet.",
+        positionId: position.id,
+      })
+      return
+    }
+
+    setRedeemState({ positionId: position.id })
+
+    try {
+      await simulatePredictRedeemTransaction({
+        managerId: portfolioState.managerId,
+        params,
+      })
+
+      await executeSuiTransaction(
+        signer,
+        buildPredictRedeemTransaction({
+          managerId: portfolioState.managerId,
+          params,
+        })
+      )
+
+      setRedeemState({})
+      setPositionRefreshNonce((current) => current + 1)
+      refreshRoute()
+      window.setTimeout(refreshRoute, 1_500)
+    } catch (error) {
+      setRedeemState({
+        errorMessage:
+          error instanceof Error ? error.message : "Redeem failed.",
+        positionId: position.id,
+      })
+    }
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -828,7 +1194,67 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         ) : (
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
-              <AccountCard summary={summary} />
+              <AccountCard
+                managerSummary={portfolioState.managerSummary}
+                summary={summary}
+                onOpenDeposit={() => {
+                  resetTradingAccountState()
+                  setTradingAccountModalMode("deposit")
+                }}
+                onOpenWithdraw={() => {
+                  resetTradingAccountState()
+                  setTradingAccountModalMode("withdraw")
+                }}
+              />
+              <TradingAccountDialog
+                createManagerError={createManagerError}
+                depositAmount={depositAmount}
+                depositError={depositError}
+                depositStatusMessage={depositStatusMessage}
+                dusdcBalance={portfolioState.dusdcBalance}
+                isCreatingManager={isCreatingManager}
+                isDepositing={isDepositing}
+                isWithdrawing={isWithdrawing}
+                managerId={portfolioState.managerId}
+                managerSummary={portfolioState.managerSummary}
+                mode={tradingAccountModalMode}
+                summary={summary}
+                withdrawAmount={withdrawAmount}
+                withdrawError={withdrawError}
+                withdrawStatusMessage={withdrawStatusMessage}
+                walletAddress={walletAddress}
+                onCreateManager={handleCreateTradingAccount}
+                onDepositAmountChange={setDepositAmount}
+                onDepositMax={() =>
+                  setDepositAmount(
+                    formatDecimalUnits(
+                      portfolioState.dusdcBalance,
+                      PREDICT_QUOTE_DECIMALS
+                    )
+                  )
+                }
+                onDepositSubmit={handleDepositToTradingAccount}
+                onOpenChange={(open) => {
+                  if (!open) {
+                    setTradingAccountModalMode(null)
+                    resetTradingAccountState()
+                  }
+                }}
+                onWithdrawAmountChange={setWithdrawAmount}
+                onWithdrawMax={() =>
+                  setWithdrawAmount(
+                    formatDecimalUnits(
+                      BigInt(
+                        Math.floor(
+                          portfolioState.managerSummary?.trading_balance ?? 0
+                        )
+                      ),
+                      PREDICT_QUOTE_DECIMALS
+                    )
+                  )
+                }
+                onWithdrawSubmit={handleWithdrawFromTradingAccount}
+              />
 
               <PortfolioChartCard
                 isLoading={portfolioState.isLoading}
@@ -842,11 +1268,18 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 {portfolioState.errorMessage}
               </div>
             ) : null}
+            {redeemState.errorMessage ? (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {redeemState.errorMessage}
+              </div>
+            ) : null}
 
             <PositionsLedger
               activeTab={activeTab}
               isLoading={portfolioState.isLoading}
+              onRedeemPosition={handleRedeemPosition}
               positions={filteredPositions}
+              redeemingPositionId={redeemState.positionId}
               searchQuery={searchQuery}
               totalPositions={portfolioState.positions}
               onSearchChange={setSearchQuery}
@@ -880,7 +1313,19 @@ function ConnectPortfolioCard({ onConnect }: { onConnect: () => void }) {
   )
 }
 
-function AccountCard({ summary }: { summary: PortfolioSummary }) {
+function AccountCard({
+  managerSummary,
+  summary,
+  onOpenDeposit,
+  onOpenWithdraw,
+}: {
+  managerSummary?: ManagerSummary
+  summary: PortfolioSummary
+  onOpenDeposit: () => void
+  onOpenWithdraw: () => void
+}) {
+  const managerBalance = toQuoteAmount(managerSummary?.trading_balance ?? 0)
+
   return (
     <Card className="gap-2 rounded-md border-0 bg-card py-0 pt-3 shadow-none ring-0">
       <div className="grid gap-4 px-3 py-3">
@@ -907,14 +1352,14 @@ function AccountCard({ summary }: { summary: PortfolioSummary }) {
 
         <div className="grid grid-cols-2 gap-3">
           <Metric
-            label="Cash Balance"
+            label="Available DUSDC"
             value={formatUsd(summary.availableDusdc)}
           />
-          <Metric label="PLP Value" value={formatUsd(summary.plpValueUsd)} />
           <Metric
-            label="Open Cost"
-            value={formatUsd(summary.openCostBasisUsd)}
+            label="Manager Balance"
+            value={formatUsd(managerBalance)}
           />
+          <Metric label="Vault Value" value={formatUsd(summary.plpValueUsd)} />
           <Metric
             label="Realized PnL"
             tone={
@@ -928,14 +1373,277 @@ function AccountCard({ summary }: { summary: PortfolioSummary }) {
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Button type="button">Deposit</Button>
-          <Button type="button" variant="secondary">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <Button
+            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            type="button"
+            onClick={onOpenDeposit}
+          >
+            Deposit
+          </Button>
+          <Button
+            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            type="button"
+            variant="secondary"
+            onClick={onOpenWithdraw}
+          >
             Withdraw
           </Button>
         </div>
       </div>
     </Card>
+  )
+}
+
+function TradingAccountDialog({
+  createManagerError,
+  depositAmount,
+  depositError,
+  depositStatusMessage,
+  dusdcBalance,
+  isCreatingManager,
+  isDepositing,
+  isWithdrawing,
+  managerId,
+  managerSummary,
+  mode,
+  summary,
+  withdrawAmount,
+  withdrawError,
+  withdrawStatusMessage,
+  walletAddress,
+  onCreateManager,
+  onDepositAmountChange,
+  onDepositMax,
+  onDepositSubmit,
+  onOpenChange,
+  onWithdrawAmountChange,
+  onWithdrawMax,
+  onWithdrawSubmit,
+}: {
+  createManagerError?: string
+  depositAmount: string
+  depositError?: string
+  depositStatusMessage?: string
+  dusdcBalance: bigint
+  isCreatingManager: boolean
+  isDepositing: boolean
+  isWithdrawing: boolean
+  managerId?: string
+  managerSummary?: ManagerSummary
+  mode: TradingAccountModalMode | null
+  summary: PortfolioSummary
+  withdrawAmount: string
+  withdrawError?: string
+  withdrawStatusMessage?: string
+  walletAddress?: string
+  onCreateManager: () => Promise<void>
+  onDepositAmountChange: (value: string) => void
+  onDepositMax: () => void
+  onDepositSubmit: () => Promise<void>
+  onOpenChange: (open: boolean) => void
+  onWithdrawAmountChange: (value: string) => void
+  onWithdrawMax: () => void
+  onWithdrawSubmit: () => Promise<void>
+}) {
+  const isOpen = mode !== null
+  const isDepositMode = mode === "deposit"
+  const title = isDepositMode
+    ? "Deposit to Trading Account"
+    : "Withdraw from Trading Account"
+  const description = isDepositMode
+    ? "Move DUSDC from the connected wallet into the PredictManager used for trading."
+    : "Move available manager balance back from the PredictManager to the connected wallet."
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4">
+          <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <AccountModalRow
+              label="Connected wallet"
+              value={walletAddress ? formatAddress(walletAddress) : "Not connected"}
+            />
+            <AccountModalRow
+              label="Trading account"
+              value={managerId ? formatAddress(managerId) : "No trading account"}
+            />
+          </div>
+
+          {!managerId ? (
+            <div className="grid gap-3">
+              <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                Create a trading account to start moving funds in and out.
+              </div>
+              {createManagerError ? (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {createManagerError}
+                </div>
+              ) : null}
+            </div>
+          ) : isDepositMode ? (
+            <div className="grid gap-3">
+              <div className="rounded-lg border border-border/60 bg-card/70 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
+                    htmlFor="deposit-amount"
+                  >
+                    Deposit Amount
+                  </label>
+                  <button
+                    className="text-xs font-medium text-primary"
+                    type="button"
+                    onClick={onDepositMax}
+                  >
+                    MAX
+                  </button>
+                </div>
+                <Input
+                  id="deposit-amount"
+                  className="mt-2"
+                  inputMode="decimal"
+                  placeholder="Enter DUSDC amount"
+                  value={depositAmount}
+                  onChange={(event) => onDepositAmountChange(event.target.value)}
+                />
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    Available:{" "}
+                    {`${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                  </span>
+                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
+                </div>
+              </div>
+
+              {depositError ? (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {depositError}
+                </div>
+              ) : null}
+              {depositStatusMessage ? (
+                <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  {depositStatusMessage}
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              <div className="rounded-lg border border-border/60 bg-card/70 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <label
+                    className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
+                    htmlFor="withdraw-amount"
+                  >
+                    Withdraw Amount
+                  </label>
+                  <button
+                    className="text-xs font-medium text-primary"
+                    type="button"
+                    onClick={onWithdrawMax}
+                  >
+                    MAX
+                  </button>
+                </div>
+                <Input
+                  id="withdraw-amount"
+                  className="mt-2"
+                  inputMode="decimal"
+                  placeholder="Enter DUSDC amount"
+                  value={withdrawAmount}
+                  onChange={(event) => onWithdrawAmountChange(event.target.value)}
+                />
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>
+                    Available:{" "}
+                    {`${formatDecimalUnits(BigInt(Math.floor(managerSummary?.trading_balance ?? 0)), PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
+                  </span>
+                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
+                </div>
+              </div>
+
+              {withdrawError ? (
+                <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                  {withdrawError}
+                </div>
+              ) : null}
+              {withdrawStatusMessage ? (
+                <div className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+                  {withdrawStatusMessage}
+                </div>
+              ) : null}
+            </div>
+          )}
+
+          <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+            {managerId
+              ? isDepositMode
+                ? "Funds move from your wallet into the trading account."
+                : "Funds move from the trading account back to your wallet."
+              : "Create a trading account first."}
+          </div>
+        </div>
+
+        <DialogFooter showCloseButton>
+          {!managerId ? (
+            <Button
+              disabled={isCreatingManager}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void onCreateManager()
+              }}
+            >
+              {isCreatingManager ? "Creating..." : "Create Account"}
+            </Button>
+          ) : isDepositMode ? (
+            <Button
+              disabled={isDepositing}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void onDepositSubmit()
+              }}
+            >
+              {isDepositing ? "Depositing..." : "Confirm Deposit"}
+            </Button>
+          ) : (
+            <Button
+              disabled={isWithdrawing}
+              type="button"
+              variant="outline"
+              onClick={() => {
+                void onWithdrawSubmit()
+              }}
+            >
+              {isWithdrawing ? "Withdrawing..." : "Confirm Withdrawal"}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function AccountModalRow({
+  label,
+  value,
+}: {
+  label: string
+  value: string
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+        {label}
+      </span>
+      <span className="font-mono text-sm text-foreground">{value}</span>
+    </div>
   )
 }
 
@@ -1352,17 +2060,21 @@ function ExposureBar({
 function PositionsLedger({
   activeTab,
   isLoading,
+  onRedeemPosition,
   onSearchChange,
   onTabChange,
   positions,
+  redeemingPositionId,
   searchQuery,
   totalPositions,
 }: {
   activeTab: PortfolioTab
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   onSearchChange: (value: string) => void
   onTabChange: (value: PortfolioTab) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
   searchQuery: string
   totalPositions: PortfolioPosition[]
 }) {
@@ -1406,10 +2118,20 @@ function PositionsLedger({
       ) : (
         <>
           <div className="hidden overflow-auto lg:block">
-            <PositionsTable isLoading={isLoading} positions={positions} />
+            <PositionsTable
+              isLoading={isLoading}
+              onRedeemPosition={onRedeemPosition}
+              positions={positions}
+              redeemingPositionId={redeemingPositionId}
+            />
           </div>
           <div className="grid gap-2 p-3 lg:hidden">
-            <MobilePositionsList isLoading={isLoading} positions={positions} />
+            <MobilePositionsList
+              isLoading={isLoading}
+              onRedeemPosition={onRedeemPosition}
+              positions={positions}
+              redeemingPositionId={redeemingPositionId}
+            />
           </div>
         </>
       )}
@@ -1419,10 +2141,14 @@ function PositionsLedger({
 
 function PositionsTable({
   isLoading,
+  onRedeemPosition,
   positions,
+  redeemingPositionId,
 }: {
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
 }) {
   if (isLoading) {
     return <LedgerEmptyState message="Loading portfolio positions." />
@@ -1486,22 +2212,35 @@ function PositionsTable({
           <span className="truncate text-muted-foreground capitalize">
             {position.status}
           </span>
-          <Button
-            className="justify-self-end text-muted-foreground"
-            render={
-              <Link
-                params={{ oracleId: position.oracleId }}
-                search={position.manageSearch}
-                to="/markets/$oracleId"
-              />
-            }
-            size="xs"
-            type="button"
-            variant="ghost"
-          >
-            Manage
-            <ArrowUpRightIcon className="size-3" />
-          </Button>
+          {canRedeemPortfolioPosition(position) ? (
+            <Button
+              className="justify-self-end"
+              disabled={redeemingPositionId === position.id}
+              size="xs"
+              type="button"
+              variant="secondary"
+              onClick={() => onRedeemPosition(position)}
+            >
+              {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
+            </Button>
+          ) : (
+            <Button
+              className="justify-self-end text-muted-foreground"
+              render={
+                <Link
+                  params={{ oracleId: position.oracleId }}
+                  search={position.manageSearch}
+                  to="/markets/$oracleId"
+                />
+              }
+              size="xs"
+              type="button"
+              variant="ghost"
+            >
+              Manage
+              <ArrowUpRightIcon className="size-3" />
+            </Button>
+          )}
         </div>
       ))}
     </div>
@@ -1532,10 +2271,14 @@ function LedgerEmptyState({ message }: { message: string }) {
 
 function MobilePositionsList({
   isLoading,
+  onRedeemPosition,
   positions,
+  redeemingPositionId,
 }: {
   isLoading: boolean
+  onRedeemPosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
+  redeemingPositionId?: string
 }) {
   if (isLoading) {
     return <LedgerEmptyState message="Loading portfolio positions." />
@@ -1566,20 +2309,32 @@ function MobilePositionsList({
             {formatQuantity(position.size)} contracts
           </div>
         </div>
-        <Button
-          render={
-            <Link
-              params={{ oracleId: position.oracleId }}
-              search={position.manageSearch}
-              to="/markets/$oracleId"
-            />
-          }
-          size="xs"
-          type="button"
-          variant="ghost"
-        >
-          Manage
-        </Button>
+        {canRedeemPortfolioPosition(position) ? (
+          <Button
+            disabled={redeemingPositionId === position.id}
+            size="xs"
+            type="button"
+            variant="secondary"
+            onClick={() => onRedeemPosition(position)}
+          >
+            {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
+          </Button>
+        ) : (
+          <Button
+            render={
+              <Link
+                params={{ oracleId: position.oracleId }}
+                search={position.manageSearch}
+                to="/markets/$oracleId"
+              />
+            }
+            size="xs"
+            type="button"
+            variant="ghost"
+          >
+            Manage
+          </Button>
+        )}
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <MobileStat

@@ -2,7 +2,7 @@ import {
   PREDICT_OBJECT_ID,
   PREDICT_SERVER_URL,
 } from "@/lib/config"
-import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, LpSupplyEvent, LpWithdrawalEvent, OracleInfo, OraclePriceUpdate, OracleStateResponse, OracleSviUpdate, ManagerPositionSummary, ManagerRangeActivityResponse, PredictManagerCreatedEvent, RangeMintEvent, RangeRedeemEvent, VaultPerformancePoint, VaultPerformanceResponse, VaultSummary} from "@/lib/types/predict";
+import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, LpSupplyEvent, LpWithdrawalEvent, ManagerBalance, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, OraclePriceUpdate, OracleStateResponse, OracleSviUpdate, PredictManagerCreatedEvent, RangeMintEvent, RangeRedeemEvent, VaultPerformancePoint, VaultPerformanceResponse, VaultSummary} from "@/lib/types/predict";
 
 export class PredictServerError extends Error {
   constructor(message: string) {
@@ -492,6 +492,52 @@ function parseManagerPositionSummary(value: unknown): ManagerPositionSummary {
   }
 }
 
+function parseManagerBalance(value: unknown): ManagerBalance {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager balance must be an object"
+    )
+  }
+
+  return {
+    quote_asset: readString(value, "quote_asset"),
+    balance: readNumber(value, "balance"),
+  }
+}
+
+function parseManagerSummary(value: unknown): ManagerSummary {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager summary must be an object"
+    )
+  }
+
+  const balances = value.balances
+
+  if (!Array.isArray(balances)) {
+    throw new PredictServerError(
+      "Invalid Predict response: manager balances must be an array"
+    )
+  }
+
+  return {
+    manager_id: readString(value, "manager_id"),
+    owner: readString(value, "owner"),
+    balances: balances.map(parseManagerBalance),
+    trading_balance: readNumber(value, "trading_balance"),
+    open_exposure: readNumber(value, "open_exposure"),
+    redeemable_value: readNumber(value, "redeemable_value"),
+    realized_pnl: readNumber(value, "realized_pnl"),
+    unrealized_pnl: readNumber(value, "unrealized_pnl"),
+    account_value: readNumber(value, "account_value"),
+    open_positions: readNumber(value, "open_positions"),
+    awaiting_settlement_positions: readNumber(
+      value,
+      "awaiting_settlement_positions"
+    ),
+  }
+}
+
 function parseOracleInfoArray(value: unknown): OracleInfo[] {
   if (!Array.isArray(value)) {
     throw new PredictServerError(
@@ -762,6 +808,13 @@ export function getManagerPositionSummaries(managerId: string) {
   return readPredictJson(
     `/managers/${encodeURIComponent(managerId)}/positions/summary`,
     parseManagerPositionSummaryArray
+  )
+}
+
+export function getManagerSummary(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/summary`,
+    parseManagerSummary
   )
 }
 

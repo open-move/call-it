@@ -3,17 +3,29 @@ import { Avatar as DicebearAvatar, Style } from "@dicebear/core"
 import glyphs from "@dicebear/styles/glyphs.json"
 import { useEffect, useMemo, useState } from "react"
 import { formatAddress } from "@mysten/sui/utils"
+import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
   CoinsIcon,
   CopyIcon,
+  DatabaseZapIcon,
   LogOutIcon,
+  PiggyBankIcon,
   SettingsIcon,
   SquareArrowOutUpRightIcon,
   UserRoundIcon,
+  WalletCardsIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,10 +36,13 @@ import {
 } from "@/components/primitives/dropdown-menu"
 import { formatDecimalUnits } from "@/lib/amounts"
 import {
+  PREDICT_LP_ASSET,
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
 } from "@/lib/config"
+import { getManagerSummary, getPredictManagers } from "@/services/predict-client"
 import { getSuiGrpcClient } from "@/services/sui-client"
+import type {ManagerSummary} from "@/lib/types/predict";
 
 const walletButtonClassName =
   "border-0 bg-white/[0.06] text-white/88 shadow-none hover:bg-white/[0.1] hover:text-white focus-visible:ring-white/20"
@@ -111,6 +126,246 @@ function BalanceSegment({ walletAddress }: { walletAddress: string }) {
         {balanceLabel}
       </span>
     </div>
+  )
+}
+
+function toQuoteAmount(value: number) {
+  return value / 10 ** PREDICT_QUOTE_DECIMALS
+}
+
+function AccountValue({
+  isLoading,
+  value,
+}: {
+  isLoading?: boolean
+  value: string
+}) {
+  return (
+    <div className="mt-1 min-w-0 break-all font-mono text-base text-foreground tabular-nums sm:text-lg">
+      {isLoading ? "--" : value}
+    </div>
+  )
+}
+
+function AccountSection({
+  icon: Icon,
+  label,
+  primaryLabel,
+  primaryValue,
+  secondaryLabel,
+  secondaryValue,
+  isLoading,
+}: {
+  icon: typeof WalletCardsIcon
+  isLoading?: boolean
+  label: string
+  primaryLabel: string
+  primaryValue: string
+  secondaryLabel?: string
+  secondaryValue?: string
+}) {
+  return (
+    <div className="min-w-0 rounded-lg border border-border/60 bg-card/70 p-4">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Icon className="size-3.5" />
+        <span>{label}</span>
+      </div>
+      <div
+        className={`mt-4 grid gap-4 ${secondaryLabel && secondaryValue ? "sm:grid-cols-2" : ""}`}
+      >
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">{primaryLabel}</div>
+          <AccountValue isLoading={isLoading} value={primaryValue} />
+        </div>
+        {secondaryLabel && secondaryValue ? (
+          <div className="min-w-0">
+            <div className="text-xs text-muted-foreground">{secondaryLabel}</div>
+            <AccountValue isLoading={isLoading} value={secondaryValue} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
+function AccountHubDialog({
+  address,
+  email,
+  onOpenChange,
+  onOpenDynamicProfile,
+  onSignOut,
+  open,
+}: {
+  address?: string
+  email?: string
+  onOpenChange: (open: boolean) => void
+  onOpenDynamicProfile: () => void
+  onSignOut: () => Promise<void>
+  open: boolean
+}) {
+  const [dusdcBalance, setDusdcBalance] = useState<bigint>()
+  const [plpBalance, setPlpBalance] = useState<bigint>()
+  const [isLoadingAccount, setIsLoadingAccount] = useState(false)
+  const [managerSummary, setManagerSummary] = useState<ManagerSummary>()
+
+  useEffect(() => {
+    let isStale = false
+
+    async function loadAccount() {
+      if (!open || !address) {
+        return
+      }
+
+      setIsLoadingAccount(true)
+
+      try {
+        const client = getSuiGrpcClient()
+        const [dusdc, plp, managers] = await Promise.all([
+          client.getBalance({
+            coinType: PREDICT_QUOTE_ASSET,
+            owner: address,
+          }),
+          client.getBalance({
+            coinType: PREDICT_LP_ASSET,
+            owner: address,
+          }),
+          getPredictManagers(address),
+        ])
+        const manager = managers.at(0)
+        const nextManagerSummary = manager
+          ? await getManagerSummary(manager.manager_id)
+          : undefined
+
+        if (!isStale) {
+          setDusdcBalance(BigInt(dusdc.balance.balance))
+          setPlpBalance(BigInt(plp.balance.balance))
+          setManagerSummary(nextManagerSummary)
+        }
+      } catch {
+        if (!isStale) {
+          setDusdcBalance(undefined)
+          setPlpBalance(undefined)
+          setManagerSummary(undefined)
+        }
+      } finally {
+        if (!isStale) {
+          setIsLoadingAccount(false)
+        }
+      }
+    }
+
+    void loadAccount()
+
+    return () => {
+      isStale = true
+    }
+  }, [address, open])
+
+  const walletDusdcLabel =
+    dusdcBalance === undefined
+      ? "--"
+      : `${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+  const walletPlpLabel =
+    plpBalance === undefined
+      ? "--"
+      : `${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+  const managerBalanceLabel = managerSummary
+    ? `${toQuoteAmount(managerSummary.trading_balance).toLocaleString("en-US", {
+        maximumFractionDigits: 4,
+      })}`
+    : "--"
+  const realizedPnlLabel = managerSummary
+    ? `${toQuoteAmount(managerSummary.realized_pnl).toLocaleString("en-US", {
+        maximumFractionDigits: 4,
+      })}`
+    : "--"
+  const vaultValueLabel = walletPlpLabel
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Account</DialogTitle>
+          <DialogDescription>
+            Wallet, trading account, and vault balances in one place.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid gap-4 overflow-hidden">
+          <div className="min-w-0 rounded-lg border border-border/60 bg-muted/20 p-4">
+            <div className="break-all text-sm text-foreground">
+              {address ? formatAddress(address) : "No wallet connected"}
+            </div>
+            <div className="mt-1 text-xs text-muted-foreground">
+              {email || "Wallet session"}
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <AccountSection
+              icon={WalletCardsIcon}
+              isLoading={isLoadingAccount}
+              label="Wallet"
+              primaryLabel="DUSDC"
+              primaryValue={walletDusdcLabel}
+              secondaryLabel="PLP"
+              secondaryValue={walletPlpLabel}
+            />
+            <AccountSection
+              icon={DatabaseZapIcon}
+              isLoading={isLoadingAccount}
+              label="Trading Account"
+              primaryLabel="Manager Balance"
+              primaryValue={managerBalanceLabel}
+              secondaryLabel="Realized PnL"
+              secondaryValue={realizedPnlLabel}
+            />
+            <AccountSection
+              icon={PiggyBankIcon}
+              isLoading={isLoadingAccount}
+              label="Vault"
+              primaryLabel="Vault Value"
+              primaryValue={vaultValueLabel}
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="flex-wrap gap-2 sm:justify-end" showCloseButton>
+          <Button
+            className="w-full sm:w-auto"
+            render={<Link to="/earn" />}
+            type="button"
+            variant="outline"
+          >
+            Open Earn
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            render={<Link to="/portfolio" />}
+            type="button"
+            variant="outline"
+          >
+            Open Portfolio
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            type="button"
+            variant="outline"
+            onClick={onOpenDynamicProfile}
+          >
+            Wallet Settings
+          </Button>
+          <Button
+            className="w-full sm:w-auto"
+            type="button"
+            variant="outline"
+            onClick={() => void onSignOut()}
+          >
+            Sign Out
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -250,6 +505,7 @@ function DynamicWalletButton() {
     setShowDynamicUserProfile,
     user,
   } = useDynamicContext()
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
 
   if (!sdkHasLoaded) {
     return (
@@ -266,26 +522,45 @@ function DynamicWalletButton() {
 
   if (primaryWallet) {
     return (
-      <AccountCluster
-        address={primaryWallet.address}
-        email={user?.email}
-        onOpenProfile={() => setShowDynamicUserProfile(true)}
-        onSignOut={handleLogOut}
-      />
+      <>
+        <AccountCluster
+          address={primaryWallet.address}
+          email={user?.email}
+          onOpenProfile={() => setIsAccountModalOpen(true)}
+          onSignOut={handleLogOut}
+        />
+        <AccountHubDialog
+          address={primaryWallet.address}
+          email={user?.email}
+          open={isAccountModalOpen}
+          onOpenChange={setIsAccountModalOpen}
+          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
+          onSignOut={handleLogOut}
+        />
+      </>
     )
   }
 
   if (user) {
     return (
-      <Button
-        className={walletButtonClassName}
-        size="sm"
-        type="button"
-        variant="ghost"
-        onClick={() => setShowDynamicUserProfile(true)}
-      >
-        Account
-      </Button>
+      <>
+        <Button
+          className={walletButtonClassName}
+          size="sm"
+          type="button"
+          variant="ghost"
+          onClick={() => setIsAccountModalOpen(true)}
+        >
+          Account
+        </Button>
+        <AccountHubDialog
+          email={user.email}
+          open={isAccountModalOpen}
+          onOpenChange={setIsAccountModalOpen}
+          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
+          onSignOut={handleLogOut}
+        />
+      </>
     )
   }
 
