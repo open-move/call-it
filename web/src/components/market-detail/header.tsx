@@ -139,7 +139,6 @@ function MarketSelector({
                     )}
                     key={option.oracleId}
                     params={{ oracleId: option.oracleId }}
-                    search={{ strike: option.strikePriceUsd }}
                     to="/markets/$oracleId"
                   >
                     <AssetIcon

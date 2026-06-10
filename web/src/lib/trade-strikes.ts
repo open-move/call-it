@@ -1,10 +1,7 @@
-import { QUOTE_QUANTITY } from "@/lib/config"
-import { quotePredictTradeSafe } from "@/services/predict-quotes"
 import type {MarketSnapshot} from "@/lib/types/market";
 
 import { computeFairUpProbability } from "./market-svi"
 
-const QUOTE_SENDER = "0x797"
 const SAFE_MIN_FAIR_UP = 0.05
 const SAFE_MAX_FAIR_UP = 0.95
 const CANDIDATE_OFFSETS = [
@@ -119,22 +116,9 @@ export function getStableTradeStrike(snapshot: MarketSnapshot) {
   return getStableTradeStrikeCandidates(snapshot)[0] ?? snapshot.strikePriceUsd
 }
 
-export async function getQuoteableTradeStrike(snapshot: MarketSnapshot) {
-  for (const strikePriceUsd of getStableTradeStrikeCandidates(snapshot)) {
-    const quote = await quotePredictTradeSafe({
-      expiryMs: snapshot.expiryMs,
-      isUp: true,
-      kind: "binary",
-      oracleId: snapshot.oracleId,
-      quantity: QUOTE_QUANTITY,
-      strikePriceUsd,
-      walletAddress: QUOTE_SENDER,
-    })
-
-    if (quote.status === "quoted") {
-      return strikePriceUsd
-    }
-  }
-
-  return getStableTradeStrike(snapshot)
+export function getDefaultTradeStrike(snapshot: MarketSnapshot) {
+  return normalizeTradeStrike(
+    snapshot.forwardPriceUsd || snapshot.currentPriceUsd,
+    snapshot
+  )
 }

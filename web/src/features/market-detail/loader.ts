@@ -1,14 +1,9 @@
-import { QUOTE_QUANTITY as TOOLBAR_QUOTE_QUANTITY } from "@/lib/config"
 import type {ExpiryOption, MarketSnapshot} from "@/lib/types/market";
-import type {ToolbarQuote} from "@/lib/types/trade";
 import { presentTradeMarkets } from "@/lib/trade-presenter"
 import {
   getPredictOracles,
 } from "@/services/predict-client"
-import { quotePredictTradeSafe } from "@/services/predict-quotes"
 import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
-
-const TOOLBAR_QUOTE_SENDER = "0x797"
 
 export async function loadExpiryOptions(
   market: MarketSnapshot
@@ -31,38 +26,6 @@ export async function loadExpiryOptions(
       oracleId: oracle.oracle_id,
       status: oracle.status,
     }))
-}
-
-export async function loadToolbarQuote({
-  expiryMs,
-  oracleId,
-  selectedStrikePriceUsd,
-}: {
-  expiryMs: number
-  oracleId: string
-  selectedStrikePriceUsd: number
-}): Promise<ToolbarQuote | null> {
-  const quote = await quotePredictTradeSafe({
-    expiryMs,
-    isUp: true,
-    kind: "binary",
-    oracleId,
-    quantity: TOOLBAR_QUOTE_QUANTITY,
-    strikePriceUsd: selectedStrikePriceUsd,
-    walletAddress: TOOLBAR_QUOTE_SENDER,
-  })
-
-  if (quote.status !== "quoted") {
-    return null
-  }
-
-  const spread = quote.mintCost - quote.redeemPayout
-
-  return {
-    aboveAsk: Number(quote.mintCost),
-    aboveBid: Number(quote.redeemPayout),
-    spread: Number(spread > 0n ? spread : 0n),
-  }
 }
 
 export async function loadMarketOptions(market: MarketSnapshot) {

@@ -307,7 +307,6 @@ function LiveShowcase({
               className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
               key={market.id}
               params={{ oracleId: market.oracleId }}
-              search={{ strike: market.strikePriceUsd }}
               to="/markets/$oracleId"
             >
               <AssetIcon
@@ -382,7 +381,6 @@ function LiveShowcase({
             <Link
               className="relative inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
               params={{ oracleId: nearestMarket.oracleId }}
-              search={{ strike: nearestMarket.strikePriceUsd }}
               to="/markets/$oracleId"
             >
               Next expiry in {formatExpiryDistance(nearestMarket.expiryMs)}

@@ -1,4 +1,4 @@
-import { createFileRoute, notFound, redirect } from "@tanstack/react-router"
+import { createFileRoute, notFound } from "@tanstack/react-router"
 import { MarketDetailSkeleton } from "@/components/shared/pending-skeleton"
 
 import { Page as MarketDetailPage } from "@/components/market-detail/page"
@@ -10,7 +10,7 @@ import {
   filterRangeTrades,
   filterRedemptions,
 } from "@/lib/trade-activity"
-import { getQuoteableTradeStrike } from "@/lib/trade-strikes"
+import { getDefaultTradeStrike } from "@/lib/trade-strikes"
 import { filterTrades } from "@/lib/trade-trades"
 import {
   getDirectionalPositionMints,
@@ -21,7 +21,6 @@ import {
 import { marketSearchSchema, getInitialSide } from "@/features/market-detail/search"
 import {
   loadExpiryOptions,
-  loadToolbarQuote,
   loadMarketOptions,
 } from "@/features/market-detail/loader"
 
@@ -39,17 +38,7 @@ export const Route = createFileRoute("/markets/$oracleId")({
       throw notFound()
     }
 
-    if (!deps.strike) {
-      const quoteableStrikePriceUsd = await getQuoteableTradeStrike(market)
-
-      throw redirect({
-        to: "/markets/$oracleId",
-        params: { oracleId: market.oracleId },
-        search: { strike: quoteableStrikePriceUsd },
-      })
-    }
-
-    const selectedStrikePriceUsd = deps.strike
+    const selectedStrikePriceUsd = deps.strike ?? getDefaultTradeStrike(market)
     const [
       expiryOptions,
       positionMints,
@@ -57,7 +46,6 @@ export const Route = createFileRoute("/markets/$oracleId")({
       rangeMints,
       rangeRedeems,
       marketOptions,
-      toolbarQuote,
     ] = await Promise.all([
       loadExpiryOptions(market),
       getDirectionalPositionMints(250, market.oracleId),
@@ -65,11 +53,6 @@ export const Route = createFileRoute("/markets/$oracleId")({
       getRangeMints(250, market.oracleId),
       getRangeRedeems(250, market.oracleId),
       loadMarketOptions(market),
-      loadToolbarQuote({
-        expiryMs: market.expiryMs,
-        oracleId: market.oracleId,
-        selectedStrikePriceUsd,
-      }),
     ])
     const activityOptions = {
       expiryMs: market.expiryMs,
@@ -85,7 +68,7 @@ export const Route = createFileRoute("/markets/$oracleId")({
       rangeTrades: filterRangeTrades(rangeMints, activityOptions),
       redemptions: filterRedemptions(positionRedeems, activityOptions),
       selectedStrikePriceUsd,
-      toolbarQuote,
+      toolbarQuote: null,
       trades: filterTrades(positionMints, activityOptions),
     }
   },
@@ -97,17 +80,17 @@ function Market() {
   const loaderData = Route.useLoaderData()
 
   return (
-      <MarketDetailPage
-        expiryOptions={loaderData.expiryOptions}
-        initialSide={loaderData.initialSide}
-        market={loaderData.market}
-        marketOptions={loaderData.marketOptions}
-        rangeRedemptions={loaderData.rangeRedemptions}
-        rangeTrades={loaderData.rangeTrades}
-        redemptions={loaderData.redemptions}
-        selectedStrikePriceUsd={loaderData.selectedStrikePriceUsd}
-        toolbarQuote={loaderData.toolbarQuote}
-        trades={loaderData.trades}
-      />
+    <MarketDetailPage
+      expiryOptions={loaderData.expiryOptions}
+      initialSide={loaderData.initialSide}
+      market={loaderData.market}
+      marketOptions={loaderData.marketOptions}
+      rangeRedemptions={loaderData.rangeRedemptions}
+      rangeTrades={loaderData.rangeTrades}
+      redemptions={loaderData.redemptions}
+      selectedStrikePriceUsd={loaderData.selectedStrikePriceUsd}
+      toolbarQuote={loaderData.toolbarQuote}
+      trades={loaderData.trades}
+    />
   )
 }

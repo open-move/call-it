@@ -43,7 +43,6 @@ export function Row({ market }: RowProps) {
         aria-label={`Open ${market.assetName} market`}
         className="hidden min-h-14 px-3 py-2 transition-colors hover:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center"
         params={{ oracleId: market.oracleId }}
-        search={{ strike: market.strikePriceUsd }}
         to="/markets/$oracleId"
       >
         {/* Column 1: Identity */}
@@ -144,7 +143,6 @@ export function Row({ market }: RowProps) {
         aria-label={`Open ${market.assetName} market`}
         className="block space-y-2 rounded-md bg-card p-3 transition-colors hover:bg-accent/25 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:hidden"
         params={{ oracleId: market.oracleId }}
-        search={{ strike: market.strikePriceUsd }}
         to="/markets/$oracleId"
       >
         <div className="flex items-start justify-between gap-3">
