@@ -37,7 +37,7 @@ export async function simulateSuiTransaction(
 
   return {
     status: "success",
-    commandResults: [],
-    events: [],
+    commandResults: result.commandResults ?? [],
+    events: result.Transaction.events ?? [],
   }
 }

@@ -45,7 +45,7 @@ import {
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
 import { getPredictManagers } from "@/services/predict-client"
-import { useAppRouteRefresh, useAppSearchParams } from "@/lib/hooks/router"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { cn, sleep } from "@/lib/utils"
 
 type TicketMode = "binary" | "range"
@@ -54,6 +54,7 @@ type ContractSide = "above" | "below"
 export interface OrderTicketProps {
   initialSide?: ContractSide
   market: MarketSnapshot
+  onStrikeChange?: (strikePriceUsd: number) => void
   selectedStrikePriceUsd: number
   tradeIntent?: PositionTradeIntent
 }
@@ -261,12 +262,12 @@ function OrderTicketFallback(_props: OrderTicketProps) {
 function OrderTicketClient({
   initialSide = "above",
   market,
+  onStrikeChange,
   selectedStrikePriceUsd,
   tradeIntent,
 }: OrderTicketProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const refreshRoute = useAppRouteRefresh()
-  const [currentSearchParams, setSearchParams] = useAppSearchParams()
   const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
   const [contractSide, setContractSide] = useState<ContractSide>(initialSide)
   const [ticketStrikePriceUsd, setTicketStrikePriceUsd] = useState(
@@ -333,19 +334,12 @@ function OrderTicketClient({
       nextStrikePriceUsd,
       market
     )
-    const strikeParam = formatStrikeSearchParam(normalizedStrikePriceUsd)
-    const nextSearchParams = new URLSearchParams(currentSearchParams)
 
     setTicketStrikePriceUsd(normalizedStrikePriceUsd)
     setCustomStrike(formatStrikeInput(normalizedStrikePriceUsd))
     setQuote(undefined)
-
-    if (nextSearchParams.get("strike") === strikeParam) {
-      return
-    }
-
-    nextSearchParams.set("strike", strikeParam)
-    setSearchParams(nextSearchParams)
+    onStrikeChange?.(normalizedStrikePriceUsd)
+    pinStrikeSearchParam(normalizedStrikePriceUsd)
   }
 
   useEffect(() => {
@@ -385,6 +379,7 @@ function OrderTicketClient({
     setContractSide(tradeIntent.side)
     setTicketStrikePriceUsd(nextStrikePriceUsd)
     setCustomStrike(formatStrikeInput(nextStrikePriceUsd))
+    onStrikeChange?.(nextStrikePriceUsd)
     pinStrikeSearchParam(nextStrikePriceUsd)
     setStatusMessage(
       `Loaded ${market.assetSymbol} ${formatStrikeValue(

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import type {ExpiryOption, MarketSnapshot} from "@/lib/types/market";
 import type {PositionTradeIntent, RangeRedemption, RangeTrade, Redemption, TradeMarket, ToolbarQuote, Trade} from "@/lib/types/trade";
@@ -41,11 +41,18 @@ export function Page({
   trades,
 }: PageProps) {
   const [tradeIntent, setTradeIntent] = useState<PositionTradeIntent>()
+  const [activeStrikePriceUsd, setActiveStrikePriceUsd] = useState(
+    selectedStrikePriceUsd
+  )
   const tradeActivityRows = getTradeActivityRows(trades, rangeTrades)
   const redemptionActivityRows = getRedemptionActivityRows(
     redemptions,
     rangeRedemptions
   )
+
+  useEffect(() => {
+    setActiveStrikePriceUsd(selectedStrikePriceUsd)
+  }, [market.oracleId, selectedStrikePriceUsd])
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
@@ -56,7 +63,7 @@ export function Page({
               <Header
                 market={market}
                 marketOptions={marketOptions}
-                selectedStrikePriceUsd={selectedStrikePriceUsd}
+                selectedStrikePriceUsd={activeStrikePriceUsd}
                 toolbarQuote={toolbarQuote}
               />
 
@@ -70,7 +77,7 @@ export function Page({
                 assetSymbol={market.assetSymbol}
                 oracleId={market.oracleId}
                 points={market.priceHistory}
-                selectedStrikePriceUsd={selectedStrikePriceUsd}
+                selectedStrikePriceUsd={activeStrikePriceUsd}
               />
             </Card>
           </div>
@@ -99,7 +106,8 @@ export function Page({
           <OrderTicket
             initialSide={initialSide}
             market={market}
-            selectedStrikePriceUsd={selectedStrikePriceUsd}
+            onStrikeChange={setActiveStrikePriceUsd}
+            selectedStrikePriceUsd={activeStrikePriceUsd}
             tradeIntent={tradeIntent}
           />
         </aside>
