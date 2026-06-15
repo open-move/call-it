@@ -3,6 +3,7 @@ import { ShieldCheckIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { BadgeTone } from "@/components/primitives/badge"
+import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { DetailChartCard } from "@/components/shared/detail/detail-chart-card"
 import { DetailTabs } from "@/components/shared/detail/detail-tabs"
 import {
@@ -210,6 +211,17 @@ export function DetailPage({ expiryProducts, product }: DetailPageProps) {
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
+      <div className="mb-3">
+        <ProtectionFamilyHeader
+          actions={[
+            { href: "/shield/claims", label: "Claims" },
+            { href: "/shield", label: "All Shield products" },
+          ]}
+          description={`Product 0 · Yield Shield / Hedged PLP Note. ${product.market.assetSymbol} protection below ${formatUsd(product.protectionStrikeUsd, 0)} with a hedge budget capped at ${product.hedgeBudgetBps / 100}%.`}
+          title="Shield"
+        />
+      </div>
+
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3">
           <div className="h-120 min-w-0">

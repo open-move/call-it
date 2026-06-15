@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 
 import { AssetIcon } from "@/components/shared/market/asset-icon"
+import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -243,8 +244,19 @@ export function Page({ products }: PageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         <div className="flex flex-col gap-4">
+          <ProtectionFamilyHeader
+            actions={[
+              { href: "/shield/claims", label: "Claims" },
+              { href: "/protection", label: "Back to Protection" },
+            ]}
+            description="Product 0 · Yield Shield / Hedged PLP Note. Browse live Shield configurations by asset, tenor, and protection budget."
+            title="Shield"
+          />
+
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm font-medium text-foreground">Shield</div>
+            <div className="text-sm font-medium text-foreground">
+              Live Shield products
+            </div>
 
             <ShieldSearchControls
               assetOptions={assetOptions}
