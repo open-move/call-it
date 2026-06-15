@@ -10,18 +10,25 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShieldRouteRouteImport } from './routes/shield/route'
+import { Route as ProtectionRouteRouteImport } from './routes/protection/route'
 import { Route as PortfolioRouteRouteImport } from './routes/portfolio/route'
 import { Route as MarketsRouteRouteImport } from './routes/markets/route'
 import { Route as EarnRouteRouteImport } from './routes/earn/route'
 import { Route as IndexRouteRouteImport } from './routes/index/route'
 import { Route as ShieldIndexRouteImport } from './routes/shield/index'
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
+import { Route as ShieldClaimsRouteImport } from './routes/shield/claims'
 import { Route as ShieldOracleIdRouteRouteImport } from './routes/shield/$oracleId/route'
 import { Route as MarketsOracleIdRouteRouteImport } from './routes/markets/$oracleId/route'
 
 const ShieldRouteRoute = ShieldRouteRouteImport.update({
   id: '/shield',
   path: '/shield',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProtectionRouteRoute = ProtectionRouteRouteImport.update({
+  id: '/protection',
+  path: '/protection',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRouteRoute = PortfolioRouteRouteImport.update({
@@ -54,6 +61,11 @@ const MarketsIndexRoute = MarketsIndexRouteImport.update({
   path: '/',
   getParentRoute: () => MarketsRouteRoute,
 } as any)
+const ShieldClaimsRoute = ShieldClaimsRouteImport.update({
+  id: '/claims',
+  path: '/claims',
+  getParentRoute: () => ShieldRouteRoute,
+} as any)
 const ShieldOracleIdRouteRoute = ShieldOracleIdRouteRouteImport.update({
   id: '/$oracleId',
   path: '/$oracleId',
@@ -70,9 +82,11 @@ export interface FileRoutesByFullPath {
   '/earn': typeof EarnRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
+  '/protection': typeof ProtectionRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
+  '/shield/claims': typeof ShieldClaimsRoute
   '/markets/': typeof MarketsIndexRoute
   '/shield/': typeof ShieldIndexRoute
 }
@@ -80,8 +94,10 @@ export interface FileRoutesByTo {
   '/': typeof IndexRouteRoute
   '/earn': typeof EarnRouteRoute
   '/portfolio': typeof PortfolioRouteRoute
+  '/protection': typeof ProtectionRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
+  '/shield/claims': typeof ShieldClaimsRoute
   '/markets': typeof MarketsIndexRoute
   '/shield': typeof ShieldIndexRoute
 }
@@ -91,9 +107,11 @@ export interface FileRoutesById {
   '/earn': typeof EarnRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
+  '/protection': typeof ProtectionRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/shield/$oracleId': typeof ShieldOracleIdRouteRoute
+  '/shield/claims': typeof ShieldClaimsRoute
   '/markets/': typeof MarketsIndexRoute
   '/shield/': typeof ShieldIndexRoute
 }
@@ -104,9 +122,11 @@ export interface FileRouteTypes {
     | '/earn'
     | '/markets'
     | '/portfolio'
+    | '/protection'
     | '/shield'
     | '/markets/$oracleId'
     | '/shield/$oracleId'
+    | '/shield/claims'
     | '/markets/'
     | '/shield/'
   fileRoutesByTo: FileRoutesByTo
@@ -114,8 +134,10 @@ export interface FileRouteTypes {
     | '/'
     | '/earn'
     | '/portfolio'
+    | '/protection'
     | '/markets/$oracleId'
     | '/shield/$oracleId'
+    | '/shield/claims'
     | '/markets'
     | '/shield'
   id:
@@ -124,9 +146,11 @@ export interface FileRouteTypes {
     | '/earn'
     | '/markets'
     | '/portfolio'
+    | '/protection'
     | '/shield'
     | '/markets/$oracleId'
     | '/shield/$oracleId'
+    | '/shield/claims'
     | '/markets/'
     | '/shield/'
   fileRoutesById: FileRoutesById
@@ -136,6 +160,7 @@ export interface RootRouteChildren {
   EarnRouteRoute: typeof EarnRouteRoute
   MarketsRouteRoute: typeof MarketsRouteRouteWithChildren
   PortfolioRouteRoute: typeof PortfolioRouteRoute
+  ProtectionRouteRoute: typeof ProtectionRouteRoute
   ShieldRouteRoute: typeof ShieldRouteRouteWithChildren
 }
 
@@ -146,6 +171,13 @@ declare module '@tanstack/react-router' {
       path: '/shield'
       fullPath: '/shield'
       preLoaderRoute: typeof ShieldRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/protection': {
+      id: '/protection'
+      path: '/protection'
+      fullPath: '/protection'
+      preLoaderRoute: typeof ProtectionRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -190,6 +222,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketsIndexRouteImport
       parentRoute: typeof MarketsRouteRoute
     }
+    '/shield/claims': {
+      id: '/shield/claims'
+      path: '/claims'
+      fullPath: '/shield/claims'
+      preLoaderRoute: typeof ShieldClaimsRouteImport
+      parentRoute: typeof ShieldRouteRoute
+    }
     '/shield/$oracleId': {
       id: '/shield/$oracleId'
       path: '/$oracleId'
@@ -223,11 +262,13 @@ const MarketsRouteRouteWithChildren = MarketsRouteRoute._addFileChildren(
 
 interface ShieldRouteRouteChildren {
   ShieldOracleIdRouteRoute: typeof ShieldOracleIdRouteRoute
+  ShieldClaimsRoute: typeof ShieldClaimsRoute
   ShieldIndexRoute: typeof ShieldIndexRoute
 }
 
 const ShieldRouteRouteChildren: ShieldRouteRouteChildren = {
   ShieldOracleIdRouteRoute: ShieldOracleIdRouteRoute,
+  ShieldClaimsRoute: ShieldClaimsRoute,
   ShieldIndexRoute: ShieldIndexRoute,
 }
 
@@ -240,6 +281,7 @@ const rootRouteChildren: RootRouteChildren = {
   EarnRouteRoute: EarnRouteRoute,
   MarketsRouteRoute: MarketsRouteRouteWithChildren,
   PortfolioRouteRoute: PortfolioRouteRoute,
+  ProtectionRouteRoute: ProtectionRouteRoute,
   ShieldRouteRoute: ShieldRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport

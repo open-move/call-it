@@ -10,11 +10,21 @@ export interface AppNavItem {
   status: AppNavStatus
 }
 
-export type AppNavHref = "/" | "/markets" | "/shield" | "/earn" | "/portfolio"
+export type AppNavHref =
+  | "/"
+  | "/markets"
+  | "/protection"
+  | "/shield"
+  | "/earn"
+  | "/portfolio"
 
 export const appNavItems: AppNavItem[] = [
   { href: "/markets", label: "Trade", status: AppNavStatus.Active },
-  { href: "/shield", label: "Shield", status: AppNavStatus.Available },
+  {
+    href: "/protection",
+    label: "Protection",
+    status: AppNavStatus.Available,
+  },
   { href: "/earn", label: "Earn", status: AppNavStatus.Available },
   { href: "/portfolio", label: "Portfolio", status: AppNavStatus.Available },
 ]
