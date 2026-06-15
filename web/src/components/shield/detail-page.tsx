@@ -36,7 +36,10 @@ import {
 } from "@/services/shield-client"
 import type {ShieldPositionRow} from "@/services/shield-client";
 import { formatPredictTradeError } from "@/services/predict-quotes"
-import { prepareShieldOpenTransaction } from "@/services/shield-transactions"
+import {
+  buildShieldClaimTransaction,
+  prepareShieldOpenTransaction,
+} from "@/services/shield-transactions"
 import {
   buildCreateManagerTransaction,
   executeSuiTransaction,
@@ -594,11 +597,13 @@ function PositionsContentClient({
   product: ShieldProduct
   refreshKey: number
 }) {
-  const { primaryWallet } = useDynamicContext()
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const walletAddress = primaryWallet?.address
   const [errorMessage, setErrorMessage] = useState<string>()
   const [isLoading, setIsLoading] = useState(false)
   const [positions, setPositions] = useState<EstimatedShieldPosition[]>([])
+  const [claimingOwnerCapId, setClaimingOwnerCapId] = useState<string>()
+  const refreshRoute = useAppRouteRefresh()
 
   useEffect(() => {
     let isStale = false
@@ -645,6 +650,42 @@ function PositionsContentClient({
     }
   }, [product.market.oracleId, refreshKey, walletAddress])
 
+  async function handleClaim(position: EstimatedShieldPosition) {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    setClaimingOwnerCapId(position.ownerCapId)
+    setErrorMessage(undefined)
+
+    try {
+      const transaction = buildShieldClaimTransaction({
+        managerId: position.managerId,
+        oracleId: position.oracleId,
+        ownerCapId: position.ownerCapId,
+        policyId: position.policyId,
+        walletAddress,
+      })
+
+      await executeSuiTransaction(signer, transaction)
+      refreshRoute()
+      window.setTimeout(() => refreshRoute(), 1_500)
+    } catch (error) {
+      setErrorMessage(formatPredictTradeError(error, "Claim Shield failed"))
+    } finally {
+      setClaimingOwnerCapId(undefined)
+    }
+  }
+
   if (!walletAddress) {
     return <PositionsEmptyState message="Sign in to view Shield positions" />
   }
@@ -666,7 +707,12 @@ function PositionsContentClient({
       <div className="min-w-[52rem]">
         <ShieldPositionHeaderRow />
         {positions.map((position) => (
-          <ShieldPositionRowView key={position.ownerCapId} position={position} />
+          <ShieldPositionRowView
+            claimingOwnerCapId={claimingOwnerCapId}
+            key={position.ownerCapId}
+            onClaim={handleClaim}
+            position={position}
+          />
         ))}
       </div>
     </div>
@@ -683,23 +729,30 @@ function PositionsEmptyState({ message }: { message: string }) {
 
 function ShieldPositionHeaderRow() {
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_7rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       <span>Shield</span>
       <span>Deposit</span>
       <span>PLP</span>
       <span>Hedge</span>
       <span>Est. Value</span>
       <span className="text-right">Est. PnL</span>
-      <span className="text-right">Status</span>
+      <span className="text-right">Action</span>
     </div>
   )
 }
 
 function ShieldPositionRowView({
+  claimingOwnerCapId,
+  onClaim,
   position,
 }: {
+  claimingOwnerCapId?: string
+  onClaim: (position: EstimatedShieldPosition) => void | Promise<void>
   position: EstimatedShieldPosition
 }) {
+  const isExpired = Date.now() >= position.hedgeExpiryMs
+  const canClaim = isExpired && !position.settled
+  const isClaiming = claimingOwnerCapId === position.ownerCapId
   const pnlClassName =
     position.estimatedPnlUsd === undefined
       ? "text-muted-foreground"
@@ -710,7 +763,7 @@ function ShieldPositionRowView({
           : "text-muted-foreground"
 
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_7rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide text-primary uppercase">
@@ -750,9 +803,27 @@ function ShieldPositionRowView({
               position.estimatedPnlPercent ?? 0
             )})`}
       </span>
-      <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
-        {position.settled ? "Settled" : "Active"}
-      </span>
+      <div className="flex justify-end">
+        {canClaim ? (
+          <Button
+            className="h-7 px-2.5 text-[11px]"
+            disabled={isClaiming}
+            onClick={() => void onClaim(position)}
+            type="button"
+            variant="secondary"
+          >
+            {isClaiming ? "Claiming" : "Claim"}
+          </Button>
+        ) : (
+          <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
+            {position.settled
+              ? "Settled"
+              : isExpired
+                ? "Await settle"
+                : "Active"}
+          </span>
+        )}
+      </div>
     </div>
   )
 }

@@ -38,6 +38,40 @@ function shieldTarget(functionName: string) {
   return `${SHIELD_PACKAGE_ID}::shield::${functionName}`
 }
 
+export function buildShieldClaimTransaction({
+  managerId,
+  oracleId,
+  ownerCapId,
+  policyId,
+  walletAddress,
+}: {
+  managerId: string
+  oracleId: string
+  ownerCapId: string
+  policyId: string
+  walletAddress: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  const payoutCoin = tx.moveCall({
+    target: shieldTarget("claim"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      tx.object(managerId),
+      tx.object(oracleId),
+      tx.object(policyId),
+      tx.object(ownerCapId),
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  tx.transferObjects([payoutCoin], walletAddress)
+
+  return tx
+}
+
 function formatShieldError(message: string) {
   if (message.includes("EInvalidHedgeStrike")) {
     return "Protection trigger must be below spot."
