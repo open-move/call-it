@@ -28,7 +28,6 @@ import {
 } from "@/lib/amounts"
 import {
   getManagerPositionSummaries,
-  getPredictManagers,
   getPredictVaultSummary,
 } from "@/services/predict-client"
 import {
@@ -42,9 +41,7 @@ import {
   prepareShieldOpenTransaction,
 } from "@/services/shield-transactions"
 import {
-  buildCreateManagerTransaction,
   executeSuiTransaction,
-  findCreatedManagerId,
 } from "@/services/predict-transactions"
 import {
   getReadySuiTransactionSigner,
@@ -52,11 +49,8 @@ import {
 } from "@/lib/dynamic/sui-wallet"
 import type {ManagerPositionSummary} from "@/lib/types/predict";
 import { useAppRouteRefresh } from "@/lib/hooks/router"
-import { cn, sleep } from "@/lib/utils"
-
-interface ManagerState {
-  managerId?: string
-}
+import { usePredictAccount } from "@/lib/providers/predict-account"
+import { cn } from "@/lib/utils"
 
 interface EstimatedShieldPosition extends ShieldPositionRow {
   estimatedPnlPercent?: number
@@ -176,33 +170,6 @@ async function enrichShieldPositions(
       plpValueUsd,
     }
   })
-}
-
-async function loadManagerState(walletAddress: string): Promise<ManagerState> {
-  const [manager] = await getPredictManagers(walletAddress)
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!manager) {
-    return {}
-  }
-
-  return { managerId: manager.manager_id }
-}
-
-async function waitForManagerState(walletAddress: string) {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const managerState = await loadManagerState(walletAddress)
-
-    if (managerState.managerId) {
-      return managerState
-    }
-
-    await sleep(1_000)
-  }
-
-  throw new Error(
-    "Manager creation confirmed, but the indexer has not caught up"
-  )
 }
 
 export function DetailPage({ expiryProducts, product }: DetailPageProps) {
@@ -348,9 +315,8 @@ function ShieldTicketFrame({
   wallet?: unknown
   walletAddress?: string
 }) {
+  const predictAccount = usePredictAccount()
   const [amount, setAmount] = useState("")
-  const [managerState, setManagerState] = useState<ManagerState>({})
-  const [isLoadingManager, setIsLoadingManager] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string>()
   const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
@@ -364,50 +330,12 @@ function ShieldTicketFrame({
     ? "Sign in"
     : isSubmitting
       ? "Submitting"
-      : isLoadingManager
+      : predictAccount.status === "loading"
         ? "Loading account"
-        : "Open Shield"
+      : "Open Shield"
   const buttonDisabled = walletAddress
-    ? isSubmitting || isLoadingManager || !depositAmount
+    ? isSubmitting || predictAccount.status === "loading" || !depositAmount
     : !onConnect
-
-  useEffect(() => {
-    let isStale = false
-
-    async function load() {
-      if (!walletAddress) {
-        setManagerState({})
-        return
-      }
-
-      setIsLoadingManager(true)
-      setErrorMessage(undefined)
-
-      try {
-        const nextManagerState = await loadManagerState(walletAddress)
-
-        if (!isStale) {
-          setManagerState(nextManagerState)
-        }
-      } catch (error) {
-        if (!isStale) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Failed to load account"
-          )
-        }
-      } finally {
-        if (!isStale) {
-          setIsLoadingManager(false)
-        }
-      }
-    }
-
-    void load()
-
-    return () => {
-      isStale = true
-    }
-  }, [walletAddress])
 
   async function handleOpenShield() {
     if (!walletAddress) {
@@ -433,26 +361,13 @@ function ShieldTicketFrame({
     setErrorMessage(undefined)
 
     try {
-      let managerId = managerState.managerId
+      const hadManager = Boolean(predictAccount.managerId)
 
-      if (!managerId) {
+      if (!hadManager) {
         setStatusMessage("Creating trading account")
-        const createResult = await executeSuiTransaction(
-          signer,
-          buildCreateManagerTransaction(walletAddress)
-        )
-        managerId = findCreatedManagerId(createResult.events)
-
-        if (!managerId) {
-          const nextManagerState = await waitForManagerState(walletAddress)
-          managerId = nextManagerState.managerId
-          setManagerState(nextManagerState)
-        }
       }
 
-      if (!managerId) {
-        throw new Error("Could not resolve trading account")
-      }
+      const managerId = await predictAccount.ensureManager(signer)
 
       setStatusMessage("Preparing Shield")
       const preparedOpen = await prepareShieldOpenTransaction({
@@ -475,6 +390,7 @@ function ShieldTicketFrame({
       setStatusMessage("Shield opened")
       setStatusKind("success")
       setAmount("")
+      void predictAccount.refreshAccount()
       onOpened?.()
       revalidate?.()
       window.setTimeout(() => revalidate?.(), 1_500)

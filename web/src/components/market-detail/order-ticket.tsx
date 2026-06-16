@@ -26,9 +26,7 @@ import type {MarketSnapshot} from "@/lib/types/market";
 import type {PositionTradeIntent} from "@/lib/types/trade";
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
-  buildCreateManagerTransaction,
   executeSuiTransaction,
-  findCreatedManagerId,
   preparePredictMintTransaction
   
 } from "@/services/predict-transactions"
@@ -44,9 +42,9 @@ import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
-import { getPredictManagers } from "@/services/predict-client"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
-import { cn, sleep } from "@/lib/utils"
+import { usePredictAccount } from "@/lib/providers/predict-account"
+import { cn } from "@/lib/utils"
 
 type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
@@ -57,10 +55,6 @@ export interface OrderTicketProps {
   onStrikeChange?: (strikePriceUsd: number) => void
   selectedStrikePriceUsd: number
   tradeIntent?: PositionTradeIntent
-}
-
-interface ManagerState {
-  managerId?: string
 }
 
 interface RangeStrikeState {
@@ -151,35 +145,6 @@ function pinStrikeSearchParam(strikePriceUsd: number) {
   window.history.replaceState(window.history.state, "", url)
 }
 
-async function loadManagerState(walletAddress: string): Promise<ManagerState> {
-  const [manager] = await getPredictManagers(walletAddress)
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!manager) {
-    return {}
-  }
-
-  return {
-    managerId: manager.manager_id,
-  }
-}
-
-async function waitForManagerState(walletAddress: string) {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const managerState = await loadManagerState(walletAddress)
-
-    if (managerState.managerId) {
-      return managerState
-    }
-
-    await sleep(1_000)
-  }
-
-  throw new Error(
-    "Manager creation confirmed, but the indexer has not caught up"
-  )
-}
-
 function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
 }
@@ -267,6 +232,7 @@ function OrderTicketClient({
   tradeIntent,
 }: OrderTicketProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
   const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
   const [contractSide, setContractSide] = useState<ContractSide>(initialSide)
@@ -280,8 +246,6 @@ function OrderTicketClient({
   const [rangeStrikes, setRangeStrikes] = useState(() =>
     getRangeStrikeDefaults(market, selectedStrikePriceUsd)
   )
-  const [managerState, setManagerState] = useState<ManagerState>({})
-  const [isLoadingManager, setIsLoadingManager] = useState(false)
   const [quote, setQuote] = useState<PredictQuoteResult>()
   const [isQuoting, setIsQuoting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -302,7 +266,8 @@ function OrderTicketClient({
       : `${Math.round((isAbove ? market.fairUpProbability : 1 - market.fairUpProbability) * 100)}%`
   const isTradeDisabled =
     isSubmitting ||
-    isLoadingManager ||
+    predictAccount.status === "loading" ||
+    predictAccount.isCreatingManager ||
     isQuoting ||
     !!marketUnavailableMessage ||
     !selectedQuantity ||
@@ -388,44 +353,6 @@ function OrderTicketClient({
       )} ${getSideLabel(tradeIntent.side)}`
     )
   }, [tradeIntent?.intentId])
-
-  useEffect(() => {
-    let isStale = false
-
-    async function load() {
-      if (!walletAddress) {
-        setManagerState({})
-        return
-      }
-
-      setIsLoadingManager(true)
-      setErrorMessage(undefined)
-
-      try {
-        const nextManagerState = await loadManagerState(walletAddress)
-
-        if (!isStale) {
-          setManagerState(nextManagerState)
-        }
-      } catch (error) {
-        if (!isStale) {
-          setErrorMessage(
-            error instanceof Error ? error.message : "Failed to load account"
-          )
-        }
-      } finally {
-        if (!isStale) {
-          setIsLoadingManager(false)
-        }
-      }
-    }
-
-    void load()
-
-    return () => {
-      isStale = true
-    }
-  }, [walletAddress])
 
   useEffect(() => {
     let isStale = false
@@ -535,26 +462,13 @@ function OrderTicketClient({
         ticketMode,
         walletAddress,
       })
-      let managerId = managerState.managerId
+      const hadManager = Boolean(predictAccount.managerId)
 
-      if (!managerId) {
+      if (!hadManager) {
         setStatusMessage("Creating trading account")
-        const createResult = await executeSuiTransaction(
-          signer,
-          buildCreateManagerTransaction(walletAddress)
-        )
-        managerId = findCreatedManagerId(createResult.events)
-
-        if (!managerId) {
-          const nextManagerState = await waitForManagerState(walletAddress)
-          managerId = nextManagerState.managerId
-          setManagerState(nextManagerState)
-        }
       }
 
-      if (!managerId) {
-        throw new Error("Could not resolve trading account")
-      }
+      const managerId = await predictAccount.ensureManager(signer)
 
       setStatusMessage("Preparing funding and buy")
 
@@ -574,8 +488,7 @@ function OrderTicketClient({
       if (ticketMode === "binary") {
         pinStrikeSearchParam(ticketStrikePriceUsd)
       }
-      const nextManagerState = await loadManagerState(walletAddress)
-      setManagerState(nextManagerState)
+      void predictAccount.refreshAccount()
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {

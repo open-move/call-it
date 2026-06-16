@@ -320,7 +320,7 @@ function LiveShowcase({
                   {market.assetSymbol} Prediction · expires in{" "}
                   {formatExpiryDistance(market.expiryMs)}
                 </div>
-                <div className="mt-0.5 text-xs font-mono text-muted-foreground tabular-nums">
+                <div className="mt-0.5 text-[10px] font-mono text-muted-foreground tabular-nums">
                   {formatCompactUsd(market.volumeUsd)} vol · {market.tradeCount} txns
                 </div>
               </div>

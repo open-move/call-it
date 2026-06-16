@@ -35,14 +35,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
 import { formatDecimalUnits } from "@/lib/amounts"
-import {
-  PREDICT_LP_ASSET,
-  PREDICT_QUOTE_ASSET,
-  PREDICT_QUOTE_DECIMALS,
-} from "@/lib/config"
-import { getManagerSummary, getPredictManagers } from "@/services/predict-client"
-import { getSuiGrpcClient } from "@/services/sui-client"
-import type {ManagerSummary} from "@/lib/types/predict";
+import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
+import { usePredictAccount } from "@/lib/providers/predict-account"
 
 const walletButtonClassName =
   "border-0 bg-white/[0.06] text-white/88 shadow-none hover:bg-white/[0.1] hover:text-white focus-visible:ring-white/20"
@@ -73,48 +67,17 @@ function WalletAvatar({
   return <img alt="Wallet avatar" className={className} src={avatar} />
 }
 
-function BalanceSegment({ walletAddress }: { walletAddress: string }) {
-  const [balance, setBalance] = useState<bigint>()
-  const [isLoadingBalance, setIsLoadingBalance] = useState(true)
-
-  useEffect(() => {
-    let isStale = false
-
-    async function loadBalance() {
-      setIsLoadingBalance(true)
-
-      try {
-        const response = await getSuiGrpcClient().getBalance({
-          coinType: PREDICT_QUOTE_ASSET,
-          owner: walletAddress,
-        })
-
-        if (!isStale) {
-          setBalance(BigInt(response.balance.balance))
-        }
-      } catch {
-        if (!isStale) {
-          setBalance(undefined)
-        }
-      } finally {
-        if (!isStale) {
-          setIsLoadingBalance(false)
-        }
-      }
-    }
-
-    void loadBalance()
-
-    return () => {
-      isStale = true
-    }
-  }, [walletAddress])
-
-  const balanceLabel = isLoadingBalance
+function BalanceSegment() {
+  const predictAccount = usePredictAccount()
+  const balanceLabel = predictAccount.status === "loading"
     ? "--"
-    : balance === undefined
+    : predictAccount.walletDusdcBalance === undefined
       ? "--"
-      : formatDecimalUnits(balance, PREDICT_QUOTE_DECIMALS, 4)
+      : formatDecimalUnits(
+          predictAccount.walletDusdcBalance,
+          PREDICT_QUOTE_DECIMALS,
+          4
+        )
 
   return (
     <div
@@ -203,83 +166,34 @@ function AccountHubDialog({
   onSignOut: () => Promise<void>
   open: boolean
 }) {
-  const [dusdcBalance, setDusdcBalance] = useState<bigint>()
-  const [plpBalance, setPlpBalance] = useState<bigint>()
-  const [isLoadingAccount, setIsLoadingAccount] = useState(false)
-  const [managerSummary, setManagerSummary] = useState<ManagerSummary>()
+  const predictAccount = usePredictAccount()
 
   useEffect(() => {
-    let isStale = false
-
-    async function loadAccount() {
-      if (!open || !address) {
-        return
-      }
-
-      setIsLoadingAccount(true)
-
-      try {
-        const client = getSuiGrpcClient()
-        const [dusdc, plp, managers] = await Promise.all([
-          client.getBalance({
-            coinType: PREDICT_QUOTE_ASSET,
-            owner: address,
-          }),
-          client.getBalance({
-            coinType: PREDICT_LP_ASSET,
-            owner: address,
-          }),
-          getPredictManagers(address),
-        ])
-        const manager = managers.at(0)
-        const nextManagerSummary = manager
-          ? await getManagerSummary(manager.manager_id)
-          : undefined
-
-        if (!isStale) {
-          setDusdcBalance(BigInt(dusdc.balance.balance))
-          setPlpBalance(BigInt(plp.balance.balance))
-          setManagerSummary(nextManagerSummary)
-        }
-      } catch {
-        if (!isStale) {
-          setDusdcBalance(undefined)
-          setPlpBalance(undefined)
-          setManagerSummary(undefined)
-        }
-      } finally {
-        if (!isStale) {
-          setIsLoadingAccount(false)
-        }
-      }
-    }
-
-    void loadAccount()
-
-    return () => {
-      isStale = true
+    if (open && address) {
+      void predictAccount.refreshAccount()
     }
   }, [address, open])
 
   const walletDusdcLabel =
-    dusdcBalance === undefined
+    predictAccount.walletDusdcBalance === undefined
       ? "--"
-      : `${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+      : `${formatDecimalUnits(predictAccount.walletDusdcBalance, PREDICT_QUOTE_DECIMALS, 4)}`
   const walletPlpLabel =
-    plpBalance === undefined
+    predictAccount.walletPlpBalance === undefined
       ? "--"
-      : `${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS, 4)}`
-  const managerBalanceLabel = managerSummary
-    ? `${toQuoteAmount(managerSummary.trading_balance).toLocaleString("en-US", {
+      : `${formatDecimalUnits(predictAccount.walletPlpBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+  const managerBalanceLabel = predictAccount.managerSummary
+    ? `${toQuoteAmount(predictAccount.managerSummary.trading_balance).toLocaleString("en-US", {
         maximumFractionDigits: 4,
       })}`
     : "--"
-  const realizedPnlLabel = managerSummary
-    ? `${toQuoteAmount(managerSummary.realized_pnl).toLocaleString("en-US", {
+  const realizedPnlLabel = predictAccount.managerSummary
+    ? `${toQuoteAmount(predictAccount.managerSummary.realized_pnl).toLocaleString("en-US", {
         maximumFractionDigits: 4,
       })}`
     : "--"
   const vaultValueLabel = walletPlpLabel
+  const isLoadingAccount = predictAccount.status === "loading"
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -484,7 +398,7 @@ function AccountCluster({
 }) {
   return (
     <div className="inline-flex items-center gap-2 rounded-md bg-white/[0.045] px-2.5 py-1.5 shadow-none">
-      <BalanceSegment walletAddress={address} />
+      <BalanceSegment />
       <span aria-hidden="true" className="h-3 w-px bg-white/14" />
       <AccountDropdown
         address={address}

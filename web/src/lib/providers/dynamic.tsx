@@ -6,6 +6,8 @@ import { SuiWalletConnectors } from "@dynamic-labs/sui"
 import {  useEffect, useState } from "react"
 import type {ReactNode} from "react";
 
+import { PredictAccountProvider } from "@/lib/providers/predict-account"
+
 export interface DynamicProviderProps {
   children: ReactNode
 }
@@ -76,7 +78,7 @@ export function DynamicProvider({ children }: DynamicProviderProps) {
         walletConnectors: [SuiWalletConnectors],
       }}
     >
-      {children}
+      <PredictAccountProvider>{children}</PredictAccountProvider>
       <DynamicUserProfile />
       <DynamicThemeSync />
     </DynamicContextProvider>

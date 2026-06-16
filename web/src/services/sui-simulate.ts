@@ -1,7 +1,7 @@
-import type {SuiClientTypes} from "@mysten/sui/client";
+import type { SuiClientTypes } from "@mysten/sui/client"
 
-import { parseSuiFailure  } from "./sui-errors"
-import type {SuiFailure} from "./sui-errors";
+import { parseSuiFailure } from "./sui-errors"
+import type { SuiFailure } from "./sui-errors"
 import { getSuiGrpcClient } from "./sui-client"
 
 type SuiGrpcClientInstance = ReturnType<typeof getSuiGrpcClient>
@@ -37,7 +37,11 @@ export async function simulateSuiTransaction(
 
   return {
     status: "success",
-    commandResults: result.commandResults ?? [],
-    events: result.Transaction.events ?? [],
+    commandResults: Array.isArray(result.commandResults)
+      ? result.commandResults
+      : [],
+    events: Array.isArray(result.Transaction.events)
+      ? result.Transaction.events
+      : [],
   }
 }

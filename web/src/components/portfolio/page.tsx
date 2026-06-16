@@ -34,8 +34,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
 import { formatRelativeTime, formatUsd } from "@/lib/format"
 import {
-  PREDICT_LP_ASSET,
-  PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
   PREDICT_PRICE_SCALE as PRICE_SCALE,
   QUOTE_SCALE,
@@ -45,17 +43,13 @@ import {
   getDirectionalPositionRedeems,
   getManagerPositionSummaries,
   getManagerRanges,
-  getManagerSummary,
-  getPredictManagers,
 } from "@/services/predict-client"
 import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
 import {
-  buildCreateManagerTransaction,
   buildManagerDepositTransaction,
   buildManagerWithdrawTransaction,
   buildPredictRedeemTransaction,
   executeSuiTransaction,
-  findCreatedManagerId,
   simulatePredictRedeemTransaction,
 } from "@/services/predict-transactions"
 import type {PredictRedeemParams} from "@/services/predict-transactions";
@@ -64,7 +58,7 @@ import {
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
-import { getSuiGrpcClient } from "@/services/sui-client"
+import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 
 export interface PageProps {
@@ -153,10 +147,6 @@ interface RealizedPnlPoint extends RealizedPnlEvent {
 interface RedeemState {
   errorMessage?: string
   positionId?: string
-}
-
-interface ManagerState {
-  managerId?: string
 }
 
 const REALIZED_ACTIVITY_LIMIT = 2_000
@@ -740,30 +730,6 @@ function getPortfolioRedeemParams({
   }
 }
 
-async function loadManagerState(walletAddress: string): Promise<ManagerState> {
-  const [manager] = await getPredictManagers(walletAddress)
-
-  return {
-    managerId: manager.manager_id,
-  }
-}
-
-async function waitForManagerState(walletAddress: string) {
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const managerState = await loadManagerState(walletAddress)
-
-    if (managerState.managerId) {
-      return managerState
-    }
-
-    await new Promise((resolve) => window.setTimeout(resolve, 1_000))
-  }
-
-  throw new Error(
-    "Trading account creation confirmed, but the indexer has not caught up"
-  )
-}
-
 function getTabCount(positions: PortfolioPosition[], tab: PortfolioTab) {
   return getFilteredPositions({ positions, searchQuery: "", tab }).length
 }
@@ -788,6 +754,7 @@ export function Page(props: PageProps) {
 
 function PageClient({ oracles, vaultSummary }: PageProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
   const [portfolioState, setPortfolioState] = useState<PortfolioState>({
     dusdcBalance: 0n,
@@ -806,13 +773,16 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
   const [withdrawAmount, setWithdrawAmount] = useState("")
   const [withdrawError, setWithdrawError] = useState<string>()
   const [withdrawStatusMessage, setWithdrawStatusMessage] = useState<string>()
-  const [isCreatingManager, setIsCreatingManager] = useState(false)
   const [isDepositing, setIsDepositing] = useState(false)
   const [isWithdrawing, setIsWithdrawing] = useState(false)
   const [tradingAccountModalMode, setTradingAccountModalMode] =
     useState<TradingAccountModalMode | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const walletAddress = primaryWallet?.address
+  const managerId = predictAccount.managerId
+  const managerSummary = predictAccount.managerSummary
+  const dusdcBalance = predictAccount.walletDusdcBalance ?? 0n
+  const plpBalance = predictAccount.walletPlpBalance ?? 0n
   const selectedDepositAmount = parseDecimalUnits(
     depositAmount,
     PREDICT_QUOTE_DECIMALS
@@ -850,54 +820,57 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         return
       }
 
+      if (predictAccount.status === "loading" && !managerId) {
+        setPortfolioState((currentState) => ({
+          ...currentState,
+          dusdcBalance,
+          errorMessage: undefined,
+          isLoading: true,
+          managerId: undefined,
+          managerSummary: undefined,
+          plpBalance,
+          positions: [],
+          realizedPnlPoints: [],
+        }))
+        return
+      }
+
       setPortfolioState((currentState) => ({
         ...currentState,
+        dusdcBalance,
         errorMessage: undefined,
-        isLoading: true,
+        isLoading: Boolean(managerId),
+        managerId,
+        managerSummary,
+        plpBalance,
       }))
       setCreateManagerError(undefined)
       setDepositError(undefined)
       setWithdrawError(undefined)
 
+      if (!managerId) {
+        setPortfolioState((currentState) => ({
+          ...currentState,
+          dusdcBalance,
+          isLoading: false,
+          managerId: undefined,
+          managerSummary: undefined,
+          plpBalance,
+          positions: [],
+          realizedPnlPoints: [],
+        }))
+        return
+      }
+
       try {
-        const client = getSuiGrpcClient()
-        const [dusdcBalance, plpBalance, managers] = await Promise.all([
-          client.getBalance({
-            coinType: PREDICT_QUOTE_ASSET,
-            owner: walletAddress,
-          }),
-          client.getBalance({
-            coinType: PREDICT_LP_ASSET,
-            owner: walletAddress,
-          }),
-          getPredictManagers(walletAddress),
-        ])
-        const [manager] = managers
-
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-        if (!manager) {
-          if (!isStale) {
-            setPortfolioState({
-              dusdcBalance: BigInt(dusdcBalance.balance.balance),
-              isLoading: false,
-              plpBalance: BigInt(plpBalance.balance.balance),
-              positions: [],
-              realizedPnlPoints: [],
-            })
-          }
-          return
-        }
-
         const [
-          managerSummary,
           summaries,
           rangeActivity,
           directionalMinted,
           directionalRedeemed,
         ] = await Promise.all([
-          getManagerSummary(manager.manager_id),
-          getManagerPositionSummaries(manager.manager_id),
-          getManagerRanges(manager.manager_id),
+          getManagerPositionSummaries(managerId),
+          getManagerRanges(managerId),
           getDirectionalPositionMints(REALIZED_ACTIVITY_LIMIT),
           getDirectionalPositionRedeems(REALIZED_ACTIVITY_LIMIT),
         ])
@@ -906,11 +879,11 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           const currentOracleById = getOracleById(oracles)
 
           setPortfolioState({
-            dusdcBalance: BigInt(dusdcBalance.balance.balance),
+            dusdcBalance,
             isLoading: false,
-            managerId: manager.manager_id,
+            managerId,
             managerSummary,
-            plpBalance: BigInt(plpBalance.balance.balance),
+            plpBalance,
             positions: getPortfolioPositions({
               oracleById: currentOracleById,
               rangeActivity,
@@ -918,10 +891,10 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
             }),
             realizedPnlPoints: getRealizedPnlChartData({
               directionalMinted: directionalMinted.filter(
-                (event) => event.manager_id === manager.manager_id
+                (event) => event.manager_id === managerId
               ),
               directionalRedeemed: directionalRedeemed.filter(
-                (event) => event.manager_id === manager.manager_id
+                (event) => event.manager_id === managerId
               ),
               oracleById: currentOracleById,
               rangeActivity,
@@ -947,7 +920,16 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     return () => {
       isStale = true
     }
-  }, [oracles, positionRefreshNonce, walletAddress])
+  }, [
+    dusdcBalance,
+    managerId,
+    managerSummary,
+    oracles,
+    plpBalance,
+    positionRefreshNonce,
+    predictAccount.status,
+    walletAddress,
+  ])
 
   function resetTradingAccountState() {
     setCreateManagerError(undefined)
@@ -973,27 +955,17 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       return
     }
 
-    setIsCreatingManager(true)
     setCreateManagerError(undefined)
 
     try {
-      const createResult = await executeSuiTransaction(
-        signer,
-        buildCreateManagerTransaction(walletAddress)
-      )
-      const createdManagerId =
-        findCreatedManagerId(createResult.events) ??
-        (await waitForManagerState(walletAddress)).managerId
-
-      if (!createdManagerId) {
-        throw new Error("Could not resolve trading account after creation")
-      }
+      const createdManagerId = await predictAccount.ensureManager(signer)
 
       setPortfolioState((currentState) => ({
         ...currentState,
         managerId: createdManagerId,
       }))
       setTradingAccountModalMode("deposit")
+      void predictAccount.refreshAccount()
       setPositionRefreshNonce((current) => current + 1)
     } catch (error) {
       setCreateManagerError(
@@ -1001,8 +973,6 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           ? error.message
           : "Failed to create trading account."
       )
-    } finally {
-      setIsCreatingManager(false)
     }
   }
 
@@ -1012,8 +982,12 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       return
     }
 
-    if (!portfolioState.managerId) {
-      setDepositError("Create a trading account first.")
+    if (!managerId) {
+      setDepositError(
+        predictAccount.status === "loading"
+          ? "Resolving trading account. Try again in a moment."
+          : "Create a trading account first."
+      )
       return
     }
 
@@ -1030,7 +1004,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       return
     }
 
-    if (selectedDepositAmount > portfolioState.dusdcBalance) {
+    if (selectedDepositAmount > dusdcBalance) {
       setDepositError("Deposit amount exceeds wallet DUSDC balance")
       return
     }
@@ -1042,13 +1016,14 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     try {
       const transaction = await buildManagerDepositTransaction({
         amount: selectedDepositAmount,
-        managerId: portfolioState.managerId,
+        managerId,
         walletAddress,
       })
 
       await executeSuiTransaction(signer, transaction)
       resetTradingAccountState()
       setTradingAccountModalMode(null)
+      void predictAccount.refreshAccount()
       setPositionRefreshNonce((current) => current + 1)
     } catch (error) {
       setDepositStatusMessage(undefined)
@@ -1068,8 +1043,12 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       return
     }
 
-    if (!portfolioState.managerId) {
-      setWithdrawError("Create a trading account first.")
+    if (!managerId) {
+      setWithdrawError(
+        predictAccount.status === "loading"
+          ? "Resolving trading account. Try again in a moment."
+          : "Create a trading account first."
+      )
       return
     }
 
@@ -1087,7 +1066,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     }
 
     const managerBalance = BigInt(
-      Math.floor(portfolioState.managerSummary?.trading_balance ?? 0)
+      Math.floor(managerSummary?.trading_balance ?? 0)
     )
 
     if (selectedWithdrawAmount > managerBalance) {
@@ -1102,13 +1081,14 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     try {
       const transaction = buildManagerWithdrawTransaction({
         amount: selectedWithdrawAmount,
-        managerId: portfolioState.managerId,
+        managerId,
         walletAddress,
       })
 
       await executeSuiTransaction(signer, transaction)
       resetTradingAccountState()
       setTradingAccountModalMode(null)
+      void predictAccount.refreshAccount()
       setPositionRefreshNonce((current) => current + 1)
     } catch (error) {
       setWithdrawStatusMessage(undefined)
@@ -1139,7 +1119,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       return
     }
 
-    if (!portfolioState.managerId) {
+    if (!managerId) {
       setRedeemState({
         errorMessage: "Could not resolve trading account.",
         positionId: position.id,
@@ -1161,19 +1141,20 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
 
     try {
       await simulatePredictRedeemTransaction({
-        managerId: portfolioState.managerId,
+        managerId,
         params,
       })
 
       await executeSuiTransaction(
         signer,
         buildPredictRedeemTransaction({
-          managerId: portfolioState.managerId,
+          managerId,
           params,
         })
       )
 
       setRedeemState({})
+      void predictAccount.refreshAccount()
       setPositionRefreshNonce((current) => current + 1)
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
@@ -1195,7 +1176,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
               <AccountCard
-                managerSummary={portfolioState.managerSummary}
+                managerSummary={managerSummary}
                 summary={summary}
                 onOpenDeposit={() => {
                   resetTradingAccountState()
@@ -1211,12 +1192,13 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 depositAmount={depositAmount}
                 depositError={depositError}
                 depositStatusMessage={depositStatusMessage}
-                dusdcBalance={portfolioState.dusdcBalance}
-                isCreatingManager={isCreatingManager}
+                dusdcBalance={dusdcBalance}
+                isCreatingManager={predictAccount.isCreatingManager}
                 isDepositing={isDepositing}
+                isLoadingAccount={predictAccount.status === "loading"}
                 isWithdrawing={isWithdrawing}
-                managerId={portfolioState.managerId}
-                managerSummary={portfolioState.managerSummary}
+                managerId={managerId}
+                managerSummary={managerSummary}
                 mode={tradingAccountModalMode}
                 summary={summary}
                 withdrawAmount={withdrawAmount}
@@ -1228,7 +1210,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 onDepositMax={() =>
                   setDepositAmount(
                     formatDecimalUnits(
-                      portfolioState.dusdcBalance,
+                      dusdcBalance,
                       PREDICT_QUOTE_DECIMALS
                     )
                   )
@@ -1246,7 +1228,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                     formatDecimalUnits(
                       BigInt(
                         Math.floor(
-                          portfolioState.managerSummary?.trading_balance ?? 0
+                          managerSummary?.trading_balance ?? 0
                         )
                       ),
                       PREDICT_QUOTE_DECIMALS
@@ -1403,6 +1385,7 @@ function TradingAccountDialog({
   dusdcBalance,
   isCreatingManager,
   isDepositing,
+  isLoadingAccount,
   isWithdrawing,
   managerId,
   managerSummary,
@@ -1428,6 +1411,7 @@ function TradingAccountDialog({
   dusdcBalance: bigint
   isCreatingManager: boolean
   isDepositing: boolean
+  isLoadingAccount: boolean
   isWithdrawing: boolean
   managerId?: string
   managerSummary?: ManagerSummary
@@ -1475,7 +1459,13 @@ function TradingAccountDialog({
             />
           </div>
 
-          {!managerId ? (
+          {!managerId && isLoadingAccount ? (
+            <div className="grid gap-3">
+              <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                Resolving trading account...
+              </div>
+            </div>
+          ) : !managerId ? (
             <div className="grid gap-3">
               <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
                 Create a trading account to start moving funds in and out.
@@ -1585,6 +1575,8 @@ function TradingAccountDialog({
               ? isDepositMode
                 ? "Funds move from your wallet into the trading account."
                 : "Funds move from the trading account back to your wallet."
+              : isLoadingAccount
+                ? "Checking your connected wallet for a trading account."
               : "Create a trading account first."}
           </div>
         </div>
@@ -1592,14 +1584,18 @@ function TradingAccountDialog({
         <DialogFooter showCloseButton>
           {!managerId ? (
             <Button
-              disabled={isCreatingManager}
+              disabled={isCreatingManager || isLoadingAccount}
               type="button"
               variant="outline"
               onClick={() => {
                 void onCreateManager()
               }}
             >
-              {isCreatingManager ? "Creating..." : "Create Account"}
+              {isLoadingAccount
+                ? "Resolving..."
+                : isCreatingManager
+                  ? "Creating..."
+                  : "Create Account"}
             </Button>
           ) : isDepositMode ? (
             <Button

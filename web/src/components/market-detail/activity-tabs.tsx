@@ -26,7 +26,6 @@ import type {PositionRow, PositionTradeIntent, RedemptionActivityRow, TradeActiv
 import {
   getManagerRanges,
   getManagerPositionSummaries,
-  getPredictManagers,
 } from "@/services/predict-client"
 import {
   buildPredictRedeemTransaction,
@@ -40,6 +39,7 @@ import {
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
+import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 
 import { QUOTE_SCALE as POSITION_QUANTITY_SCALE } from "@/lib/config"
@@ -292,22 +292,19 @@ function canClearPosition(position: PositionRow) {
 }
 
 async function loadWalletMarketPositions({
+  managerId,
   market,
-  walletAddress,
 }: {
+  managerId?: string
   market: MarketSnapshot
-  walletAddress: string
 }): Promise<LoadedPositions> {
-  const [manager] = await getPredictManagers(walletAddress)
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!manager) {
+  if (!managerId) {
     return { positions: [] }
   }
 
   const [summaries, rangeActivity] = await Promise.all([
-    getManagerPositionSummaries(manager.manager_id),
-    getManagerRanges(manager.manager_id),
+    getManagerPositionSummaries(managerId),
+    getManagerRanges(managerId),
   ])
   const directionalPositions = filterPositions(summaries, {
     expiryMs: market.expiryMs,
@@ -323,7 +320,7 @@ async function loadWalletMarketPositions({
   )
 
   return {
-    managerId: manager.manager_id,
+    managerId,
     positions: getPositionRows(directionalPositions, rangePositions),
   }
 }
@@ -402,6 +399,7 @@ export function ActivityTabs(props: ActivityTabsProps) {
 function ActivityTabsClient(props: ActivityTabsProps) {
   const { market, onAddPosition, redemptions, trades } = props
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
   const [positionState, setPositionState] = useState<PositionLoadState>({
     isLoading: false,
@@ -413,6 +411,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   const [confirmState, setConfirmState] = useState<PositionConfirmState>({})
   const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
   const walletAddress = primaryWallet?.address
+  const managerId = predictAccount.managerId
   const publicActivityVersion = `${trades.length}:${redemptions.length}`
 
   async function resolveLifecyclePosition(position: PositionRow) {
@@ -440,8 +439,8 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
     try {
       const loadedPositions = await loadWalletMarketPositions({
+        managerId,
         market,
-        walletAddress,
       })
       const resolvedPosition =
         loadedPositions.positions.find(
@@ -570,6 +569,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         positionId: position.id,
       })
       setPositionRefreshNonce((currentNonce) => currentNonce + 1)
+      void predictAccount.refreshAccount()
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
@@ -602,8 +602,8 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
       try {
         const loadedPositions = await loadWalletMarketPositions({
+          managerId,
           market,
-          walletAddress,
         })
 
         if (!isStale) {
@@ -636,6 +636,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   }, [
     market.expiryMs,
     market.oracleId,
+    managerId,
     positionRefreshNonce,
     publicActivityVersion,
     walletAddress,
