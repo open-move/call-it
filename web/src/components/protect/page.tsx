@@ -1,8 +1,17 @@
-import { ArrowLeftIcon, LockKeyholeIcon, TrendingDownIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  LockKeyholeIcon,
+  TrendingDownIcon,
+} from "lucide-react"
 import { Link } from "@tanstack/react-router"
 
 import { ProtectionFamilyHeader } from "@/components/protection/family-header"
+import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { buttonVariants } from "@/components/ui/button"
+import { formatExpiryDistance, formatSignedPercent, formatUsd } from "@/lib/format"
+import { getProtectPresetLabel } from "@/lib/protect-products"
+import type { ProtectProduct } from "@/lib/types/protect"
 import { cn } from "@/lib/utils"
 
 const previewRows = [
@@ -30,7 +39,18 @@ const flowRows = [
   },
 ]
 
-export function Page() {
+export interface PageProps {
+  products: ProtectProduct[]
+}
+
+function getProtectProductSearch(product: ProtectProduct) {
+  return {
+    preset: product.preset,
+    strike: product.triggerStrikeUsd,
+  }
+}
+
+export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
       <ProtectionFamilyHeader
@@ -158,6 +178,104 @@ export function Page() {
           </Link>
         </aside>
       </section>
+
+      <section className="space-y-3 rounded-2xl border border-border/70 bg-card/60 p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Market previews
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              DOWN-only design slice using active Predict markets. Premium quotes
+              remain disabled until Protect config exists.
+            </p>
+          </div>
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            {products.length} previews
+          </span>
+        </div>
+
+        {products.length > 0 ? (
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => (
+              <Link
+                className="group rounded-md border border-border/60 bg-background/45 p-3 transition-colors hover:border-outcome-down/40 hover:bg-outcome-down/5"
+                key={product.id}
+                params={{ oracleId: product.market.oracleId }}
+                search={getProtectProductSearch(product)}
+                to="/protect/$oracleId"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <AssetIcon
+                      assetIconUrl={product.market.assetIconUrl}
+                      assetName={product.market.assetName}
+                      assetSymbol={product.market.assetSymbol}
+                      className="size-6"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground group-hover:text-outcome-down">
+                        {product.market.assetSymbol} Protect
+                      </div>
+                      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {getProtectPresetLabel(product.preset)} · DOWN
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRightIcon className="mt-1 size-4 text-muted-foreground transition-colors group-hover:text-outcome-down" />
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                  <PreviewMetric
+                    label="Trigger"
+                    tone="down"
+                    value={`Below ${formatUsd(product.triggerStrikeUsd, 0)}`}
+                  />
+                  <PreviewMetric
+                    label="Distance"
+                    tone="down"
+                    value={formatSignedPercent(product.distancePercent)}
+                  />
+                  <PreviewMetric
+                    label="Expires"
+                    value={formatExpiryDistance(product.market.expiryMs)}
+                  />
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-border/50 bg-background/45 px-4 py-10 text-center text-sm text-muted-foreground">
+            No active Protect previews are available.
+          </div>
+        )}
+      </section>
     </main>
+  )
+}
+
+function PreviewMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string
+  tone?: "down"
+  value: string
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-xs tabular-nums text-foreground",
+          tone === "down" && "text-outcome-down"
+        )}
+      >
+        {value}
+      </div>
+    </div>
   )
 }
