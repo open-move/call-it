@@ -34,10 +34,11 @@ const products = [
     code: "02",
     description:
       "Multi-rung range ticket for markets where payout depends on a price band.",
+    href: "/range-ladder",
     icon: Layers3Icon,
-    label: "Pending package",
+    label: "Design preview",
     name: "Range Ladder",
-    tone: "text-muted-foreground",
+    tone: "text-primary",
   },
 ]
 
@@ -55,9 +56,8 @@ export function Page() {
               Owned policy tickets for Predict risk.
             </h1>
             <p className="text-sm leading-6 text-muted-foreground">
-              Shield is live. Protect and Range Ladder use the same owned-ticket
-              claim model, but stay disabled here until their package IDs and
-              routes are configured.
+              Shield is live. Protect and Range Ladder are design previews using
+              the same owned-ticket claim model while package config is pending.
             </p>
           </div>
 

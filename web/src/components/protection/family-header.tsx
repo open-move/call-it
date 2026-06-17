@@ -5,7 +5,14 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 interface FamilyHeaderAction {
-  href: "/protect" | "/protect/claims" | "/protection" | "/shield" | "/shield/claims"
+  href:
+    | "/protect"
+    | "/protect/claims"
+    | "/protection"
+    | "/range-ladder"
+    | "/range-ladder/claims"
+    | "/shield"
+    | "/shield/claims"
   label: string
 }
 
