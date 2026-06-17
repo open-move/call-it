@@ -9,8 +9,7 @@ import {
 import { quotePredictTradeSafe } from "./predict-quotes"
 import {
   buildQuoteCoin,
-  toOnchainPrice
-  
+  toOnchainPrice,
 } from "./predict-transactions"
 import type {DirectionalTradeParams} from "./predict-transactions";
 import { getSuiGrpcClient } from "./sui-client"
@@ -29,6 +28,21 @@ export interface PreparedShieldOpenTransaction {
   hedgeBudgetAmount: bigint
   hedgeQuantity: bigint
   transaction: Transaction
+}
+
+export interface ShieldClaimParams {
+  managerId: string
+  oracleId: string
+  ownerCapId: string
+  policyId: string
+  walletAddress: string
+}
+
+export interface ShieldSettleParams {
+  managerId: string
+  oracleId: string
+  policyId: string
+  walletAddress: string
 }
 
 const HEDGE_QUANTITY_BUFFER_BPS = 9_900n
@@ -85,7 +99,42 @@ function formatShieldError(message: string) {
     return "This account already has a DOWN position for this trigger."
   }
 
+  if (message.includes("EOracleNotSettled")) {
+    return "This Shield can only be claimed after the Predict market settles."
+  }
+
+  if (message.includes("ENotManagerOwner")) {
+    return "Only the trading account owner can claim the full Shield payout."
+  }
+
+  if (message.includes("EWrongOwnerCap")) {
+    return "This wallet does not have the owner cap for this Shield."
+  }
+
+  if (message.includes("EPolicySettled")) {
+    return "This Shield policy has already been settled."
+  }
+
   return message
+}
+
+async function assertShieldTransactionReady(
+  transaction: Transaction,
+  fallbackMessage: string
+) {
+  const result = await getSuiGrpcClient().simulateTransaction({
+    checksEnabled: false,
+    include: { events: true },
+    transaction,
+  })
+
+  if (result.$kind === "FailedTransaction") {
+    throw new Error(
+      formatShieldError(
+        result.FailedTransaction.status.error?.message ?? fallbackMessage
+      )
+    )
+  }
 }
 
 function getHedgeBudgetAmount(depositAmount: bigint, hedgeBudgetBps: number) {
@@ -218,4 +267,78 @@ export async function prepareShieldOpenTransaction(
   }
 
   throw new Error(formatShieldError(lastError ?? "Could not prepare Shield"))
+}
+
+function buildShieldClaimTransaction({
+  managerId,
+  oracleId,
+  ownerCapId,
+  policyId,
+  walletAddress,
+}: ShieldClaimParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  const payoutCoin = tx.moveCall({
+    target: shieldTarget("claim"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      tx.object(managerId),
+      tx.object(oracleId),
+      tx.object(policyId),
+      tx.object(ownerCapId),
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  tx.transferObjects([payoutCoin], walletAddress)
+
+  return tx
+}
+
+function buildShieldSettleTransaction({
+  managerId,
+  oracleId,
+  policyId,
+  walletAddress,
+}: ShieldSettleParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  tx.moveCall({
+    target: shieldTarget("settle"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(PREDICT_OBJECT_ID),
+      tx.object(managerId),
+      tx.object(oracleId),
+      tx.object(policyId),
+      tx.object(PREDICT_CLOCK_ID),
+    ],
+  })
+
+  return tx
+}
+
+export async function prepareShieldClaimTransaction(params: ShieldClaimParams) {
+  const transaction = buildShieldClaimTransaction(params)
+
+  await assertShieldTransactionReady(
+    transaction,
+    "Could not prepare Shield claim"
+  )
+
+  return transaction
+}
+
+export async function prepareShieldSettleTransaction(params: ShieldSettleParams) {
+  const transaction = buildShieldSettleTransaction(params)
+
+  await assertShieldTransactionReady(
+    transaction,
+    "Could not prepare Shield settlement"
+  )
+
+  return transaction
 }

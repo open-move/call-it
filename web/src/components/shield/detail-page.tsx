@@ -28,6 +28,7 @@ import {
 } from "@/lib/amounts"
 import {
   getManagerPositionSummaries,
+  getOracleState,
   getPredictVaultSummary,
 } from "@/services/predict-client"
 import {
@@ -37,8 +38,9 @@ import {
 import type {ShieldPositionRow} from "@/services/shield-client";
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import {
-  buildShieldClaimTransaction,
+  prepareShieldClaimTransaction,
   prepareShieldOpenTransaction,
+  prepareShieldSettleTransaction,
 } from "@/services/shield-transactions"
 import {
   executeSuiTransaction,
@@ -57,7 +59,18 @@ interface EstimatedShieldPosition extends ShieldPositionRow {
   estimatedPnlUsd?: number
   estimatedValueUsd?: number
   hedgeValueUsd?: number
+  oracleStatus?: string
   plpValueUsd?: number
+}
+
+type ShieldLifecycleAction = "claim" | "settle"
+
+interface ShieldActionState {
+  action?: ShieldLifecycleAction
+  errorMessage?: string
+  isExecuting?: boolean
+  message?: string
+  positionId?: string
 }
 
 export interface DetailPageProps {
@@ -526,12 +539,113 @@ function PositionsContentClient({
   refreshKey: number
 }) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const refreshRoute = useAppRouteRefresh()
   const walletAddress = primaryWallet?.address
+  const [actionState, setActionState] = useState<ShieldActionState>({})
   const [errorMessage, setErrorMessage] = useState<string>()
   const [isLoading, setIsLoading] = useState(false)
   const [positions, setPositions] = useState<EstimatedShieldPosition[]>([])
+<<<<<<< HEAD
   const [claimingOwnerCapId, setClaimingOwnerCapId] = useState<string>()
   const refreshRoute = useAppRouteRefresh()
+=======
+  const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
+
+  async function executeShieldLifecycle(
+    position: EstimatedShieldPosition,
+    action: ShieldLifecycleAction
+  ) {
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setActionState({
+        action,
+        errorMessage: RECONNECT_SUI_WALLET_MESSAGE,
+        positionId: position.ownerCapId,
+      })
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (position.settled) {
+      setActionState({
+        action,
+        errorMessage: "This Shield policy is already settled.",
+        positionId: position.ownerCapId,
+      })
+      return
+    }
+
+    if (position.oracleStatus !== "settled") {
+      setActionState({
+        action,
+        errorMessage: "This Shield can only be claimed after the Predict market settles.",
+        positionId: position.ownerCapId,
+      })
+      return
+    }
+
+    setActionState({
+      action,
+      isExecuting: true,
+      message: action === "claim" ? "Preparing claim." : "Preparing settlement.",
+      positionId: position.ownerCapId,
+    })
+
+    try {
+      const transaction =
+        action === "claim"
+          ? await prepareShieldClaimTransaction({
+              managerId: position.managerId,
+              oracleId: position.oracleId,
+              ownerCapId: position.ownerCapId,
+              policyId: position.policyId,
+              walletAddress,
+            })
+          : await prepareShieldSettleTransaction({
+              managerId: position.managerId,
+              oracleId: position.oracleId,
+              policyId: position.policyId,
+              walletAddress,
+            })
+
+      setActionState({
+        action,
+        isExecuting: true,
+        message: "Wallet approval requested.",
+        positionId: position.ownerCapId,
+      })
+
+      await executeSuiTransaction(signer, transaction)
+
+      setActionState({
+        action,
+        message:
+          action === "claim"
+            ? "Shield claim confirmed."
+            : "Shield settlement confirmed.",
+        positionId: position.ownerCapId,
+      })
+      setPositionRefreshNonce((currentNonce) => currentNonce + 1)
+      refreshRoute()
+      window.setTimeout(refreshRoute, 1_500)
+    } catch (error) {
+      setActionState({
+        action,
+        errorMessage: formatPredictTradeError(
+          error,
+          action === "claim" ? "Shield claim failed" : "Shield settlement failed"
+        ),
+        positionId: position.ownerCapId,
+      })
+    }
+  }
+>>>>>>> 0f57973 (add the remaining callit packages)
 
   useEffect(() => {
     let isStale = false
@@ -551,7 +665,21 @@ function PositionsContentClient({
         const marketPositions = nextPositions.filter(
           (position) => position.oracleId === product.market.oracleId
         )
-        const enrichedPositions = await enrichShieldPositions(marketPositions)
+        const [enrichedResult, oracleStateResult] = await Promise.allSettled([
+          enrichShieldPositions(marketPositions),
+          getOracleState(product.market.oracleId),
+        ])
+        const oracleStatus =
+          oracleStateResult.status === "fulfilled"
+            ? oracleStateResult.value.oracle.status
+            : product.market.status
+        const enrichedPositions =
+          enrichedResult.status === "fulfilled"
+            ? enrichedResult.value.map((position) => ({
+                ...position,
+                oracleStatus,
+              }))
+            : marketPositions.map((position) => ({ ...position, oracleStatus }))
 
         if (!isStale) {
           setPositions(enrichedPositions)
@@ -576,7 +704,7 @@ function PositionsContentClient({
     return () => {
       isStale = true
     }
-  }, [product.market.oracleId, refreshKey, walletAddress])
+  }, [positionRefreshNonce, product.market.oracleId, product.market.status, refreshKey, walletAddress])
 
   async function handleClaim(position: EstimatedShieldPosition) {
     if (!walletAddress) {
@@ -636,9 +764,9 @@ function PositionsContentClient({
         <ShieldPositionHeaderRow />
         {positions.map((position) => (
           <ShieldPositionRowView
-            claimingOwnerCapId={claimingOwnerCapId}
+            actionState={actionState}
             key={position.ownerCapId}
-            onClaim={handleClaim}
+            onAction={(action) => void executeShieldLifecycle(position, action)}
             position={position}
           />
         ))}
@@ -657,30 +785,31 @@ function PositionsEmptyState({ message }: { message: string }) {
 
 function ShieldPositionHeaderRow() {
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_7rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem_8rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       <span>Shield</span>
       <span>Deposit</span>
       <span>PLP</span>
       <span>Hedge</span>
       <span>Est. Value</span>
       <span className="text-right">Est. PnL</span>
+      <span className="text-right">Status</span>
       <span className="text-right">Action</span>
     </div>
   )
 }
 
 function ShieldPositionRowView({
-  claimingOwnerCapId,
-  onClaim,
+  actionState,
+  onAction,
   position,
 }: {
-  claimingOwnerCapId?: string
-  onClaim: (position: EstimatedShieldPosition) => void | Promise<void>
+  actionState: ShieldActionState
+  onAction: (action: ShieldLifecycleAction) => void
   position: EstimatedShieldPosition
 }) {
-  const isExpired = Date.now() >= position.hedgeExpiryMs
-  const canClaim = isExpired && !position.settled
-  const isClaiming = claimingOwnerCapId === position.ownerCapId
+  const isActionActive = actionState.positionId === position.ownerCapId
+  const isExecuting = isActionActive && actionState.isExecuting
+  const canAct = !position.settled && position.oracleStatus === "settled"
   const pnlClassName =
     position.estimatedPnlUsd === undefined
       ? "text-muted-foreground"
@@ -691,7 +820,7 @@ function ShieldPositionRowView({
           : "text-muted-foreground"
 
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_7rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem_8rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide text-primary uppercase">
@@ -731,27 +860,42 @@ function ShieldPositionRowView({
               position.estimatedPnlPercent ?? 0
             )})`}
       </span>
-      <div className="flex justify-end">
-        {canClaim ? (
-          <Button
-            className="h-7 px-2.5 text-[11px]"
-            disabled={isClaiming}
-            onClick={() => void onClaim(position)}
-            type="button"
-            variant="secondary"
-          >
-            {isClaiming ? "Claiming" : "Claim"}
-          </Button>
-        ) : (
-          <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
-            {position.settled
-              ? "Settled"
-              : isExpired
-                ? "Await settle"
-                : "Active"}
-          </span>
-        )}
+      <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
+        {position.settled
+          ? "Settled"
+          : position.oracleStatus === "settled"
+            ? "Claimable"
+            : "Active"}
+      </span>
+      <div className="flex justify-end gap-1">
+        <Button
+          disabled={!canAct || isExecuting}
+          onClick={() => onAction("claim")}
+          size="xs"
+          type="button"
+        >
+          {isExecuting && actionState.action === "claim" ? "Claiming" : "Claim"}
+        </Button>
+        <Button
+          disabled={!canAct || isExecuting}
+          onClick={() => onAction("settle")}
+          size="xs"
+          type="button"
+          variant="outline"
+        >
+          {isExecuting && actionState.action === "settle" ? "Settling" : "Settle"}
+        </Button>
       </div>
+      {isActionActive && (actionState.errorMessage || actionState.message) && (
+        <div
+          className={cn(
+            "col-span-full -mt-1 font-mono text-[10px]",
+            actionState.errorMessage ? "text-destructive" : "text-muted-foreground"
+          )}
+        >
+          {actionState.errorMessage ?? actionState.message}
+        </div>
+      )}
     </div>
   )
 }
@@ -775,8 +919,10 @@ function TermsContent({ product }: { product: ShieldProduct }) {
 function RiskContent() {
   return (
     <div className="grid gap-2 text-sm leading-6 text-muted-foreground md:grid-cols-2">
+      <p>Shield is a fixed-budget hedge, not principal protection.</p>
+      <p>PLP value can fall and the hedge may expire worthless.</p>
       <p>Max loss bps limits hedge budget, not total strategy loss.</p>
-      <p>Shield v1 uses binary DOWN protection only.</p>
+      <p>Settlement and claim availability depend on Predict market state.</p>
     </div>
   )
 }

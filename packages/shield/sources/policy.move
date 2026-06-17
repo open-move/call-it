@@ -46,7 +46,6 @@ public struct ShieldPolicy<phantom Quote> has key {
     hedge_budget_amount: u64,
     hedge_cost: u64,
     plp_balance: Balance<PLP>,
-    plp_amount: u64,
     created_at_ms: u64,
     settled: bool,
 }
@@ -56,7 +55,7 @@ public struct ShieldOwnerCap<phantom Quote> has key, store {
     policy_id: ID,
 }
 
-public(package) fun new_shared<Quote>(
+public(package) fun new<Quote>(
     plp: Coin<PLP>,
     beneficiary: address,
     deposit_amount: u64,
@@ -71,7 +70,7 @@ public(package) fun new_shared<Quote>(
     hedge_cost: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): (ShieldOwnerCap<Quote>, ID, ID, u64, u64) {
+): (ShieldPolicy<Quote>, ShieldOwnerCap<Quote>) {
     assert_valid_beneficiary(beneficiary);
     let plp_amount = plp.value();
     assert!(plp_amount > 0, EEmptyPolicy);
@@ -91,16 +90,17 @@ public(package) fun new_shared<Quote>(
         hedge_budget_amount,
         hedge_cost,
         plp_balance: plp.into_balance(),
-        plp_amount,
         created_at_ms,
         settled: false,
     };
     let policy_id = policy.id.to_inner();
     let cap = ShieldOwnerCap<Quote> { id: object::new(ctx), policy_id };
-    let owner_cap_id = cap.id.to_inner();
 
+    (policy, cap)
+}
+
+public(package) fun share<Quote>(policy: ShieldPolicy<Quote>) {
     transfer::share_object(policy);
-    (cap, policy_id, owner_cap_id, plp_amount, created_at_ms)
 }
 
 public(package) fun set_beneficiary<Quote>(
@@ -130,28 +130,12 @@ public(package) fun destroy_owner_cap<Quote>(cap: ShieldOwnerCap<Quote>, policy_
 
 public(package) fun settle_and_take_plp<Quote>(
     policy: &mut ShieldPolicy<Quote>,
-    clock: &Clock,
-): (Balance<PLP>, ID, address, u64, ID, ID, ID, u64, u64, u64, u64, u64) {
+): Balance<PLP> {
     assert_unsettled(policy);
-    let plp_amount = policy.plp_amount;
+    let plp_amount = policy.plp_balance.value();
     let plp_balance = policy.plp_balance.split(plp_amount);
-    policy.plp_amount = 0;
     policy.settled = true;
-
-    (
-        plp_balance,
-        policy.id.to_inner(),
-        policy.beneficiary,
-        policy.deposit_amount,
-        policy.predict_id,
-        policy.manager_id,
-        policy.oracle_id,
-        policy.hedge_expiry_ms,
-        policy.hedge_strike,
-        policy.hedge_quantity,
-        plp_amount,
-        clock.timestamp_ms(),
-    )
+    plp_balance
 }
 
 public(package) fun assert_owner_cap<Quote>(policy: &ShieldPolicy<Quote>, cap: &ShieldOwnerCap<Quote>) {
@@ -182,6 +166,26 @@ public(package) fun owner_cap_id<Quote>(cap: &ShieldOwnerCap<Quote>): ID {
     cap.id.to_inner()
 }
 
+public(package) fun beneficiary<Quote>(policy: &ShieldPolicy<Quote>): address {
+    policy.beneficiary
+}
+
+public(package) fun deposit_amount<Quote>(policy: &ShieldPolicy<Quote>): u64 {
+    policy.deposit_amount
+}
+
+public(package) fun created_at_ms<Quote>(policy: &ShieldPolicy<Quote>): u64 {
+    policy.created_at_ms
+}
+
+public(package) fun predict_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
+    policy.predict_id
+}
+
+public(package) fun manager_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
+    policy.manager_id
+}
+
 public(package) fun oracle_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
     policy.oracle_id
 }
@@ -196,6 +200,10 @@ public(package) fun hedge_strike<Quote>(policy: &ShieldPolicy<Quote>): u64 {
 
 public(package) fun hedge_quantity<Quote>(policy: &ShieldPolicy<Quote>): u64 {
     policy.hedge_quantity
+}
+
+public(package) fun plp_amount<Quote>(policy: &ShieldPolicy<Quote>): u64 {
+    policy.plp_balance.value()
 }
 
 public(package) fun settled<Quote>(policy: &ShieldPolicy<Quote>): bool {
