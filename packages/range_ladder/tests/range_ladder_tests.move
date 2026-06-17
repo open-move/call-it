@@ -3,22 +3,22 @@ module range_ladder::range_ladder_tests;
 
 use deepbook_predict::{
     i64,
+    oracle::{Self, OracleSVI, OracleSVICap},
     plp::PLP,
     predict::{Self, Predict},
-    predict_manager::{Self, PredictManager},
+    predict_manager::PredictManager,
     range_key,
-    oracle::{Self, OracleSVI, OracleSVICap},
     registry::{Self, AdminCap, Registry},
 };
 use range_ladder::{
-    policy::{Self, RangeLadderOwnerCap, RangeLadderPolicy},
+    policy::{Self, RangeLadderPolicy},
     range_ladder,
     test_quote::{Self, TEST_QUOTE},
 };
 use std::unit_test::{assert_eq, destroy};
 use sui::{
     clock::{Self, Clock},
-    coin::{Self, Coin},
+    coin,
     coin_registry::Currency,
     object::{Self, ID},
     test_scenario::{begin, end, return_shared, Scenario},
@@ -26,7 +26,6 @@ use sui::{
 };
 
 const ADMIN: address = @0xA;
-const BENEFICIARY: address = @0xB;
 const KEEPER: address = @0xC;
 
 const EXPIRY_MS: u64 = 1_000_000;
@@ -49,7 +48,7 @@ public struct Env has drop {
 }
 
 #[test]
-fun open_creates_policy_and_exact_range_positions() {
+fun open_creates_owned_policy_and_exact_range_positions() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
 
@@ -62,17 +61,13 @@ fun open_creates_policy_and_exact_range_positions() {
         let first_key = first_range_key(&oracle);
         let second_key = second_range_key(&oracle);
 
-        assert_eq!(manager.range_position(first_key), 0);
-        assert_eq!(manager.range_position(second_key), 0);
-
         seed_vault(&mut predict, &clock, &mut test);
         let payment = coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx());
-        let (cap, refund) = range_ladder::open<TEST_QUOTE>(
+        let (policy, refund) = range_ladder::open<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
             payment,
-            BENEFICIARY,
             default_rungs(),
             &clock,
             test.ctx(),
@@ -80,20 +75,14 @@ fun open_creates_policy_and_exact_range_positions() {
 
         assert_eq!(manager.range_position(first_key), RUNG_QUANTITY);
         assert_eq!(manager.range_position(second_key), RUNG_QUANTITY);
+        assert_eq!(policy.rung_count(), 2);
         coin::burn_for_testing(refund);
-        transfer::public_transfer(cap, ADMIN);
+        transfer::public_transfer(policy, ADMIN);
 
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
         return_shared(clock);
-    };
-
-    test.next_tx(ADMIN);
-    {
-        let policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        assert!(!policy.settled());
-        return_shared(policy);
     };
 
     end(test);
@@ -117,20 +106,19 @@ fun open_preserves_existing_manager_balance() {
             test.ctx(),
         );
         let payment = coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx());
-        let (cap, refund) = range_ladder::open<TEST_QUOTE>(
+        let (policy, refund) = range_ladder::open<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
             payment,
-            BENEFICIARY,
             default_rungs(),
             &clock,
             test.ctx(),
         );
 
-        assert_eq!(manager.balance<TEST_QUOTE>(), EXISTING_MANAGER_BALANCE);
         coin::burn_for_testing(refund);
-        transfer::public_transfer(cap, ADMIN);
+        assert_eq!(manager.balance<TEST_QUOTE>(), EXISTING_MANAGER_BALANCE);
+        transfer::public_transfer(policy, ADMIN);
 
         return_shared(predict);
         return_shared(manager);
@@ -141,24 +129,42 @@ fun open_preserves_existing_manager_balance() {
     end(test);
 }
 
-#[test, expected_failure]
-fun open_aborts_on_empty_ladder() {
+#[test]
+fun claim_consumes_policy_redeems_ranges_and_withdraws_payout() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
+    open_policy(&mut test, &env, ADMIN);
+    settle_oracle(&mut test, env.oracle_id);
 
-    attempt_open(&mut test, &env, ADMIN, BENEFICIARY, PREMIUM_AMOUNT, vector[]);
+    test.next_tx(ADMIN);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let policy = test.take_from_sender<RangeLadderPolicy<TEST_QUOTE>>();
+        let clock = test.take_shared<Clock>();
+        let first_key = first_range_key(&oracle);
+        let second_key = second_range_key(&oracle);
 
-    end(test);
-}
+        let payout = range_ladder::claim<TEST_QUOTE>(
+            &mut predict,
+            &mut manager,
+            &oracle,
+            policy,
+            &clock,
+            test.ctx(),
+        );
 
-#[test, expected_failure]
-fun open_aborts_on_too_many_rungs() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    let mut rungs = vector[];
-    17u64.do!(|_| rungs.push_back(policy::new_rung(LOWER_STRIKE, MID_STRIKE, RUNG_QUANTITY)));
+        assert_eq!(manager.range_position(first_key), 0);
+        assert_eq!(manager.range_position(second_key), 0);
+        assert!(payout.value() > 0);
+        coin::burn_for_testing(payout);
 
-    attempt_open(&mut test, &env, ADMIN, BENEFICIARY, PREMIUM_AMOUNT, rungs);
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    };
 
     end(test);
 }
@@ -174,12 +180,20 @@ fun new_rung_aborts_on_zero_quantity() {
 }
 
 #[test, expected_failure]
-fun open_aborts_on_zero_beneficiary() {
+fun open_aborts_on_empty_ladder() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
+    attempt_open(&mut test, &env, ADMIN, PREMIUM_AMOUNT, vector[]);
+    end(test);
+}
 
-    attempt_open(&mut test, &env, ADMIN, @0x0, PREMIUM_AMOUNT, default_rungs());
-
+#[test, expected_failure]
+fun open_aborts_on_too_many_rungs() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    let mut rungs = vector[];
+    17u64.do!(|_| rungs.push_back(policy::new_rung(LOWER_STRIKE, MID_STRIKE, RUNG_QUANTITY)));
+    attempt_open(&mut test, &env, ADMIN, PREMIUM_AMOUNT, rungs);
     end(test);
 }
 
@@ -187,9 +201,7 @@ fun open_aborts_on_zero_beneficiary() {
 fun open_aborts_on_zero_premium() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
-
-    attempt_open(&mut test, &env, ADMIN, BENEFICIARY, 0, default_rungs());
-
+    attempt_open(&mut test, &env, ADMIN, 0, default_rungs());
     end(test);
 }
 
@@ -197,9 +209,7 @@ fun open_aborts_on_zero_premium() {
 fun open_aborts_when_oracle_inactive() {
     let mut test = begin(ADMIN);
     let env = setup_inactive(&mut test);
-
-    attempt_open(&mut test, &env, ADMIN, BENEFICIARY, PREMIUM_AMOUNT, default_rungs());
-
+    attempt_open(&mut test, &env, ADMIN, PREMIUM_AMOUNT, default_rungs());
     end(test);
 }
 
@@ -207,9 +217,7 @@ fun open_aborts_when_oracle_inactive() {
 fun open_aborts_for_non_manager_owner() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
-
-    attempt_open(&mut test, &env, KEEPER, BENEFICIARY, PREMIUM_AMOUNT, default_rungs());
-
+    attempt_open(&mut test, &env, KEEPER, PREMIUM_AMOUNT, default_rungs());
     end(test);
 }
 
@@ -227,121 +235,25 @@ fun open_aborts_when_same_range_position_exists() {
         let key = first_range_key(&oracle);
 
         seed_vault(&mut predict, &clock, &mut test);
-        predict_manager::deposit<TEST_QUOTE>(
-            &mut manager,
-            coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx()),
-            test.ctx(),
-        );
-        predict::mint_range<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            key,
-            RUNG_QUANTITY,
-            &clock,
-            test.ctx(),
-        );
+        manager.deposit<TEST_QUOTE>(coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx()), test.ctx());
+        predict.mint_range<TEST_QUOTE>(&mut manager, &oracle, key, RUNG_QUANTITY, &clock, test.ctx());
 
         let payment = coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx());
-        let (cap, refund) = range_ladder::open<TEST_QUOTE>(
+        let (policy, refund) = range_ladder::open<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
             payment,
-            BENEFICIARY,
             default_rungs(),
             &clock,
             test.ctx(),
         );
-        transfer::public_transfer(cap, ADMIN);
+        transfer::public_transfer(policy, ADMIN);
         coin::burn_for_testing(refund);
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test]
-fun set_beneficiary_updates_policy() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-
-        range_ladder::set_beneficiary<TEST_QUOTE>(&mut policy, &cap, KEEPER);
-
-        return_shared(policy);
-        test.return_to_sender(cap);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun set_beneficiary_aborts_on_zero_beneficiary() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-
-        range_ladder::set_beneficiary<TEST_QUOTE>(&mut policy, &cap, @0x0);
-
-        return_shared(policy);
-        test.return_to_sender(cap);
-    };
-
-    end(test);
-}
-
-#[test]
-fun claim_redeems_ranges_withdraws_payout_and_consumes_cap() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-        let first_key = first_range_key(&oracle);
-        let second_key = second_range_key(&oracle);
-
-        let payout = range_ladder::claim<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            cap,
-            &clock,
-            test.ctx(),
-        );
-
-        assert_eq!(manager.range_position(first_key), 0);
-        assert_eq!(manager.range_position(second_key), 0);
-        assert!(policy.settled());
-        assert!(payout.value() > 0);
-        coin::burn_for_testing(payout);
 
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
-        return_shared(policy);
         return_shared(clock);
     };
 
@@ -349,260 +261,10 @@ fun claim_redeems_ranges_withdraws_payout_and_consumes_cap() {
 }
 
 #[test, expected_failure]
-fun claim_aborts_when_oracle_unsettled() {
+fun claim_aborts_when_range_position_was_increased() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
-    open_policy(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        let payout = range_ladder::claim<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            cap,
-            &clock,
-            test.ctx(),
-        );
-
-        coin::burn_for_testing(payout);
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun claim_aborts_for_non_manager_owner() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(ADMIN);
-    {
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-        transfer::public_transfer(cap, KEEPER);
-    };
-
-    test.next_tx(KEEPER);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        let payout = range_ladder::claim<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            cap,
-            &clock,
-            test.ctx(),
-        );
-
-        coin::burn_for_testing(payout);
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test]
-fun settle_redeems_ranges_to_manager() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-        let first_key = first_range_key(&oracle);
-        let second_key = second_range_key(&oracle);
-
-        range_ladder::settle<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            &clock,
-            test.ctx(),
-        );
-
-        assert_eq!(manager.range_position(first_key), 0);
-        assert_eq!(manager.range_position(second_key), 0);
-        assert!(predict_manager::balance<TEST_QUOTE>(&manager) > 0);
-        assert!(policy.settled());
-
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun settle_aborts_for_non_manager_owner() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(KEEPER);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        range_ladder::settle<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            &clock,
-            test.ctx(),
-        );
-
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun settle_aborts_when_oracle_unsettled() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        range_ladder::settle<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            &clock,
-            test.ctx(),
-        );
-
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test]
-fun claim_consumes_stale_cap_after_settle() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        range_ladder::settle<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            &clock,
-            test.ctx(),
-        );
-
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    test.next_tx(ADMIN);
-    {
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
-        let cap = test.take_from_sender<RangeLadderOwnerCap<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        let stale_claim = range_ladder::claim<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            &mut policy,
-            cap,
-            &clock,
-            test.ctx(),
-        );
-
-        assert_eq!(stale_claim.value(), 0);
-        coin::burn_for_testing(stale_claim);
-
-        return_shared(predict);
-        return_shared(manager);
-        return_shared(oracle);
-        return_shared(policy);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun settle_aborts_when_range_position_was_increased() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    open_policy(&mut test, &env);
+    open_policy(&mut test, &env, ADMIN);
 
     test.next_tx(ADMIN);
     {
@@ -612,20 +274,8 @@ fun settle_aborts_when_range_position_was_increased() {
         let clock = test.take_shared<Clock>();
         let key = first_range_key(&oracle);
 
-        predict_manager::deposit<TEST_QUOTE>(
-            &mut manager,
-            coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx()),
-            test.ctx(),
-        );
-        predict::mint_range<TEST_QUOTE>(
-            &mut predict,
-            &mut manager,
-            &oracle,
-            key,
-            1,
-            &clock,
-            test.ctx(),
-        );
+        manager.deposit<TEST_QUOTE>(coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx()), test.ctx());
+        predict.mint_range<TEST_QUOTE>(&mut manager, &oracle, key, 1, &clock, test.ctx());
 
         return_shared(predict);
         return_shared(manager);
@@ -640,22 +290,22 @@ fun settle_aborts_when_range_position_was_increased() {
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut policy = test.take_shared<RangeLadderPolicy<TEST_QUOTE>>();
+        let policy = test.take_from_sender<RangeLadderPolicy<TEST_QUOTE>>();
         let clock = test.take_shared<Clock>();
 
-        range_ladder::settle<TEST_QUOTE>(
+        let payout = range_ladder::claim<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
-            &mut policy,
+            policy,
             &clock,
             test.ctx(),
         );
+        coin::burn_for_testing(payout);
 
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
-        return_shared(policy);
         return_shared(clock);
     };
 
@@ -679,7 +329,7 @@ fun seed_vault(predict: &mut Predict, clock: &Clock, test: &mut Scenario) {
     transfer::public_transfer(seed_plp, ADMIN);
 }
 
-fun open_policy(test: &mut Scenario, env: &Env) {
+fun open_policy(test: &mut Scenario, env: &Env, recipient: address) {
     test.next_tx(ADMIN);
     {
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
@@ -689,17 +339,16 @@ fun open_policy(test: &mut Scenario, env: &Env) {
 
         seed_vault(&mut predict, &clock, test);
         let payment = coin::mint_for_testing<TEST_QUOTE>(PREMIUM_AMOUNT, test.ctx());
-        let (cap, refund) = range_ladder::open<TEST_QUOTE>(
+        let (policy, refund) = range_ladder::open<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
             payment,
-            BENEFICIARY,
             default_rungs(),
             &clock,
             test.ctx(),
         );
-        transfer::public_transfer(cap, ADMIN);
+        transfer::public_transfer(policy, recipient);
         coin::burn_for_testing(refund);
 
         return_shared(predict);
@@ -713,7 +362,6 @@ fun attempt_open(
     test: &mut Scenario,
     env: &Env,
     sender: address,
-    beneficiary: address,
     premium_amount: u64,
     rungs: vector<policy::RangeRung>,
 ) {
@@ -726,17 +374,16 @@ fun attempt_open(
 
         seed_vault(&mut predict, &clock, test);
         let payment = coin::mint_for_testing<TEST_QUOTE>(premium_amount, test.ctx());
-        let (cap, refund) = range_ladder::open<TEST_QUOTE>(
+        let (policy, refund) = range_ladder::open<TEST_QUOTE>(
             &mut predict,
             &mut manager,
             &oracle,
             payment,
-            beneficiary,
             rungs,
             &clock,
             test.ctx(),
         );
-        transfer::public_transfer(cap, sender);
+        transfer::public_transfer(policy, sender);
         coin::burn_for_testing(refund);
 
         return_shared(predict);

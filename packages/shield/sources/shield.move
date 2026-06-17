@@ -1,4 +1,4 @@
-/// Shield structured product facade.
+/// Shield structured product claim-ticket facade.
 module shield::shield;
 
 use sui::{
@@ -6,7 +6,6 @@ use sui::{
     coin::{Self, Coin},
     event,
     object::{Self, ID},
-    transfer,
 };
 
 use deepbook_predict::{
@@ -17,41 +16,20 @@ use deepbook_predict::{
 
 use shield::{
     hedge,
-    policy::{Self, ShieldOwnerCap, ShieldPolicy},
+    policy::{Self, ShieldPolicy},
 };
 
 public struct ShieldOpened<phantom Quote> has copy, drop {
     policy_id: ID,
-    owner_cap_id: ID,
     created_at_ms: u64,
 }
 
 public struct ShieldClaimed<phantom Quote> has copy, drop {
     policy_id: ID,
-    owner_cap_id: ID,
     plp_quote_amount: u64,
     hedge_payout_amount: u64,
     quote_amount: u64,
     claimed_at_ms: u64,
-}
-
-public struct ShieldSettled<phantom Quote> has copy, drop {
-    policy_id: ID,
-    hedge_payout_amount: u64,
-    beneficiary_quote_amount: u64,
-    settled_at_ms: u64,
-}
-
-public struct ShieldOwnerCapBurned<phantom Quote> has copy, drop {
-    policy_id: ID,
-    owner_cap_id: ID,
-    burned_at_ms: u64,
-}
-
-public struct ShieldBeneficiaryUpdated<phantom Quote> has copy, drop {
-    policy_id: ID,
-    old_beneficiary: address,
-    new_beneficiary: address,
 }
 
 public fun open<Quote>(
@@ -59,15 +37,13 @@ public fun open<Quote>(
     manager: &mut PredictManager,
     oracle: &OracleSVI,
     payment: Coin<Quote>,
-    beneficiary: address,
     hedge_budget_amount: u64,
     max_loss_bps: u16,
     hedge_strike: u64,
     hedge_quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-): (ShieldOwnerCap<Quote>, Coin<Quote>) {
-    policy::assert_valid_beneficiary(beneficiary);
+): (ShieldPolicy<Quote>, Coin<Quote>) {
     let mut hedge_receipt = hedge::open<Quote>(
         predict,
         manager,
@@ -80,86 +56,48 @@ public fun open<Quote>(
         clock,
         ctx,
     );
-    let hedge_metadata = hedge::metadata(&hedge_receipt);
+    let key = hedge::key(&hedge_receipt);
     let plp = hedge::take_plp(&mut hedge_receipt, ctx);
     let refund = hedge::into_refund(hedge_receipt, ctx);
-    let (policy, cap) = policy::new<Quote>(
+    let policy = policy::new<Quote>(
         plp,
-        beneficiary,
-        hedge::deposit_amount(&hedge_metadata),
         object::id(predict),
         object::id(manager),
-        oracle.id(),
-        hedge::hedge_expiry_ms(&hedge_metadata),
-        hedge_strike,
+        key,
         hedge_quantity,
-        max_loss_bps,
-        hedge_budget_amount,
-        hedge::hedge_cost(&hedge_metadata),
         clock,
         ctx,
     );
 
     event::emit(ShieldOpened<Quote> {
         policy_id: policy.id(),
-        owner_cap_id: cap.owner_cap_id(),
         created_at_ms: policy.created_at_ms(),
     });
-    policy::share(policy);
 
-    (cap, refund)
-}
-
-public fun set_beneficiary<Quote>(
-    policy: &mut ShieldPolicy<Quote>,
-    cap: &ShieldOwnerCap<Quote>,
-    new_beneficiary: address,
-) {
-    let old_beneficiary = policy.set_beneficiary(cap, new_beneficiary);
-    event::emit(ShieldBeneficiaryUpdated<Quote> {
-        policy_id: policy.id(),
-        old_beneficiary,
-        new_beneficiary,
-    });
+    (policy, refund)
 }
 
 public fun claim<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    policy: &mut ShieldPolicy<Quote>,
-    cap: ShieldOwnerCap<Quote>,
+    mut policy: ShieldPolicy<Quote>,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Coin<Quote> {
-    assert_bindings<Quote>(policy, predict, manager, oracle);
-    policy.assert_owner_cap(&cap);
-    if (policy.settled()) {
-        let policy_id = policy.id();
-        let owner_cap_id = cap.destroy_owner_cap(policy_id);
-        event::emit(ShieldOwnerCapBurned<Quote> {
-            policy_id,
-            owner_cap_id,
-            burned_at_ms: clock.timestamp_ms(),
-        });
-        return coin::zero(ctx)
-    };
-    policy.assert_unsettled();
+    assert_bindings<Quote>(&policy, predict, manager, oracle);
     let hedge_receipt = hedge::redeem_and_withdraw<Quote>(
         predict,
         manager,
         oracle,
-        policy.oracle_id(),
-        policy.hedge_expiry_ms(),
-        policy.hedge_strike(),
-        policy.hedge_quantity(),
+        policy.key(),
+        policy.quantity(),
         clock,
         ctx,
     );
     let hedge_payout_amount = hedge::payout_amount(&hedge_receipt);
-    let policy_id = policy.id();
-    let owner_cap_id = cap.destroy_owner_cap(policy_id);
-    let plp_balance = policy.settle_and_take_plp();
+    let plp_balance = policy.take_plp();
+    let policy_id = policy::destroy(policy);
     let claimed_at_ms = clock.timestamp_ms();
     let plp = coin::from_balance(plp_balance, ctx);
     let plp_quote = predict.withdraw<Quote>(plp, clock, ctx);
@@ -170,7 +108,6 @@ public fun claim<Quote>(
 
     event::emit(ShieldClaimed<Quote> {
         policy_id,
-        owner_cap_id,
         plp_quote_amount,
         hedge_payout_amount,
         quote_amount,
@@ -178,50 +115,6 @@ public fun claim<Quote>(
     });
 
     payout
-}
-
-/// Permissionless maturity settlement for keepers.
-///
-/// The hedge payout is redeemed into the user's PredictManager. The deployed
-/// PredictManager only lets its owner withdraw, so this transfers the PLP
-/// withdrawal to the policy beneficiary and reports the manager payout delta.
-public fun settle<Quote>(
-    predict: &mut Predict,
-    manager: &mut PredictManager,
-    oracle: &OracleSVI,
-    policy: &mut ShieldPolicy<Quote>,
-    clock: &Clock,
-    ctx: &mut TxContext,
-) {
-    assert_bindings<Quote>(policy, predict, manager, oracle);
-    policy.assert_unsettled();
-    let hedge_payout_amount = hedge::redeem_to_manager<Quote>(
-        predict,
-        manager,
-        oracle,
-        policy.oracle_id(),
-        policy.hedge_expiry_ms(),
-        policy.hedge_strike(),
-        policy.hedge_quantity(),
-        clock,
-        ctx,
-    );
-    let policy_id = policy.id();
-    let beneficiary = policy.beneficiary();
-    let plp_balance = policy.settle_and_take_plp();
-    let settled_at_ms = clock.timestamp_ms();
-    let plp = coin::from_balance(plp_balance, ctx);
-    let payout = predict.withdraw<Quote>(plp, clock, ctx);
-    let beneficiary_quote_amount = payout.value();
-
-    event::emit(ShieldSettled<Quote> {
-        policy_id,
-        hedge_payout_amount,
-        beneficiary_quote_amount,
-        settled_at_ms,
-    });
-
-    transfer::public_transfer(payout, beneficiary);
 }
 
 fun assert_bindings<Quote>(

@@ -5,11 +5,10 @@ use sui::{
     balance::Balance,
     clock::Clock,
     coin::{Self, Coin},
-    object::{Self, ID},
 };
 
 use deepbook_predict::{
-    market_key,
+    market_key::{Self, MarketKey},
     oracle::OracleSVI,
     predict::{Self, Predict},
     predict_manager::{Self, PredictManager},
@@ -46,8 +45,7 @@ public(package) fun open<Quote>(
     assert!(premium_amount > 0, EInvalidPremium);
     assert_valid_strike(oracle, hedge_strike, hedge_is_up);
 
-    let hedge_expiry_ms = oracle.expiry();
-    let key = market_key::new(oracle.id(), hedge_expiry_ms, hedge_strike, hedge_is_up);
+    let key = market_key::new(oracle.id(), oracle.expiry(), hedge_strike, hedge_is_up);
     assert_hedge_position(manager, key, 0);
 
     let balance_before = manager.balance<Quote>();
@@ -66,7 +64,7 @@ public(package) fun open<Quote>(
 
     HedgeOpenReceipt {
         premium_amount,
-        hedge_expiry_ms,
+        key,
         hedge_cost,
         refund_balance: refund.into_balance(),
     }
@@ -74,7 +72,7 @@ public(package) fun open<Quote>(
 
 public struct HedgeOpenReceipt<phantom Quote> {
     premium_amount: u64,
-    hedge_expiry_ms: u64,
+    key: MarketKey,
     hedge_cost: u64,
     refund_balance: Balance<Quote>,
 }
@@ -83,8 +81,8 @@ public(package) fun premium_amount<Quote>(receipt: &HedgeOpenReceipt<Quote>): u6
     receipt.premium_amount
 }
 
-public(package) fun hedge_expiry_ms<Quote>(receipt: &HedgeOpenReceipt<Quote>): u64 {
-    receipt.hedge_expiry_ms
+public(package) fun key<Quote>(receipt: &HedgeOpenReceipt<Quote>): MarketKey {
+    receipt.key
 }
 
 public(package) fun hedge_cost<Quote>(receipt: &HedgeOpenReceipt<Quote>): u64 {
@@ -92,7 +90,7 @@ public(package) fun hedge_cost<Quote>(receipt: &HedgeOpenReceipt<Quote>): u64 {
 }
 
 public(package) fun into_refund<Quote>(receipt: HedgeOpenReceipt<Quote>, ctx: &mut TxContext): Coin<Quote> {
-    let HedgeOpenReceipt { premium_amount: _, hedge_expiry_ms: _, hedge_cost: _, refund_balance } = receipt;
+    let HedgeOpenReceipt { premium_amount: _, key: _, hedge_cost: _, refund_balance } = receipt;
     coin::from_balance(refund_balance, ctx)
 }
 
@@ -100,18 +98,14 @@ public(package) fun redeem_to_manager<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    oracle_id: ID,
-    hedge_expiry_ms: u64,
-    hedge_strike: u64,
-    hedge_is_up: bool,
-    hedge_quantity: u64,
+    key: MarketKey,
+    quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
 ): u64 {
-    let key = market_key::new(oracle_id, hedge_expiry_ms, hedge_strike, hedge_is_up);
-    assert_hedge_position(manager, key, hedge_quantity);
+    assert_hedge_position(manager, key, quantity);
     let manager_balance_before = manager.balance<Quote>();
-    predict.redeem_permissionless<Quote>(manager, oracle, key, hedge_quantity, clock, ctx);
+    predict.redeem_permissionless<Quote>(manager, oracle, key, quantity, clock, ctx);
     let manager_balance_after = manager.balance<Quote>();
     manager_balance_after - manager_balance_before
 }
@@ -120,11 +114,8 @@ public(package) fun redeem_and_withdraw<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    oracle_id: ID,
-    hedge_expiry_ms: u64,
-    hedge_strike: u64,
-    hedge_is_up: bool,
-    hedge_quantity: u64,
+    key: MarketKey,
+    quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
 ): HedgeWithdrawReceipt<Quote> {
@@ -133,11 +124,8 @@ public(package) fun redeem_and_withdraw<Quote>(
         predict,
         manager,
         oracle,
-        oracle_id,
-        hedge_expiry_ms,
-        hedge_strike,
-        hedge_is_up,
-        hedge_quantity,
+        key,
+        quantity,
         clock,
         ctx,
     );
