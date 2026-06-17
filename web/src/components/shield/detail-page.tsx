@@ -156,7 +156,7 @@ export function DetailPage({ expiryProducts, product }: DetailPageProps) {
             { href: "/shield/claims", label: "Claims" },
             { href: "/shield", label: "All Shield products" },
           ]}
-          description={`Product 0 · Yield Shield / Hedged PLP Note. ${product.market.assetSymbol} protection below ${formatUsd(product.protectionStrikeUsd, 0)} with a hedge budget capped at ${product.hedgeBudgetBps / 100}%.`}
+          description={`Product 0 · owned Yield Shield ticket. ${product.market.assetSymbol} protection below ${formatUsd(product.protectionStrikeUsd, 0)} with a hedge budget capped at ${product.hedgeBudgetBps / 100}%.`}
           title="Shield"
         />
       </div>
@@ -411,6 +411,17 @@ function ShieldTicketFrame({
             value={depositAmount ? `≤${formatDusdc(hedgeBudget)}` : "--"}
           />
         </TicketSection>
+
+        <div className="rounded-md border border-border/50 bg-muted/30 px-3 py-2 text-xs leading-5 text-muted-foreground">
+          Opening creates an owned Shield policy in your wallet. Claim consumes
+          that policy after settlement and pays the returned DUSDC to you.
+        </div>
+
+        <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-200/90">
+          Keep the manager&apos;s matching DOWN position unchanged. Manual trades on
+          the same oracle, expiry, strike, and side can make the policy claim
+          abort.
+        </div>
 
         {(errorMessage || statusMessage) && (
           <TicketMessage
@@ -779,6 +790,7 @@ function TermsContent({ product }: { product: ShieldProduct }) {
       />
       <PanelRow label="Hedge type" value="Binary DOWN" />
       <PanelRow label="Budget" value={`≤${product.hedgeBudgetBps / 100}%`} />
+      <PanelRow label="Ticket" value="Owned policy, consumed on claim" />
     </div>
   )
 }
@@ -790,6 +802,7 @@ function RiskContent() {
       <p>PLP value can fall and the hedge may expire worthless.</p>
       <p>Max loss bps limits hedge budget, not total strategy loss.</p>
       <p>Settlement and claim availability depend on Predict market state.</p>
+      <p>Manual same-key trades can change the reserved manager position.</p>
     </div>
   )
 }

@@ -27,7 +27,7 @@ import {
   getShieldPresetLabel,
   getShieldTenorLabel,
 } from "@/lib/shield-products"
-import type {ShieldPreset, ShieldProduct, ShieldTenor} from "@/lib/types/shield";
+import type { ShieldPreset, ShieldProduct, ShieldTenor } from "@/lib/types/shield"
 import { useAppSearchParams } from "@/lib/hooks/router"
 import { cn } from "@/lib/utils"
 
@@ -249,13 +249,13 @@ export function Page({ products }: PageProps) {
               { href: "/shield/claims", label: "Claims" },
               { href: "/protection", label: "Back to Protection" },
             ]}
-            description="Product 0 · Yield Shield / Hedged PLP Note. Browse live Shield configurations by asset, tenor, and protection budget."
+            description="Product 0 · owned Yield Shield ticket. Each open mints a wallet-owned policy that holds PLP plus a reserved DOWN hedge until claim."
             title="Shield"
           />
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm font-medium text-foreground">
-              Live Shield products
+              Live Shield tickets
             </div>
 
             <ShieldSearchControls
@@ -327,7 +327,7 @@ function ShieldRow({ product }: { product: ShieldProduct }) {
           value={`Below ${formatUsd(product.protectionStrikeUsd, 0)}`}
         />
         <Metric
-          subValue="Hedge cap"
+          subValue="Reserved hedge cap"
           value={`≤${product.hedgeBudgetBps / 100}%`}
         />
         <Metric
@@ -461,7 +461,7 @@ function ActionButton({ product }: { product: ShieldProduct }) {
         size="sm"
         variant="ghost"
       >
-        Open
+        Open ticket
       </Button>
     </div>
   )

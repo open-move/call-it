@@ -240,6 +240,17 @@ export function Page() {
           </div>
         ) : null}
 
+        <div className="grid gap-2 text-xs leading-5 text-muted-foreground md:grid-cols-2">
+          <div className="rounded-md border border-border/50 bg-card/60 px-3 py-2">
+            Claim consumes the owned Shield policy and transfers the returned
+            DUSDC payout to your wallet.
+          </div>
+          <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-amber-200/90">
+            Avoid manual trades on the same manager key while a Shield is active;
+            changing the reserved DOWN position can block claim.
+          </div>
+        </div>
+
         {!walletAddress ? (
           <div className="rounded-2xl border border-border/60 bg-card/70 px-4 py-12 text-center text-sm text-muted-foreground">
             Sign in to view Shield claims.
