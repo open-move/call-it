@@ -45,6 +45,10 @@ import {
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
+import {
+  getShieldPositions,
+  type ShieldPositionRow,
+} from "@/services/shield-client"
 
 type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
@@ -161,6 +165,25 @@ function getMarketUnavailableMessage(market: MarketSnapshot, nowMs: number) {
   return undefined
 }
 
+function isSameShieldKey({
+  contractSide,
+  market,
+  position,
+  strikePriceUsd,
+}: {
+  contractSide: ContractSide
+  market: MarketSnapshot
+  position: ShieldPositionRow
+  strikePriceUsd: number
+}) {
+  return (
+    position.oracleId === market.oracleId &&
+    position.hedgeExpiryMs === market.expiryMs &&
+    position.isUp === (contractSide === "above") &&
+    Math.abs(position.hedgeStrikeUsd - strikePriceUsd) < 0.000001
+  )
+}
+
 function getTradeParams({
   contractSide,
   market,
@@ -252,6 +275,7 @@ function OrderTicketClient({
   const [statusMessage, setStatusMessage] = useState<string>()
   const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
   const [errorMessage, setErrorMessage] = useState<string>()
+  const [shieldPositions, setShieldPositions] = useState<ShieldPositionRow[]>([])
   const [nowMs, setNowMs] = useState(() => Date.now())
   const walletAddress = primaryWallet?.address
   const selectedQuantity = parseDecimalUnits(size, PREDICT_QUOTE_DECIMALS)
@@ -260,6 +284,17 @@ function OrderTicketClient({
   const quotedQuote = quote?.status === "quoted" ? quote : undefined
   const marketUnavailableMessage = getMarketUnavailableMessage(market, nowMs)
   const panelErrorMessage = marketUnavailableMessage ?? errorMessage
+  const matchingShieldPosition =
+    ticketMode === "binary"
+      ? shieldPositions.find((position) =>
+          isSameShieldKey({
+            contractSide,
+            market,
+            position,
+            strikePriceUsd: ticketStrikePriceUsd,
+          })
+        )
+      : undefined
   const chance =
     market.fairUpProbability === undefined
       ? "--"
@@ -286,6 +321,35 @@ function OrderTicketClient({
 
     return () => window.clearInterval(intervalId)
   }, [])
+
+  useEffect(() => {
+    let isStale = false
+
+    async function loadShieldPositions() {
+      if (!walletAddress) {
+        setShieldPositions([])
+        return
+      }
+
+      try {
+        const nextPositions = await getShieldPositions(walletAddress)
+
+        if (!isStale) {
+          setShieldPositions(nextPositions)
+        }
+      } catch {
+        if (!isStale) {
+          setShieldPositions([])
+        }
+      }
+    }
+
+    void loadShieldPositions()
+
+    return () => {
+      isStale = true
+    }
+  }, [walletAddress])
 
   useEffect(() => {
     setTicketStrikePriceUsd(selectedStrikePriceUsd)
@@ -669,6 +733,13 @@ function OrderTicketClient({
             {panelErrorMessage ?? statusMessage}
           </TicketMessage>
         )}
+
+        {matchingShieldPosition ? (
+          <TicketMessage kind="neutral">
+            This key is reserved by an active Shield policy. Manual same-key
+            trades can change the manager position and make Shield claim abort.
+          </TicketMessage>
+        ) : null}
 
         <Button
           className="w-full"
