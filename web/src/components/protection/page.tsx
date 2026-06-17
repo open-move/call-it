@@ -24,10 +24,11 @@ const products = [
     code: "01",
     description:
       "Standalone downside hedge ticket for a selected oracle, strike, and expiry.",
+    href: "/protect",
     icon: TrendingDownIcon,
-    label: "Pending package",
+    label: "Design preview",
     name: "Protect",
-    tone: "text-muted-foreground",
+    tone: "text-outcome-down",
   },
   {
     code: "02",
@@ -103,7 +104,7 @@ export function Page() {
 
               <div className="mt-6 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
                 <span>Owned policy</span>
-                <span>{product.href ? "Open" : "Configured later"}</span>
+                <span>{product.href ? "View" : "Configured later"}</span>
               </div>
             </article>
           )
