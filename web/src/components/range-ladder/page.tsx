@@ -1,8 +1,17 @@
 import { Link } from "@tanstack/react-router"
-import { ArrowLeftIcon, Layers3Icon, LockKeyholeIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  Layers3Icon,
+  LockKeyholeIcon,
+} from "lucide-react"
 
 import { ProtectionFamilyHeader } from "@/components/protection/family-header"
+import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { buttonVariants } from "@/components/ui/button"
+import { formatExpiryDistance, formatSignedPercent, formatUsd } from "@/lib/format"
+import { getRangeLadderPresetLabel } from "@/lib/range-ladder-products"
+import type { RangeLadderProduct } from "@/lib/types/range-ladder"
 import { cn } from "@/lib/utils"
 
 const sampleRungs = [
@@ -18,7 +27,17 @@ const terms = [
   "Manual same-range manager trades can block claim.",
 ]
 
-export function Page() {
+export interface PageProps {
+  products: RangeLadderProduct[]
+}
+
+function getRangeLadderProductSearch(product: RangeLadderProduct) {
+  return {
+    preset: product.preset,
+  }
+}
+
+export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
       <ProtectionFamilyHeader
@@ -124,6 +143,103 @@ export function Page() {
           </Link>
         </aside>
       </section>
+
+      <section className="space-y-3 rounded-2xl border border-border/70 bg-card/60 p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="text-sm font-medium text-foreground">
+              Suggested ladders
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Read-only rung presets built from active Predict markets. Live
+              premium quotes remain disabled until Range Ladder config exists.
+            </p>
+          </div>
+          <span className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+            {products.length} previews
+          </span>
+        </div>
+
+        {products.length > 0 ? (
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {products.map((product) => (
+              <Link
+                className="group rounded-md border border-border/60 bg-background/45 p-3 transition-colors hover:border-primary/40 hover:bg-primary/5"
+                key={product.id}
+                params={{ oracleId: product.market.oracleId }}
+                search={getRangeLadderProductSearch(product)}
+                to="/range-ladder/$oracleId"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <AssetIcon
+                      assetIconUrl={product.market.assetIconUrl}
+                      assetName={product.market.assetName}
+                      assetSymbol={product.market.assetSymbol}
+                      className="size-6"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium text-foreground group-hover:text-primary">
+                        {product.market.assetSymbol} Ladder
+                      </div>
+                      <div className="mt-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                        {getRangeLadderPresetLabel(product.preset)} · {product.rungs.length} rungs
+                      </div>
+                    </div>
+                  </div>
+                  <ArrowRightIcon className="mt-1 size-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                  <PreviewMetric
+                    label="First band"
+                    value={`${formatUsd(product.rungs[0]?.lowerStrikeUsd ?? 0, 0)} - ${formatUsd(product.rungs[0]?.higherStrikeUsd ?? 0, 0)}`}
+                  />
+                  <PreviewMetric
+                    label="Deepest"
+                    tone="down"
+                    value={formatSignedPercent(product.distancePercent)}
+                  />
+                  <PreviewMetric
+                    label="Expires"
+                    value={formatExpiryDistance(product.market.expiryMs)}
+                  />
+                </div>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border border-border/50 bg-background/45 px-4 py-10 text-center text-sm text-muted-foreground">
+            No active Range Ladder previews are available.
+          </div>
+        )}
+      </section>
     </main>
+  )
+}
+
+function PreviewMetric({
+  label,
+  tone,
+  value,
+}: {
+  label: string
+  tone?: "down"
+  value: string
+}) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </div>
+      <div
+        className={cn(
+          "mt-1 font-mono text-xs tabular-nums text-foreground",
+          tone === "down" && "text-outcome-down"
+        )}
+      >
+        {value}
+      </div>
+    </div>
   )
 }
