@@ -14,14 +14,14 @@ import {
 } from "@/components/shared/ticket/ticket"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { QUOTE_SCALE, PREDICT_QUOTE_DECIMALS  } from "@/lib/config"
-import { formatExpiryDistance, formatRelativeTime, formatSignedUsd, formatUsd } from "@/lib/format"
-import type {ExpiryOption} from "@/lib/types/market";
+import { PREDICT_QUOTE_DECIMALS, QUOTE_SCALE } from "@/lib/config"
+import { formatExpiryDistance, formatRelativeTime, formatUsd } from "@/lib/format"
+import type { ExpiryOption } from "@/lib/types/market"
 import {
   getShieldProductHref,
   getShieldTenorLabel,
 } from "@/lib/shield-products"
-import type {ShieldProduct} from "@/lib/types/shield";
+import type { ShieldProduct } from "@/lib/types/shield"
 import {
   formatDecimalUnits,
   parseDecimalUnits,
@@ -31,39 +31,32 @@ import {
   getOracleState,
   getPredictVaultSummary,
 } from "@/services/predict-client"
-import {
-  getShieldPositions
-  
-} from "@/services/shield-client"
-import type {ShieldPositionRow} from "@/services/shield-client";
+import { getShieldPositions } from "@/services/shield-client"
+import type { ShieldPositionRow } from "@/services/shield-client"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import {
   prepareShieldClaimTransaction,
   prepareShieldOpenTransaction,
-  prepareShieldSettleTransaction,
 } from "@/services/shield-transactions"
-import {
-  executeSuiTransaction,
-} from "@/services/predict-transactions"
+import { executeSuiTransaction } from "@/services/predict-transactions"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
 } from "@/lib/dynamic/sui-wallet"
-import type {ManagerPositionSummary} from "@/lib/types/predict";
+import type { ManagerPositionSummary } from "@/lib/types/predict"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
+import { getOwnedTicketClaimStatus } from "@/services/owned-ticket-bcs"
 
 interface EstimatedShieldPosition extends ShieldPositionRow {
-  estimatedPnlPercent?: number
-  estimatedPnlUsd?: number
   estimatedValueUsd?: number
   hedgeValueUsd?: number
   oracleStatus?: string
   plpValueUsd?: number
 }
 
-type ShieldLifecycleAction = "claim" | "settle"
+type ShieldLifecycleAction = "claim"
 
 interface ShieldActionState {
   action?: ShieldLifecycleAction
@@ -80,35 +73,6 @@ export interface DetailPageProps {
 
 function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
-}
-
-function formatPnlUsd(value: number) {
-  const formatted = formatUsd(Math.abs(value))
-
-  if (value > 0) {
-    return `+${formatted}`
-  }
-
-  if (value < 0) {
-    return `-${formatted}`
-  }
-
-  return formatted
-}
-
-function formatPnlPercent(value: number) {
-  const displayValue = Math.abs(value) < 0.00005 ? 0 : value
-  const formatted = Math.abs(displayValue * 100).toFixed(2)
-
-  if (displayValue > 0) {
-    return `+${formatted}%`
-  }
-
-  if (displayValue < 0) {
-    return `-${formatted}%`
-  }
-
-  return `${formatted}%`
 }
 
 function toQuoteAmount(value: number) {
@@ -129,7 +93,7 @@ function getHedgeSummary(
       summary.oracle_id === position.oracleId &&
       summary.expiry === position.hedgeExpiryMs &&
       BigInt(summary.strike) === position.hedgeStrike &&
-      !summary.is_up &&
+      summary.is_up === position.isUp &&
       summary.open_quantity > 0
   )
 }
@@ -156,7 +120,7 @@ async function enrichShieldPositions(
     summariesResult.status === "fulfilled" ? summariesResult.value.flat() : []
 
   return positions.map((position) => {
-    if (!vaultSummary || position.settled) {
+    if (!vaultSummary) {
       return position
     }
 
@@ -166,18 +130,13 @@ async function enrichShieldPositions(
       return position
     }
 
-    const depositUsd = toQuoteAmountFromBigInt(position.depositAmount)
     const plpValueUsd =
       toQuoteAmountFromBigInt(position.plpAmount) * vaultSummary.plp_share_price
     const hedgeValueUsd = toQuoteAmount(hedgeSummary.mark_value)
     const estimatedValueUsd = plpValueUsd + hedgeValueUsd
-    const estimatedPnlUsd = estimatedValueUsd - depositUsd
 
     return {
       ...position,
-      estimatedPnlPercent:
-        depositUsd > 0 ? estimatedPnlUsd / depositUsd : undefined,
-      estimatedPnlUsd,
       estimatedValueUsd,
       hedgeValueUsd,
       plpValueUsd,
@@ -545,16 +504,9 @@ function PositionsContentClient({
   const [errorMessage, setErrorMessage] = useState<string>()
   const [isLoading, setIsLoading] = useState(false)
   const [positions, setPositions] = useState<EstimatedShieldPosition[]>([])
-<<<<<<< HEAD
-  const [claimingOwnerCapId, setClaimingOwnerCapId] = useState<string>()
-  const refreshRoute = useAppRouteRefresh()
-=======
   const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
 
-  async function executeShieldLifecycle(
-    position: EstimatedShieldPosition,
-    action: ShieldLifecycleAction
-  ) {
+  async function executeShieldClaim(position: EstimatedShieldPosition) {
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -564,88 +516,63 @@ function PositionsContentClient({
 
     if (!signer) {
       setActionState({
-        action,
+        action: "claim",
         errorMessage: RECONNECT_SUI_WALLET_MESSAGE,
-        positionId: position.ownerCapId,
+        positionId: position.policyId,
       })
       setShowAuthFlow(true)
       return
     }
 
-    if (position.settled) {
+    if (getOwnedTicketClaimStatus(position.oracleStatus) !== "claimable") {
       setActionState({
-        action,
-        errorMessage: "This Shield policy is already settled.",
-        positionId: position.ownerCapId,
-      })
-      return
-    }
-
-    if (position.oracleStatus !== "settled") {
-      setActionState({
-        action,
+        action: "claim",
         errorMessage: "This Shield can only be claimed after the Predict market settles.",
-        positionId: position.ownerCapId,
+        positionId: position.policyId,
       })
       return
     }
 
     setActionState({
-      action,
+      action: "claim",
       isExecuting: true,
-      message: action === "claim" ? "Preparing claim." : "Preparing settlement.",
-      positionId: position.ownerCapId,
+      message: "Preparing claim.",
+      positionId: position.policyId,
     })
 
     try {
-      const transaction =
-        action === "claim"
-          ? await prepareShieldClaimTransaction({
-              managerId: position.managerId,
-              oracleId: position.oracleId,
-              ownerCapId: position.ownerCapId,
-              policyId: position.policyId,
-              walletAddress,
-            })
-          : await prepareShieldSettleTransaction({
-              managerId: position.managerId,
-              oracleId: position.oracleId,
-              policyId: position.policyId,
-              walletAddress,
-            })
+      const transaction = await prepareShieldClaimTransaction({
+        managerId: position.managerId,
+        oracleId: position.oracleId,
+        policyId: position.policyId,
+        walletAddress,
+      })
 
       setActionState({
-        action,
+        action: "claim",
         isExecuting: true,
         message: "Wallet approval requested.",
-        positionId: position.ownerCapId,
+        positionId: position.policyId,
       })
 
       await executeSuiTransaction(signer, transaction)
 
       setActionState({
-        action,
-        message:
-          action === "claim"
-            ? "Shield claim confirmed."
-            : "Shield settlement confirmed.",
-        positionId: position.ownerCapId,
+        action: "claim",
+        message: "Shield claim confirmed.",
+        positionId: position.policyId,
       })
       setPositionRefreshNonce((currentNonce) => currentNonce + 1)
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
       setActionState({
-        action,
-        errorMessage: formatPredictTradeError(
-          error,
-          action === "claim" ? "Shield claim failed" : "Shield settlement failed"
-        ),
-        positionId: position.ownerCapId,
+        action: "claim",
+        errorMessage: formatPredictTradeError(error, "Shield claim failed"),
+        positionId: position.policyId,
       })
     }
   }
->>>>>>> 0f57973 (add the remaining callit packages)
 
   useEffect(() => {
     let isStale = false
@@ -704,43 +631,13 @@ function PositionsContentClient({
     return () => {
       isStale = true
     }
-  }, [positionRefreshNonce, product.market.oracleId, product.market.status, refreshKey, walletAddress])
-
-  async function handleClaim(position: EstimatedShieldPosition) {
-    if (!walletAddress) {
-      setShowAuthFlow(true)
-      return
-    }
-
-    const signer = await getReadySuiTransactionSigner(primaryWallet)
-
-    if (!signer) {
-      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
-      setShowAuthFlow(true)
-      return
-    }
-
-    setClaimingOwnerCapId(position.ownerCapId)
-    setErrorMessage(undefined)
-
-    try {
-      const transaction = buildShieldClaimTransaction({
-        managerId: position.managerId,
-        oracleId: position.oracleId,
-        ownerCapId: position.ownerCapId,
-        policyId: position.policyId,
-        walletAddress,
-      })
-
-      await executeSuiTransaction(signer, transaction)
-      refreshRoute()
-      window.setTimeout(() => refreshRoute(), 1_500)
-    } catch (error) {
-      setErrorMessage(formatPredictTradeError(error, "Claim Shield failed"))
-    } finally {
-      setClaimingOwnerCapId(undefined)
-    }
-  }
+  }, [
+    positionRefreshNonce,
+    product.market.oracleId,
+    product.market.status,
+    refreshKey,
+    walletAddress,
+  ])
 
   if (!walletAddress) {
     return <PositionsEmptyState message="Sign in to view Shield positions" />
@@ -765,8 +662,8 @@ function PositionsContentClient({
         {positions.map((position) => (
           <ShieldPositionRowView
             actionState={actionState}
-            key={position.ownerCapId}
-            onAction={(action) => void executeShieldLifecycle(position, action)}
+            key={position.policyId}
+            onClaim={() => void executeShieldClaim(position)}
             position={position}
           />
         ))}
@@ -785,13 +682,12 @@ function PositionsEmptyState({ message }: { message: string }) {
 
 function ShieldPositionHeaderRow() {
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem_8rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_7rem_7rem_7rem_5.5rem_6rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
       <span>Shield</span>
-      <span>Deposit</span>
       <span>PLP</span>
-      <span>Hedge</span>
+      <span>Hedge Qty</span>
+      <span>Hedge Mark</span>
       <span>Est. Value</span>
-      <span className="text-right">Est. PnL</span>
       <span className="text-right">Status</span>
       <span className="text-right">Action</span>
     </div>
@@ -800,27 +696,20 @@ function ShieldPositionHeaderRow() {
 
 function ShieldPositionRowView({
   actionState,
-  onAction,
+  onClaim,
   position,
 }: {
   actionState: ShieldActionState
-  onAction: (action: ShieldLifecycleAction) => void
+  onClaim: () => void
   position: EstimatedShieldPosition
 }) {
-  const isActionActive = actionState.positionId === position.ownerCapId
+  const isActionActive = actionState.positionId === position.policyId
   const isExecuting = isActionActive && actionState.isExecuting
-  const canAct = !position.settled && position.oracleStatus === "settled"
-  const pnlClassName =
-    position.estimatedPnlUsd === undefined
-      ? "text-muted-foreground"
-      : position.estimatedPnlUsd > 0
-        ? "text-outcome-up"
-        : position.estimatedPnlUsd < 0
-          ? "text-outcome-down"
-          : "text-muted-foreground"
+  const claimStatus = getOwnedTicketClaimStatus(position.oracleStatus)
+  const canClaim = claimStatus === "claimable"
 
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_6rem_6rem_7rem_7rem_5.5rem_8rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
+    <div className="grid grid-cols-[minmax(12rem,1.8fr)_7rem_7rem_7rem_7rem_5.5rem_6rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs">
       <div className="min-w-0">
         <div className="flex min-w-0 items-center gap-2">
           <span className="inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide text-primary uppercase">
@@ -836,12 +725,10 @@ function ShieldPositionRowView({
         </div>
       </div>
       <span className="font-mono text-muted-foreground tabular-nums">
-        {formatDusdc(position.depositAmount)}
+        {formatDusdc(position.plpAmount)}
       </span>
       <span className="font-mono tabular-nums">
-        {position.plpValueUsd === undefined
-          ? "--"
-          : formatUsd(position.plpValueUsd)}
+        {formatDusdc(position.hedgeQuantity)}
       </span>
       <span className="font-mono tabular-nums">
         {position.hedgeValueUsd === undefined
@@ -853,37 +740,17 @@ function ShieldPositionRowView({
           ? "--"
           : formatUsd(position.estimatedValueUsd)}
       </span>
-      <span className={cn("text-right font-mono tabular-nums", pnlClassName)}>
-        {position.estimatedPnlUsd === undefined
-          ? "--"
-          : `${formatPnlUsd(position.estimatedPnlUsd)} (${formatPnlPercent(
-              position.estimatedPnlPercent ?? 0
-            )})`}
-      </span>
       <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
-        {position.settled
-          ? "Settled"
-          : position.oracleStatus === "settled"
-            ? "Claimable"
-            : "Active"}
+        {claimStatus === "claimable" ? "Claimable" : "Active"}
       </span>
       <div className="flex justify-end gap-1">
         <Button
-          disabled={!canAct || isExecuting}
-          onClick={() => onAction("claim")}
+          disabled={!canClaim || isExecuting}
+          onClick={onClaim}
           size="xs"
           type="button"
         >
           {isExecuting && actionState.action === "claim" ? "Claiming" : "Claim"}
-        </Button>
-        <Button
-          disabled={!canAct || isExecuting}
-          onClick={() => onAction("settle")}
-          size="xs"
-          type="button"
-          variant="outline"
-        >
-          {isExecuting && actionState.action === "settle" ? "Settling" : "Settle"}
         </Button>
       </div>
       {isActionActive && (actionState.errorMessage || actionState.message) && (

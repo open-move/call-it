@@ -1,181 +1,145 @@
-import { ArrowRightIcon, ShieldCheckIcon } from "lucide-react"
 import { Link } from "@tanstack/react-router"
+import {
+  ArrowRightIcon,
+  Layers3Icon,
+  ShieldCheckIcon,
+  TrendingDownIcon,
+} from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
-function InfoRow({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border/40 py-3 last:border-b-0 last:pb-0">
-      <span className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-        {label}
-      </span>
-      <span className="max-w-[65%] text-right text-sm text-foreground">
-        {value}
-      </span>
-    </div>
-  )
-}
+const products = [
+  {
+    code: "00",
+    description:
+      "Deposit DUSDC into Predict PLP and reserve part of the ticket for a DOWN hedge.",
+    href: "/shield",
+    icon: ShieldCheckIcon,
+    label: "Live",
+    name: "Shield",
+    tone: "text-emerald-500",
+  },
+  {
+    code: "01",
+    description:
+      "Standalone downside hedge ticket for a selected oracle, strike, and expiry.",
+    icon: TrendingDownIcon,
+    label: "Pending package",
+    name: "Protect",
+    tone: "text-muted-foreground",
+  },
+  {
+    code: "02",
+    description:
+      "Multi-rung range ticket for markets where payout depends on a price band.",
+    icon: Layers3Icon,
+    label: "Pending package",
+    name: "Range Ladder",
+    tone: "text-muted-foreground",
+  },
+]
 
 export function Page() {
   return (
-    <main className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-4 sm:px-6 lg:px-8">
-      <section className="rounded-3xl border border-border/70 bg-card/80 p-6 sm:p-8">
-        <div className="space-y-4">
-          <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground">
-            <ShieldCheckIcon className="size-3.5" />
-            Protection
-          </div>
-
+    <main className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <section className="rounded-2xl border border-border/70 bg-card/75 p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              CallIt&apos;s policy product family.
+            <div className="inline-flex items-center gap-2 rounded-md border border-border/70 bg-background/70 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+              <ShieldCheckIcon className="size-3.5" />
+              Protection
+            </div>
+            <h1 className="text-2xl font-medium tracking-tight text-foreground sm:text-3xl">
+              Owned policy tickets for Predict risk.
             </h1>
-            <p className="text-sm leading-6 text-muted-foreground sm:text-base">
-              Protection is the umbrella product line. Shield is the first live
-              implementation. The rest of the family extends the same policy
-              model to standalone downside, range, and liquidation risk.
+            <p className="text-sm leading-6 text-muted-foreground">
+              Shield is live. Protect and Range Ladder use the same owned-ticket
+              claim model, but stay disabled here until their package IDs and
+              routes are configured.
             </p>
           </div>
+
+          <Link
+            className={cn(buttonVariants({ variant: "secondary" }), "gap-2")}
+            to="/shield/claims"
+          >
+            Shield claims
+            <ArrowRightIcon className="size-4" />
+          </Link>
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
-        <article className="rounded-3xl border border-border/70 bg-card/70 p-6">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-            <div className="space-y-2">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-emerald-500">
-                Live now
-              </div>
-              <h2 className="text-2xl font-semibold text-foreground">Shield</h2>
-              <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-                Shield combines PLP yield with a downside hedge and wraps both
-                legs into a policy object with a claim path.
-              </p>
-            </div>
+      <section className="grid gap-3 lg:grid-cols-3">
+        {products.map((product) => {
+          const Icon = product.icon
+          const card = (
+            <article className="flex h-full min-h-56 flex-col justify-between rounded-2xl border border-border/70 bg-card/70 p-4 transition-colors hover:border-border">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    {product.code}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[11px] uppercase tracking-[0.16em]",
+                      product.tone
+                    )}
+                  >
+                    {product.label}
+                  </span>
+                </div>
 
-            <Link
-              className={cn(buttonVariants(), "flex items-center gap-2")}
-              to="/shield"
-            >
-              Open Shield
-              <ArrowRightIcon className="size-4" />
+                <div className="space-y-2">
+                  <Icon className={cn("size-5", product.tone)} />
+                  <h2 className="text-lg font-medium text-foreground">
+                    {product.name}
+                  </h2>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    {product.description}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center justify-between border-t border-border/40 pt-3 text-xs text-muted-foreground">
+                <span>Owned policy</span>
+                <span>{product.href ? "Open" : "Configured later"}</span>
+              </div>
+            </article>
+          )
+
+          if (!product.href) {
+            return <div key={product.name}>{card}</div>
+          }
+
+          return (
+            <Link key={product.name} to={product.href}>
+              {card}
             </Link>
-          </div>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-2">
-            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Construction
-              </div>
-              <div className="mt-2 text-sm text-foreground">
-                PLP supply + DOWN hedge + policy
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-background/50 p-4">
-              <div className="text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-                Purpose
-              </div>
-              <div className="mt-2 text-sm text-foreground">
-                Earn PLP yield while reserving part of the deposit for downside
-                protection.
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article className="rounded-3xl border border-border/70 bg-card/70 p-6">
-          <div className="text-sm font-medium text-foreground">Roadmap</div>
-          <div className="mt-4 space-y-4">
-            <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
-              <div className="text-sm font-medium text-foreground">
-                1. Downside Protection
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Pure hedge policy for external spot or portfolio risk.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
-              <div className="text-sm font-medium text-foreground">
-                2. Range Shield
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Protection against price breaking into or out of a target range.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-background/40 p-4">
-              <div className="text-sm font-medium text-foreground">
-                3. Margin Liquidation Shield
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Hedge near a liquidation band for external margin exposure.
-              </p>
-            </div>
-          </div>
-        </article>
+          )
+        })}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-2xl border border-border/70 bg-card/70 p-5">
-          <div className="text-sm font-medium text-foreground">Model</div>
-          <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <div>Shield = PLP supply + DOWN hedge + policy</div>
-            <div>Protection = Predict hedge + policy + external risk reference</div>
+      <section className="grid gap-3 rounded-2xl border border-border/70 bg-card/60 p-4 text-sm text-muted-foreground md:grid-cols-3">
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-[0.16em] text-foreground">
+            Ticket
           </div>
-        </article>
-
-        <article className="rounded-2xl border border-border/70 bg-card/70 p-5">
-          <div className="text-sm font-medium text-foreground">
-            Product codes
+          Open returns an owned policy object to the wallet.
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-[0.16em] text-foreground">
+            Claim
           </div>
-          <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-            <div>
-              <span className="font-medium text-foreground">0</span> — Yield
-              Shield
-            </div>
-            <div>
-              <span className="font-medium text-foreground">1</span> —
-              Standalone Downside Protection
-            </div>
-            <div>
-              <span className="font-medium text-foreground">2</span> — Range
-              Shield
-            </div>
-            <div>
-              <span className="font-medium text-foreground">3</span> — Margin
-              Liquidation Shield
-            </div>
+          Claim consumes the policy after the underlying Predict market settles.
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-[0.16em] text-foreground">
+            Collision Risk
           </div>
-        </article>
-
-        <article className="rounded-2xl border border-border/70 bg-card/70 p-5">
-          <div className="text-sm font-medium text-foreground">
-            Constraints
-          </div>
-          <div className="mt-1">
-            <InfoRow
-              label="Positions"
-              value="Predict positions are not transferable."
-            />
-            <InfoRow
-              label="Managers"
-              value="PredictManager stays separate from spot and margin managers."
-            />
-            <InfoRow
-              label="Withdrawals"
-              value="Keeper settlement can fund the manager, but only the owner can withdraw."
-            />
-          </div>
-        </article>
+          Manual trades on the same manager and market key can break reserved
+          product positions.
+        </div>
       </section>
     </main>
   )

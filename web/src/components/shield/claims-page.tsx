@@ -4,19 +4,26 @@ import { useEffect, useMemo, useState } from "react"
 import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { Button } from "@/components/ui/button"
 import { formatDecimalUnits } from "@/lib/amounts"
-import { RECONNECT_SUI_WALLET_MESSAGE, getReadySuiTransactionSigner } from "@/lib/dynamic/sui-wallet"
+import {
+  RECONNECT_SUI_WALLET_MESSAGE,
+  getReadySuiTransactionSigner,
+} from "@/lib/dynamic/sui-wallet"
 import { formatExpiryDistance, formatRelativeTime, formatUsd } from "@/lib/format"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import type { OracleStateResponse } from "@/lib/types/predict"
 import { cn } from "@/lib/utils"
+import {
+  getOwnedTicketClaimStatus,
+  type OwnedTicketClaimStatus,
+} from "@/services/owned-ticket-bcs"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import { getOracleState } from "@/services/predict-client"
 import type { ShieldPositionRow } from "@/services/shield-client"
 import { getShieldPositions } from "@/services/shield-client"
-import { buildShieldClaimTransaction } from "@/services/shield-transactions"
+import { prepareShieldClaimTransaction } from "@/services/shield-transactions"
 import { executeSuiTransaction } from "@/services/predict-transactions"
 
-type ClaimsTab = "active" | "claimable" | "settled"
+type ClaimsTab = OwnedTicketClaimStatus
 
 function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, 6, 4)} DUSDC`
@@ -28,17 +35,16 @@ function getTabLabel(tab: ClaimsTab) {
       return "Active"
     case "claimable":
       return "Claimable"
-    case "settled":
-      return "Settled"
   }
 }
 
-function getPositionStatus(position: ShieldPositionRow): ClaimsTab {
-  if (position.settled) {
-    return "settled"
-  }
+function getPositionStatus(
+  position: ShieldPositionRow,
+  oracleStates: Record<string, OracleStateResponse | undefined>
+): ClaimsTab {
+  const oracleStatus = oracleStates[position.oracleId]?.oracle.status
 
-  return Date.now() >= position.hedgeExpiryMs ? "claimable" : "active"
+  return getOwnedTicketClaimStatus(oracleStatus)
 }
 
 function getOracleLabel(
@@ -62,7 +68,7 @@ export function Page() {
   const [isLoading, setIsLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedTab, setSelectedTab] = useState<ClaimsTab>("claimable")
-  const [claimingOwnerCapId, setClaimingOwnerCapId] = useState<string>()
+  const [claimingPolicyId, setClaimingPolicyId] = useState<string>()
   const [errorMessage, setErrorMessage] = useState<string>()
   const [oracleStates, setOracleStates] = useState<
     Record<string, OracleStateResponse | undefined>
@@ -70,13 +76,14 @@ export function Page() {
 
   const grouped = useMemo(() => {
     return {
-      active: positions.filter((position) => getPositionStatus(position) === "active"),
       claimable: positions.filter(
-        (position) => getPositionStatus(position) === "claimable"
+        (position) => getPositionStatus(position, oracleStates) === "claimable"
       ),
-      settled: positions.filter((position) => getPositionStatus(position) === "settled"),
+      active: positions.filter(
+        (position) => getPositionStatus(position, oracleStates) === "active"
+      ),
     }
-  }, [positions])
+  }, [oracleStates, positions])
 
   useEffect(() => {
     let isStale = false
@@ -173,16 +180,15 @@ export function Page() {
       return
     }
 
-    setClaimingOwnerCapId(position.ownerCapId)
+    setClaimingPolicyId(position.policyId)
     setErrorMessage(undefined)
 
     try {
       await executeSuiTransaction(
         signer,
-        buildShieldClaimTransaction({
+        await prepareShieldClaimTransaction({
           managerId: position.managerId,
           oracleId: position.oracleId,
-          ownerCapId: position.ownerCapId,
           policyId: position.policyId,
           walletAddress,
         })
@@ -193,7 +199,7 @@ export function Page() {
     } catch (error) {
       setErrorMessage(formatPredictTradeError(error, "Claim Shield failed"))
     } finally {
-      setClaimingOwnerCapId(undefined)
+      setClaimingPolicyId(undefined)
     }
   }
 
@@ -205,25 +211,26 @@ export function Page() {
             { href: "/shield", label: "All Shield products" },
             { href: "/protection", label: "Back to Protection" },
           ]}
-          description="Single claims surface for Shield policies. Review active positions, claim matured policies, and inspect settled history."
+          description="Single claims surface for owned Shield policies. Review active tickets and claim after the Predict market settles."
           title="Shield Claims"
         />
 
         <div className="flex flex-wrap items-center gap-2">
-          {(["claimable", "active", "settled"] as ClaimsTab[]).map((tab) => (
-            <button
+          {(["claimable", "active"] as ClaimsTab[]).map((tab) => (
+            <Button
               className={cn(
-                "inline-flex h-8 items-center rounded-md border px-3 text-xs font-medium transition-colors",
                 selectedTab === tab
                   ? "border-primary/30 bg-primary/10 text-primary"
                   : "border-border bg-background text-muted-foreground hover:text-foreground"
               )}
               key={tab}
               onClick={() => setSelectedTab(tab)}
+              size="sm"
               type="button"
+              variant="outline"
             >
               {getTabLabel(tab)} ({grouped[tab].length})
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -249,7 +256,7 @@ export function Page() {
           <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/70">
             <div className="hidden grid-cols-[minmax(12rem,1.4fr)_8rem_8rem_8rem_7rem] gap-4 border-b border-border/40 bg-muted/35 px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground md:grid">
               <span>Policy</span>
-              <span>Deposit</span>
+              <span>PLP</span>
               <span>Trigger</span>
               <span>Expiry</span>
               <span className="text-right">Action</span>
@@ -258,13 +265,13 @@ export function Page() {
             <div className="divide-y divide-border/35">
               {grouped[selectedTab].map((position) => {
                 const oracleLabel = getOracleLabel(position.oracleId, oracleStates)
-                const isClaiming = claimingOwnerCapId === position.ownerCapId
-                const status = getPositionStatus(position)
+                const isClaiming = claimingPolicyId === position.policyId
+                const status = getPositionStatus(position, oracleStates)
 
                 return (
                   <div
                     className="grid gap-3 px-4 py-3 md:grid-cols-[minmax(12rem,1.4fr)_8rem_8rem_8rem_7rem] md:items-center md:gap-4"
-                    key={position.ownerCapId}
+                    key={position.policyId}
                   >
                     <div className="min-w-0">
                       <div className="truncate text-sm font-medium text-foreground">
@@ -277,15 +284,13 @@ export function Page() {
                     </div>
 
                     <div className="font-mono text-xs text-foreground">
-                      {formatDusdc(position.depositAmount)}
+                      {formatDusdc(position.plpAmount)}
                     </div>
                     <div className="font-mono text-xs text-outcome-down">
                       Below {formatUsd(position.hedgeStrikeUsd, 0)}
                     </div>
                     <div className="font-mono text-xs text-muted-foreground">
-                      {position.settled
-                        ? "Settled"
-                        : formatExpiryDistance(position.hedgeExpiryMs)}
+                      {formatExpiryDistance(position.hedgeExpiryMs)}
                     </div>
                     <div className="flex justify-end">
                       {status === "claimable" ? (

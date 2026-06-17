@@ -7,11 +7,8 @@ import {
   SHIELD_PACKAGE_ID,
 } from "@/lib/config"
 import { quotePredictTradeSafe } from "./predict-quotes"
-import {
-  buildQuoteCoin,
-  toOnchainPrice,
-} from "./predict-transactions"
-import type {DirectionalTradeParams} from "./predict-transactions";
+import { buildQuoteCoin, toOnchainPrice } from "./predict-transactions"
+import type { DirectionalTradeParams } from "./predict-transactions"
 import { getSuiGrpcClient } from "./sui-client"
 
 export interface ShieldOpenParams {
@@ -33,14 +30,6 @@ export interface PreparedShieldOpenTransaction {
 export interface ShieldClaimParams {
   managerId: string
   oracleId: string
-  ownerCapId: string
-  policyId: string
-  walletAddress: string
-}
-
-export interface ShieldSettleParams {
-  managerId: string
-  oracleId: string
   policyId: string
   walletAddress: string
 }
@@ -50,40 +39,6 @@ const MAX_PREPARE_ATTEMPTS = 6
 
 function shieldTarget(functionName: string) {
   return `${SHIELD_PACKAGE_ID}::shield::${functionName}`
-}
-
-export function buildShieldClaimTransaction({
-  managerId,
-  oracleId,
-  ownerCapId,
-  policyId,
-  walletAddress,
-}: {
-  managerId: string
-  oracleId: string
-  ownerCapId: string
-  policyId: string
-  walletAddress: string
-}) {
-  const tx = new Transaction()
-  tx.setSender(walletAddress)
-
-  const payoutCoin = tx.moveCall({
-    target: shieldTarget("claim"),
-    typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [
-      tx.object(PREDICT_OBJECT_ID),
-      tx.object(managerId),
-      tx.object(oracleId),
-      tx.object(policyId),
-      tx.object(ownerCapId),
-      tx.object(PREDICT_CLOCK_ID),
-    ],
-  })
-
-  tx.transferObjects([payoutCoin], walletAddress)
-
-  return tx
 }
 
 function formatShieldError(message: string) {
@@ -105,14 +60,6 @@ function formatShieldError(message: string) {
 
   if (message.includes("ENotManagerOwner")) {
     return "Only the trading account owner can claim the full Shield payout."
-  }
-
-  if (message.includes("EWrongOwnerCap")) {
-    return "This wallet does not have the owner cap for this Shield."
-  }
-
-  if (message.includes("EPolicySettled")) {
-    return "This Shield policy has already been settled."
   }
 
   return message
@@ -198,7 +145,7 @@ async function buildShieldOpenTransaction({
     walletAddress,
     depositAmount
   )
-  const [ownerCap, refundCoin] = tx.moveCall({
+  const [policy, refundCoin] = tx.moveCall({
     target: shieldTarget("open"),
     typeArguments: [PREDICT_QUOTE_ASSET],
     arguments: [
@@ -206,7 +153,6 @@ async function buildShieldOpenTransaction({
       tx.object(managerId),
       tx.object(oracleId),
       paymentCoin,
-      tx.pure.address(walletAddress),
       tx.pure.u64(hedgeBudgetAmount),
       tx.pure.u16(hedgeBudgetBps),
       tx.pure.u64(toOnchainPrice(protectionStrikeUsd)),
@@ -215,7 +161,7 @@ async function buildShieldOpenTransaction({
     ],
   })
 
-  tx.transferObjects([ownerCap, refundCoin], walletAddress)
+  tx.transferObjects([policy, refundCoin], walletAddress)
 
   return tx
 }
@@ -272,7 +218,6 @@ export async function prepareShieldOpenTransaction(
 function buildShieldClaimTransaction({
   managerId,
   oracleId,
-  ownerCapId,
   policyId,
   walletAddress,
 }: ShieldClaimParams) {
@@ -287,36 +232,11 @@ function buildShieldClaimTransaction({
       tx.object(managerId),
       tx.object(oracleId),
       tx.object(policyId),
-      tx.object(ownerCapId),
       tx.object(PREDICT_CLOCK_ID),
     ],
   })
 
   tx.transferObjects([payoutCoin], walletAddress)
-
-  return tx
-}
-
-function buildShieldSettleTransaction({
-  managerId,
-  oracleId,
-  policyId,
-  walletAddress,
-}: ShieldSettleParams) {
-  const tx = new Transaction()
-  tx.setSender(walletAddress)
-
-  tx.moveCall({
-    target: shieldTarget("settle"),
-    typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [
-      tx.object(PREDICT_OBJECT_ID),
-      tx.object(managerId),
-      tx.object(oracleId),
-      tx.object(policyId),
-      tx.object(PREDICT_CLOCK_ID),
-    ],
-  })
 
   return tx
 }
@@ -327,17 +247,6 @@ export async function prepareShieldClaimTransaction(params: ShieldClaimParams) {
   await assertShieldTransactionReady(
     transaction,
     "Could not prepare Shield claim"
-  )
-
-  return transaction
-}
-
-export async function prepareShieldSettleTransaction(params: ShieldSettleParams) {
-  const transaction = buildShieldSettleTransaction(params)
-
-  await assertShieldTransactionReady(
-    transaction,
-    "Could not prepare Shield settlement"
   )
 
   return transaction
