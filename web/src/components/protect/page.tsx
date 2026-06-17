@@ -34,7 +34,10 @@ export function Page() {
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
       <ProtectionFamilyHeader
-        actions={[{ href: "/protection", label: "Back to Protection" }]}
+        actions={[
+          { href: "/protect/claims", label: "Claims" },
+          { href: "/protection", label: "Back to Protection" },
+        ]}
         description="Product 1 · pure hedge ticket. Protect removes PLP/yield mechanics and focuses on one directional Predict position wrapped as an owned policy."
         title="Protect"
       />
@@ -134,7 +137,20 @@ export function Page() {
           </div>
 
           <Link
-            className={cn(buttonVariants({ variant: "ghost" }), "justify-start gap-2")}
+            className={cn(
+              buttonVariants({ variant: "secondary" }),
+              "justify-start gap-2"
+            )}
+            to="/protect/claims"
+          >
+            Protect claims
+          </Link>
+
+          <Link
+            className={cn(
+              buttonVariants({ variant: "ghost" }),
+              "justify-start gap-2"
+            )}
             to="/protection"
           >
             <ArrowLeftIcon className="size-4" />
