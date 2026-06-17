@@ -60,6 +60,10 @@ import {
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
+import {
+  getShieldPositions,
+  type ShieldPositionRow,
+} from "@/services/shield-client"
 
 export interface PageProps {
   oracles: OracleInfo[]
@@ -91,6 +95,7 @@ interface PortfolioPosition {
   markPrice: number | null
   oracleId: string
   realizedPnlUsd: number
+  reservationLabel?: string
   size: number
   status: string
   type: PositionType
@@ -277,12 +282,14 @@ function getPnlClassName(value: number | null) {
 
 function getDirectionalPositions(
   summaries: ManagerPositionSummary[],
-  oracleById: Map<string, OracleInfo>
+  oracleById: Map<string, OracleInfo>,
+  shieldPositions: ShieldPositionRow[]
 ): PortfolioPosition[] {
   return summaries
     .filter((summary) => summary.open_quantity > 0)
     .map((summary) => {
       const assetSymbol = getAssetSymbol(oracleById, summary.oracle_id)
+      const shieldReservation = findShieldReservation(summary, shieldPositions)
       const strikePriceUsd = toUsdPrice(summary.strike)
       const side: MarketSide = summary.is_up ? "up" : "down"
       const type = summary.is_up ? "UP" : "DOWN"
@@ -307,12 +314,27 @@ function getDirectionalPositions(
           summary.mark_price === null ? null : toUsdPrice(summary.mark_price),
         oracleId: summary.oracle_id,
         realizedPnlUsd: toQuoteAmount(summary.realized_pnl),
+        reservationLabel: shieldReservation ? "Shield reserved" : undefined,
         size: toQuoteAmount(summary.open_quantity),
         status: summary.status,
         type,
         unrealizedPnlUsd: toQuoteAmount(summary.unrealized_pnl),
       }
     })
+}
+
+function findShieldReservation(
+  summary: ManagerPositionSummary,
+  shieldPositions: ShieldPositionRow[]
+) {
+  return shieldPositions.find(
+    (position) =>
+      position.managerId === summary.manager_id &&
+      position.oracleId === summary.oracle_id &&
+      position.hedgeExpiryMs === summary.expiry &&
+      position.isUp === summary.is_up &&
+      position.hedgeStrike === BigInt(Math.trunc(summary.strike))
+  )
 }
 
 function getRangePositionKey(event: RangeMintEvent | RangeRedeemEvent) {
@@ -576,14 +598,16 @@ function getRealizedPnlChartData({
 function getPortfolioPositions({
   oracleById,
   rangeActivity,
+  shieldPositions,
   summaries,
 }: {
   oracleById: Map<string, OracleInfo>
   rangeActivity: ManagerRangeActivityResponse
+  shieldPositions: ShieldPositionRow[]
   summaries: ManagerPositionSummary[]
 }) {
   return [
-    ...getDirectionalPositions(summaries, oracleById),
+    ...getDirectionalPositions(summaries, oracleById, shieldPositions),
     ...getRangePositions(rangeActivity, oracleById),
   ].sort(
     (firstPosition, secondPosition) =>
@@ -868,11 +892,13 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           rangeActivity,
           directionalMinted,
           directionalRedeemed,
+          shieldPositions,
         ] = await Promise.all([
           getManagerPositionSummaries(managerId),
           getManagerRanges(managerId),
           getDirectionalPositionMints(REALIZED_ACTIVITY_LIMIT),
           getDirectionalPositionRedeems(REALIZED_ACTIVITY_LIMIT),
+          getShieldPositions(walletAddress).catch(() => []),
         ])
 
         if (!isStale) {
@@ -887,6 +913,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
             positions: getPortfolioPositions({
               oracleById: currentOracleById,
               rangeActivity,
+              shieldPositions,
               summaries,
             }),
             realizedPnlPoints: getRealizedPnlChartData({
@@ -2249,11 +2276,26 @@ function PositionMarketCell({ position }: { position: PortfolioPosition }) {
       <div className="truncate font-medium text-foreground">
         {position.contractLabel}
       </div>
-      <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
-        {formatExpiryDistance(position.expiryMs)} ·{" "}
-        {formatRelativeTime(position.lastActivityAt)}
+      <div className="mt-0.5 flex min-w-0 items-center gap-2">
+        <div className="truncate font-mono text-[10px] text-muted-foreground uppercase">
+          {formatExpiryDistance(position.expiryMs)} ·{" "}
+          {formatRelativeTime(position.lastActivityAt)}
+        </div>
+        <ReservationBadge position={position} />
       </div>
     </div>
+  )
+}
+
+function ReservationBadge({ position }: { position: PortfolioPosition }) {
+  if (!position.reservationLabel) {
+    return null
+  }
+
+  return (
+    <span className="shrink-0 rounded-sm border border-amber-500/25 bg-amber-500/5 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-amber-200/90">
+      {position.reservationLabel}
+    </span>
   )
 }
 
@@ -2304,6 +2346,11 @@ function MobilePositionsList({
           <div className="mt-1 text-xs text-muted-foreground">
             {formatQuantity(position.size)} contracts
           </div>
+          {position.reservationLabel ? (
+            <div className="mt-2">
+              <ReservationBadge position={position} />
+            </div>
+          ) : null}
         </div>
         {canRedeemPortfolioPosition(position) ? (
           <Button
