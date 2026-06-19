@@ -40,41 +40,59 @@ interface RangeAccumulator {
 
 const scenarioDefinitions = [
   {
-    id: "minus-5-sigma",
-    label: "-5σ",
-    shockPercent: -0.35,
-    sigmaLabel: "-5σ",
+    description: "Latest public oracle marks with no settlement shock.",
+    fallbackShock: 0,
+    group: "core",
+    id: "current",
+    label: "Current",
+    shocks: { BTC: 0 },
+    tone: "muted",
   },
   {
-    id: "minus-3-sigma",
-    label: "-3σ",
-    shockPercent: -0.21,
-    sigmaLabel: "-3σ",
+    description: "Moderate BTC pullback across active BTC markets.",
+    fallbackShock: -0.1,
+    group: "downside",
+    id: "btc-pullback-10",
+    label: "BTC -10%",
+    shocks: { BTC: -0.1 },
+    tone: "warning",
   },
   {
-    id: "minus-1-sigma",
-    label: "-1σ",
-    shockPercent: -0.07,
-    sigmaLabel: "-1σ",
-  },
-  { id: "current", label: "Current", shockPercent: 0, sigmaLabel: "0σ" },
-  {
-    id: "plus-1-sigma",
-    label: "+1σ",
-    shockPercent: 0.07,
-    sigmaLabel: "+1σ",
+    description: "BTC crash scenario across active BTC markets.",
+    fallbackShock: -0.25,
+    group: "downside",
+    id: "btc-crash-25",
+    label: "BTC -25%",
+    shocks: { BTC: -0.25 },
+    tone: "down",
   },
   {
-    id: "plus-3-sigma",
-    label: "+3σ",
-    shockPercent: 0.21,
-    sigmaLabel: "+3σ",
+    description: "Tail BTC downside event across active BTC markets.",
+    fallbackShock: -0.4,
+    group: "stress",
+    id: "btc-tail-40",
+    label: "BTC -40%",
+    shocks: { BTC: -0.4 },
+    tone: "down",
   },
   {
-    id: "plus-5-sigma",
-    label: "+5σ",
-    shockPercent: 0.35,
-    sigmaLabel: "+5σ",
+    description: "BTC upside settlement scenario.",
+    fallbackShock: 0.15,
+    group: "upside",
+    id: "btc-rally-15",
+    label: "BTC +15%",
+    shocks: { BTC: 0.15 },
+    tone: "up",
+  },
+  {
+    description: "Uses current max payout as the stress liability anchor.",
+    fallbackShock: -1,
+    group: "stress",
+    id: "max-payout-stress",
+    label: "Max Payout",
+    shocks: { BTC: -1 },
+    stressMode: "maxPayout",
+    tone: "down",
   },
 ] satisfies RiskScenarioDefinition[]
 
@@ -92,6 +110,25 @@ function getOracleMap(oracles: OracleInfo[]) {
 
 function getAssetSymbol(oracleById: Map<string, OracleInfo>, oracleId: string) {
   return oracleById.get(oracleId)?.underlying_asset ?? "Market"
+}
+
+function getScenarioShock(
+  scenario: RiskScenarioDefinition,
+  assetSymbol: string
+) {
+  return scenario.shocks[assetSymbol] ?? scenario.fallbackShock
+}
+
+function getShockSummary(scenario: RiskScenarioDefinition) {
+  const entries = Object.entries(scenario.shocks)
+
+  if (entries.length === 0) {
+    return `${(scenario.fallbackShock * 100).toFixed(0)}% default`
+  }
+
+  return entries
+    .map(([assetSymbol, shock]) => `${assetSymbol} ${(shock * 100).toFixed(0)}%`)
+    .join(" / ")
 }
 
 function getDirectionalKey(
@@ -214,7 +251,7 @@ function getRangePayout(
 function getWeightedSettlementPrice(
   exposureRows: RiskExposureRow[],
   spotByOracleId: Map<string, number>,
-  shockPercent: number
+  scenario: RiskScenarioDefinition
 ) {
   let weightedPrice = 0
   let totalWeight = 0
@@ -226,7 +263,9 @@ function getWeightedSettlementPrice(
       continue
     }
 
+    const shockPercent = getScenarioShock(scenario, exposure.assetSymbol)
     const weight = Math.max(exposure.maxPayoutUsd, 1)
+
     weightedPrice += spot * (1 + shockPercent) * weight
     totalWeight += weight
   }
@@ -396,14 +435,19 @@ function getExposureRows(
 function getScenarioLiability({
   exposureRows,
   input,
-  shockPercent,
+  scenario,
   spotByOracleId,
 }: {
   exposureRows: RiskExposureRow[]
   input: RiskInput
-  shockPercent: number
+  scenario: RiskScenarioDefinition
   spotByOracleId: Map<string, number>
 }) {
+  if (scenario.stressMode === "maxPayout") {
+    return toQuoteAmount(input.summary.total_max_payout)
+  }
+
+  const oracleById = getOracleMap(input.oracles)
   const directionalExposures = reconstructDirectionalExposures(input)
   const rangeExposures = reconstructRangeExposures(input)
   let liability = 0
@@ -418,6 +462,11 @@ function getScenarioLiability({
     if (openQuantity <= 0 || spot === undefined) {
       continue
     }
+
+    const shockPercent = getScenarioShock(
+      scenario,
+      getAssetSymbol(oracleById, exposure.oracleId)
+    )
 
     liability += getDirectionalPayout(
       exposure,
@@ -437,6 +486,11 @@ function getScenarioLiability({
       continue
     }
 
+    const shockPercent = getScenarioShock(
+      scenario,
+      getAssetSymbol(oracleById, exposure.oracleId)
+    )
+
     liability += getRangePayout(
       exposure,
       spot * (1 + shockPercent),
@@ -452,7 +506,7 @@ function getScenarioLiability({
     toQuoteAmount(input.summary.total_max_payout) - reconstructedMaxPayoutUsd,
     0
   )
-  const anchorWeight = Math.min(Math.abs(shockPercent) / 0.35, 1)
+  const anchorWeight = Math.min(Math.abs(scenario.fallbackShock) / 0.4, 1)
 
   return Math.min(
     toQuoteAmount(input.summary.total_max_payout),
@@ -473,7 +527,7 @@ function getScenarioRows({
   const baselineLiability = getScenarioLiability({
     exposureRows,
     input,
-    shockPercent: 0,
+    scenario: scenarioDefinitions[0],
     spotByOracleId,
   })
 
@@ -481,7 +535,7 @@ function getScenarioRows({
     const estimatedLiability = getScenarioLiability({
       exposureRows,
       input,
-      shockPercent: scenario.shockPercent,
+      scenario,
       spotByOracleId,
     })
     const liabilityDelta = Math.max(estimatedLiability - baselineLiability, 0)
@@ -511,14 +565,18 @@ function getScenarioRows({
       estimatedSettlementPriceUsd: getWeightedSettlementPrice(
         exposureRows,
         spotByOracleId,
-        scenario.shockPercent
+        scenario
       ),
       estimatedSharePrice,
       estimatedVaultValue,
+      fallbackShock: scenario.fallbackShock,
+      group: scenario.group,
       id: scenario.id,
       label: scenario.label,
-      shockPercent: scenario.shockPercent,
-      sigmaLabel: scenario.sigmaLabel,
+      primaryShockPercent: getScenarioShock(scenario, "BTC"),
+      description: scenario.description,
+      shockSummary: getShockSummary(scenario),
+      tone: scenario.tone,
     }
   })
 }
@@ -552,7 +610,7 @@ export function buildRiskModel(input: RiskInput): RiskModel {
   return {
     assumptions: [
       "Scenario outputs are estimates from public Predict data and are not protocol-authoritative accounting.",
-      "Scenario bands use configurable percentage shocks around the latest public oracle spot when exact sigma is unavailable.",
+      "Scenario presets use asset-scoped shocks around the latest public oracle spot.",
       "Exposure is reconstructed from recent mint, redeem, and range events; event limits can omit older activity.",
       "When event reconstruction is incomplete, total max payout is used as a conservative stress anchor.",
       "Current withdrawable liquidity reflects the latest public vault summary and is not a future-outcome commitment.",

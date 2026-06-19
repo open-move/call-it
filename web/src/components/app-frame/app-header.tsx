@@ -30,17 +30,17 @@ import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-normal text-white/62 transition-colors outline-none hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
-    status === AppNavStatus.Active && "text-primary",
-    status === AppNavStatus.Soon && "text-white/45"
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 outline-none hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    status === AppNavStatus.Active && "bg-primary/8 text-primary",
+    status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
 
 function getMobileNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-normal text-white/62 transition-colors hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none",
-    status === AppNavStatus.Active && "text-primary",
-    status === AppNavStatus.Soon && "text-white/45"
+    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    status === AppNavStatus.Active && "bg-primary/8 text-primary",
+    status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
 
@@ -60,15 +60,24 @@ function isVaultPath(pathname: string) {
 
 function getVaultTriggerClassName(isActive: boolean) {
   return cn(
-    "flex h-auto items-center gap-1 rounded-md bg-transparent px-2.5 py-1.5 text-sm font-normal text-white/62 transition-colors outline-none hover:bg-transparent hover:text-white/78 focus:bg-transparent focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none data-popup-open:bg-white/[0.04] data-popup-open:text-white/78",
-    isActive && "text-primary"
+    "flex h-auto items-center gap-1 rounded-md bg-transparent px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 outline-none hover:bg-muted/25 hover:text-foreground focus:bg-muted/25 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none data-popup-open:bg-muted/25 data-popup-open:text-foreground",
+    isActive && "bg-primary/8 text-primary"
   )
 }
 
-function VaultDropdownLink({ item }: { item: VaultNavItem }) {
+function VaultDropdownLink({
+  isActive,
+  item,
+}: {
+  isActive: boolean
+  item: VaultNavItem
+}) {
   return (
     <NavigationMenuLink
-      className="group w-44 rounded-md px-2.5 py-2 text-sm font-normal text-white/62 hover:bg-white/[0.06] hover:text-white/78 focus:bg-white/[0.06]"
+      className={cn(
+        "group w-44 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/35 hover:text-foreground focus:bg-muted/35",
+        isActive && "bg-primary/8 text-primary"
+      )}
       render={<Link to={item.href} />}
     >
       {item.label}
@@ -94,22 +103,17 @@ export function AppHeader() {
 
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-[#111112]/95 text-white backdrop-blur-xl">
-        <div className="mx-auto flex min-h-16 w-full max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-6">
+      <header className="sticky top-0 z-40 border-b border-border/35 bg-background/92 text-foreground backdrop-blur-xl">
+        <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-5">
             <Link
-              className="flex shrink-0 items-center gap-3 rounded-md focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none"
+              className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
               to="/"
               onClick={() => setIsMobileNavOpen(false)}
             >
               <BrandMark />
-              <span className="flex items-baseline gap-2">
-                <span className="text-lg leading-none font-semibold tracking-tight text-white">
-                  CallIt
-                </span>
-                <span className="text-[10px] leading-none font-semibold tracking-[0.32em] text-primary uppercase">
-                  Predict
-                </span>
+              <span className="text-base leading-none font-semibold tracking-[-0.02em] text-foreground">
+                CallIt
               </span>
             </Link>
 
@@ -130,7 +134,7 @@ export function AppHeader() {
                         <span>{item.label}</span>
                         {item.status === AppNavStatus.Soon && (
                           <Badge
-                            className="border-white/10 bg-white/[0.06] px-1.5 py-0 text-[9px] text-white/58"
+                            className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
                             tone={BadgeTone.Simulated}
                           >
                             Soon
@@ -147,10 +151,11 @@ export function AppHeader() {
                         >
                           Vaults
                         </NavigationMenuTrigger>
-                        <NavigationMenuContent className="bg-[#111112] text-white">
+                        <NavigationMenuContent className="border border-border/40 bg-popover text-popover-foreground shadow-xl">
                           <div className="grid gap-1 p-1.5">
                             {vaultNavItems.map((vaultItem) => (
                               <VaultDropdownLink
+                                isActive={isHrefActive(pathname, vaultItem.href)}
                                 item={vaultItem}
                                 key={vaultItem.href}
                               />
@@ -174,7 +179,7 @@ export function AppHeader() {
               render={
                 <Button
                   aria-label="Toggle navigation"
-                  className="text-white/76 hover:bg-white/[0.08] hover:text-white"
+                  className="text-muted-foreground hover:bg-muted/25 hover:text-foreground focus-visible:ring-primary/30"
                   size="icon-sm"
                   variant="ghost"
                 />
@@ -185,7 +190,7 @@ export function AppHeader() {
           </div>
         </div>
 
-        <CollapsibleContent className="border-t border-white/10 md:hidden">
+        <CollapsibleContent className="border-t border-border/35 md:hidden">
           <nav
             aria-label="Mobile navigation"
             className="mx-auto flex w-full max-w-[96rem] flex-col gap-1 px-4 py-3 sm:px-6"
@@ -200,7 +205,7 @@ export function AppHeader() {
                   <span>{item.label}</span>
                   {item.status === AppNavStatus.Soon && (
                     <Badge
-                      className="border-white/10 bg-white/[0.06] px-1.5 py-0 text-[9px] text-white/58"
+                      className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
                       tone={BadgeTone.Simulated}
                     >
                       Soon
@@ -209,10 +214,10 @@ export function AppHeader() {
                 </Link>
 
                 {item.href === "/earn" ? (
-                  <div className="mt-1 rounded-md bg-white/[0.03] px-2 py-2">
+                  <div className="mt-1 rounded-md bg-muted/15 px-2 py-2">
                     <div
                       className={cn(
-                        "px-1 pb-1 font-mono text-[10px] tracking-[0.18em] text-white/38 uppercase",
+                        "px-1 pb-1 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase",
                         isVaultActive && "text-primary"
                       )}
                     >
@@ -220,7 +225,11 @@ export function AppHeader() {
                     </div>
                     {vaultNavItems.map((vaultItem) => (
                       <Link
-                        className="block rounded-md px-2 py-2 text-sm text-white/62 transition-colors hover:bg-white/[0.06] hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none"
+                        className={cn(
+                          "block rounded-md px-2 py-2 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+                          isHrefActive(pathname, vaultItem.href) &&
+                            "bg-primary/8 text-primary"
+                        )}
                         key={vaultItem.href}
                         onClick={() => setIsMobileNavOpen(false)}
                         to={vaultItem.href}

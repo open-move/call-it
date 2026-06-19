@@ -8,14 +8,9 @@ import type {
   VaultSummary,
 } from "@/lib/types/predict"
 
-export type RiskScenarioId =
-  | "minus-5-sigma"
-  | "minus-3-sigma"
-  | "minus-1-sigma"
-  | "current"
-  | "plus-1-sigma"
-  | "plus-3-sigma"
-  | "plus-5-sigma"
+export type RiskScenarioId = string
+export type RiskScenarioGroup = "core" | "downside" | "upside" | "stress"
+export type RiskScenarioTone = "down" | "muted" | "up" | "warning"
 
 export type RiskExposureKind = "directional" | "range"
 
@@ -35,10 +30,14 @@ export interface RiskInput {
 }
 
 export interface RiskScenarioDefinition {
+  description: string
+  fallbackShock: number
+  group: RiskScenarioGroup
   id: RiskScenarioId
   label: string
-  shockPercent: number
-  sigmaLabel: string
+  shocks: Record<string, number>
+  stressMode?: "maxPayout"
+  tone: RiskScenarioTone
 }
 
 export interface RiskExposureRow {
@@ -55,16 +54,20 @@ export interface RiskExposureRow {
 }
 
 export interface RiskScenarioRow {
+  description: string
   drawdownPct: number
   estimatedDrawdownUsd: number
   estimatedLiability: number
   estimatedSettlementPriceUsd: number
   estimatedSharePrice: number
   estimatedVaultValue: number
+  fallbackShock: number
+  group: RiskScenarioGroup
   id: RiskScenarioId
   label: string
-  shockPercent: number
-  sigmaLabel: string
+  primaryShockPercent: number
+  shockSummary: string
+  tone: RiskScenarioTone
 }
 
 export interface RiskModel {

@@ -287,18 +287,18 @@ function VaultPriceChart({
                 >
                   <stop
                     offset="5%"
-                    stopColor="rgb(var(--chart-1))"
+                    stopColor="var(--chart-1)"
                     stopOpacity={0.28}
                   />
                   <stop
                     offset="95%"
-                    stopColor="rgb(var(--chart-1))"
+                    stopColor="var(--chart-1)"
                     stopOpacity={0}
                   />
                 </linearGradient>
               </defs>
               <CartesianGrid
-                stroke="rgb(var(--border))"
+                stroke="var(--border)"
                 strokeDasharray="3 3"
                 vertical={false}
               />
@@ -308,7 +308,7 @@ function VaultPriceChart({
                 domain={["dataMin", "dataMax"]}
                 minTickGap={34}
                 scale="time"
-                tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 tickFormatter={(value) => dateFormatter.format(new Date(value))}
                 tickLine={false}
                 type="number"
@@ -316,7 +316,7 @@ function VaultPriceChart({
               <YAxis
                 axisLine={false}
                 domain={yDomain}
-                tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
+                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
                 tickFormatter={(value) => Number(value).toFixed(4)}
                 tickLine={false}
                 width={58}
@@ -325,7 +325,7 @@ function VaultPriceChart({
                 dataKey="share_price"
                 fill="url(#plpShareGradient)"
                 isAnimationActive={false}
-                stroke="rgb(var(--chart-1))"
+                stroke="var(--chart-1)"
                 strokeWidth={2}
                 type="monotone"
               />
@@ -333,7 +333,7 @@ function VaultPriceChart({
                 dataKey="share_price"
                 dot={false}
                 isAnimationActive={false}
-                stroke="rgb(var(--chart-1))"
+                stroke="var(--chart-1)"
                 strokeWidth={2}
                 type="monotone"
               />

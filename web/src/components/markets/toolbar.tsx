@@ -71,12 +71,12 @@ export function MarketSearchControls({
   selectedExpiry,
 }: MarketSearchControlsProps) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto">
       <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
         <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
           aria-label="Search"
-          className="border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-border/35 bg-muted/25 pl-8 text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 placeholder:text-muted-foreground/65 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Filter markets..."
           value={searchQuery}
@@ -119,7 +119,7 @@ function FilterMenu({
         render={
           <Button
             aria-label="Filters"
-            className="border-0 bg-muted/60 text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-1"
+            className="border-border/35 bg-muted/25 text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-1"
             size="icon-sm"
             type="button"
             variant="outline"
@@ -181,7 +181,7 @@ function ExpirySelect({
       <DropdownMenuTrigger
         render={
           <Button
-            className="h-8 gap-1.5 border-0 bg-muted/60 px-2.5 text-xs text-muted-foreground shadow-none hover:bg-accent focus-visible:ring-1"
+            className="h-8 gap-1.5 border border-border/35 bg-muted/25 px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-1"
             type="button"
             variant="ghost"
           />
@@ -229,8 +229,9 @@ function ToolbarTabs({
         return (
           <Button
             className={cn(
-              "gap-1.5 px-2 text-xs font-normal text-muted-foreground shadow-none hover:bg-accent/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-              isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
+              "gap-1.5 border border-transparent px-2 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color,transform] duration-150 hover:border-border/45 hover:bg-muted/25 hover:text-foreground active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+              isSelected &&
+                "border-primary/30 bg-primary/8 text-primary hover:border-primary/40 hover:bg-primary/12"
             )}
             key={option.value ?? "all"}
             onClick={() => onChange(option.value)}

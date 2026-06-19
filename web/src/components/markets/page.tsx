@@ -7,16 +7,17 @@ import {
   formatCompactUsd,
   formatExpiryDistance,
   formatPercent,
+  formatProbability,
   formatUsd,
 } from "@/lib/format"
-import type {PredictionActivity, TradeMarket} from "@/lib/types/trade";
 import { useAppSearchParams } from "@/lib/hooks/router"
+import type { PredictionActivity, TradeMarket } from "@/lib/types/trade"
 import { cn } from "@/lib/utils"
 
 import { Sparkline } from "./sparkline"
 import { Table } from "./table"
-import { MarketSearchControls, Toolbar  } from "./toolbar"
-import type {ToolbarOption} from "./toolbar";
+import { MarketSearchControls, Toolbar } from "./toolbar"
+import type { ToolbarOption } from "./toolbar"
 
 export interface PageProps {
   markets: TradeMarket[]
@@ -235,7 +236,7 @@ export function Page({ markets, predictionActivity }: PageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         {markets.length > 0 ? (
-          <div className="flex flex-col gap-8">
+          <div className="flex flex-col gap-5 lg:gap-6">
             <LiveShowcase
               liveMarketCount={markets.length}
               markets={topMarkets}
@@ -243,7 +244,7 @@ export function Page({ markets, predictionActivity }: PageProps) {
               predictionActivity={predictionActivity}
             />
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <Toolbar
                   assetOptions={assetOptions}
@@ -292,10 +293,10 @@ function LiveShowcase({
   predictionActivity: PredictionActivity
 }) {
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.64fr)]">
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
       <div className="rounded-md border-0 bg-card p-3 shadow-none ring-0">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5 text-sm leading-none font-medium text-foreground">
+          <div className="flex items-center gap-1.5 text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
             <FlameIcon className="size-3.5 translate-y-px text-outcome-down" />
             Top Markets
           </div>
@@ -304,7 +305,7 @@ function LiveShowcase({
         <div className="space-y-0.5">
           {markets.map((market) => (
             <Link
-              className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+              className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md px-2 py-1.5 transition-[background-color,transform] duration-150 hover:bg-muted/25 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
               key={market.id}
               params={{ oracleId: market.oracleId }}
               to="/markets/$oracleId"
@@ -316,23 +317,26 @@ function LiveShowcase({
                 className="size-6"
               />
               <div className="min-w-0">
-                <div className="truncate text-xs text-foreground">
-                  {market.assetSymbol} Prediction · expires in{" "}
-                  {formatExpiryDistance(market.expiryMs)}
+                <div className="truncate text-sm leading-5 font-medium tracking-[-0.01em] text-foreground">
+                  {market.assetSymbol}{" "}
+                  <span className="text-xs font-normal text-muted-foreground">
+                    Prediction · {formatExpiryDistance(market.expiryMs)}
+                  </span>
                 </div>
-                <div className="mt-0.5 text-[10px] font-mono text-muted-foreground tabular-nums">
-                  {formatCompactUsd(market.volumeUsd)} vol · {market.tradeCount} txns
+                <div className="text-[11px] text-muted-foreground">
+                  <span className="font-mono tabular-nums">
+                    {formatCompactUsd(market.volumeUsd)}
+                  </span>{" "}
+                  vol · {market.tradeCount} txns
                 </div>
               </div>
               <div className="text-right font-mono tabular-nums">
-                <div className="text-xs font-medium text-foreground">
-                  {market.fairUpProbability === undefined
-                    ? "--"
-                    : `${Math.round(market.fairUpProbability * 100)}%`}
+                <div className="text-sm leading-5 font-semibold text-foreground">
+                  {formatProbability(market.fairUpProbability)}
                 </div>
                 <div
                   className={cn(
-                    "text-[10px]",
+                    "text-[11px] leading-4",
                     market.priceChangePercent >= 0
                       ? "text-outcome-up"
                       : "text-outcome-down"
@@ -350,14 +354,14 @@ function LiveShowcase({
       <div className="relative overflow-hidden rounded-md border-0 bg-card p-3 shadow-none ring-0">
         <div className="relative flex h-full min-h-36 flex-col justify-between gap-3">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-1.5 text-sm leading-none font-medium text-foreground">
+            <div className="flex items-center gap-1.5 text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
               <TimerIcon className="size-3.5 translate-y-px text-primary" />
               Prediction Activity
             </div>
           </div>
 
           <Sparkline
-            className="relative h-10 opacity-90"
+            className="relative h-9 opacity-90"
             points={predictionActivity.volumeSparkline}
           />
 
@@ -379,12 +383,12 @@ function LiveShowcase({
 
           {nearestMarket && (
             <Link
-              className="relative inline-flex w-fit items-center gap-1 text-xs font-medium text-primary hover:underline"
+              className="group relative inline-flex w-fit items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/85"
               params={{ oracleId: nearestMarket.oracleId }}
               to="/markets/$oracleId"
             >
               Next expiry in {formatExpiryDistance(nearestMarket.expiryMs)}
-              <ArrowUpRightIcon className="size-3.5" />
+              <ArrowUpRightIcon className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </Link>
           )}
         </div>
@@ -395,11 +399,11 @@ function LiveShowcase({
 
 function PulseMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-border/40 bg-background/40 px-2.5 py-1.5">
+    <div className="rounded-md border border-border/35 bg-muted/25 px-2.5 py-1.5">
       <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </div>
-      <div className="mt-0.5 text-xs font-medium text-foreground font-mono tabular-nums">
+      <div className="mt-0.5 font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>

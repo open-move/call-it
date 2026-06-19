@@ -6,14 +6,13 @@ import { formatAddress } from "@mysten/sui/utils"
 import { Link } from "@tanstack/react-router"
 import {
   CheckIcon,
-  CoinsIcon,
+  ChevronDownIcon,
   CopyIcon,
   DatabaseZapIcon,
   LogOutIcon,
   PiggyBankIcon,
   SettingsIcon,
   SquareArrowOutUpRightIcon,
-  UserRoundIcon,
   WalletCardsIcon,
 } from "lucide-react"
 
@@ -39,10 +38,10 @@ import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 
 const walletButtonClassName =
-  "border-0 bg-white/[0.06] text-white/88 shadow-none hover:bg-white/[0.1] hover:text-white focus-visible:ring-white/20"
+  "border border-border/40 bg-muted/30 text-foreground shadow-none hover:bg-muted/45 hover:text-foreground focus-visible:ring-primary/30"
 
 const signInButtonClassName =
-  "border-0 bg-white text-[#111112] shadow-none hover:bg-white/88 focus-visible:ring-white/25"
+  "border border-primary/40 bg-primary text-primary-foreground shadow-none hover:bg-primary/90 hover:text-primary-foreground focus-visible:ring-primary/30"
 
 const glyphsStyle = new Style(glyphs)
 
@@ -67,29 +66,27 @@ function WalletAvatar({
   return <img alt="Wallet avatar" className={className} src={avatar} />
 }
 
-function BalanceSegment() {
-  const predictAccount = usePredictAccount()
-  const balanceLabel = predictAccount.status === "loading"
-    ? "--"
-    : predictAccount.walletDusdcBalance === undefined
-      ? "--"
-      : formatDecimalUnits(
-          predictAccount.walletDusdcBalance,
-          PREDICT_QUOTE_DECIMALS,
-          4
-        )
+function formatCompactDecimalUnits(value: bigint | undefined) {
+  if (value === undefined) {
+    return "--"
+  }
 
-  return (
-    <div
-      aria-label={`DUSDC balance ${balanceLabel}`}
-      className="flex items-center gap-2"
-    >
-      <CoinsIcon className="size-3.5 text-white/38" />
-      <span className="font-mono text-xs text-white/72 tabular-nums">
-        {balanceLabel}
-      </span>
-    </div>
-  )
+  const decimalValue = Number(formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4))
+
+  if (!Number.isFinite(decimalValue)) {
+    return formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 2)
+  }
+
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: decimalValue >= 10_000 ? 1 : 2,
+    notation: "compact",
+  }).format(decimalValue)
+}
+
+function formatFullDecimalUnits(value: bigint | undefined) {
+  return value === undefined
+    ? "--"
+    : formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)
 }
 
 function toQuoteAmount(value: number) {
@@ -283,20 +280,43 @@ function AccountHubDialog({
   )
 }
 
+function AccountMenuMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0 rounded-md border border-border/35 bg-muted/20 px-2.5 py-2">
+      <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </div>
+      <div className="mt-0.5 truncate font-mono text-xs text-foreground tabular-nums">
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function AccountDropdown({
   address,
   email,
+  onOpenDynamicProfile,
   onSignOut,
   onOpenProfile,
 }: {
   address: string
   email?: string
+  onOpenDynamicProfile: () => void
   onSignOut: () => Promise<void>
   onOpenProfile: () => void
 }) {
   const [didCopyAddress, setDidCopyAddress] = useState(false)
+  const predictAccount = usePredictAccount()
   const formattedAddress = formatAddress(address)
   const secondaryLabel = email || "--"
+  const walletDusdcLabel = formatFullDecimalUnits(
+    predictAccount.walletDusdcBalance
+  )
+  const walletPlpLabel = formatFullDecimalUnits(predictAccount.walletPlpBalance)
+  const compactDusdcLabel = predictAccount.status === "loading"
+    ? "--"
+    : formatCompactDecimalUnits(predictAccount.walletDusdcBalance)
 
   async function copyAddress() {
     try {
@@ -318,19 +338,32 @@ function AccountDropdown({
         render={
           <Button
             aria-label="Account menu"
-            className="border-0 bg-transparent text-white/50 shadow-none hover:bg-white/[0.055] hover:text-white/80 focus-visible:ring-white/20"
-            size="icon-sm"
+            className="group h-8 gap-2 border border-border/35 bg-muted/20 px-2.5 text-foreground shadow-none transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-primary/30"
+            size="sm"
             type="button"
             variant="ghost"
           />
         }
       >
-        <WalletAvatar address={address} className="size-5 rounded-md" />
+        <span className="text-xs font-medium text-foreground">
+          {formattedAddress}
+        </span>
+        <span aria-hidden="true" className="size-1 rounded-full bg-border" />
+        <span className="font-mono text-xs text-muted-foreground tabular-nums">
+          {compactDusdcLabel}
+        </span>
+        <span className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+          DUSDC
+        </span>
+        <ChevronDownIcon className="size-3.5 text-muted-foreground transition-transform duration-150 group-data-popup-open:rotate-180" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuGroup>
           <div className="flex items-center gap-3 px-2 py-2">
-            <WalletAvatar address={address} className="size-10 rounded-md" />
+            <WalletAvatar
+              address={address}
+              className="size-10 rounded-md ring-1 ring-border/50"
+            />
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm text-foreground">
                 {formattedAddress}
@@ -357,14 +390,22 @@ function AccountDropdown({
               )}
             </Button>
           </div>
+          <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
+            <AccountMenuMetric label="DUSDC" value={walletDusdcLabel} />
+            <AccountMenuMetric label="PLP" value={walletPlpLabel} />
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onOpenProfile}>
-            <UserRoundIcon className="size-3.5" />
-            Profile
+            <WalletCardsIcon className="size-3.5" />
+            Account
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onOpenProfile}>
+          <DropdownMenuItem render={<Link to="/portfolio" />}>
+            <WalletCardsIcon className="size-3.5" />
+            Portfolio
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onOpenDynamicProfile}>
             <SettingsIcon className="size-3.5" />
-            Settings
+            Wallet Settings
           </DropdownMenuItem>
           <DropdownMenuItem onClick={openExplorer}>
             <SquareArrowOutUpRightIcon className="size-3.5" />
@@ -388,25 +429,24 @@ function AccountDropdown({
 function AccountCluster({
   address,
   email,
+  onOpenDynamicProfile,
   onSignOut,
   onOpenProfile,
 }: {
   address: string
   email?: string
+  onOpenDynamicProfile: () => void
   onSignOut: () => Promise<void>
   onOpenProfile: () => void
 }) {
   return (
-    <div className="inline-flex items-center gap-2 rounded-md bg-white/[0.045] px-2.5 py-1.5 shadow-none">
-      <BalanceSegment />
-      <span aria-hidden="true" className="h-3 w-px bg-white/14" />
-      <AccountDropdown
-        address={address}
-        email={email}
-        onOpenProfile={onOpenProfile}
-        onSignOut={onSignOut}
-      />
-    </div>
+    <AccountDropdown
+      address={address}
+      email={email}
+      onOpenDynamicProfile={onOpenDynamicProfile}
+      onOpenProfile={onOpenProfile}
+      onSignOut={onSignOut}
+    />
   )
 }
 
@@ -440,6 +480,7 @@ function DynamicWalletButton() {
         <AccountCluster
           address={primaryWallet.address}
           email={user?.email}
+          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
           onOpenProfile={() => setIsAccountModalOpen(true)}
           onSignOut={handleLogOut}
         />

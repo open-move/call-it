@@ -1,6 +1,6 @@
 import { useId } from "react"
 
-import type {MarketPricePoint} from "@/lib/types/market";
+import type { MarketPricePoint } from "@/lib/types/market"
 import { cn } from "@/lib/utils"
 
 export interface SparklineProps {
@@ -67,7 +67,7 @@ export function Sparkline({ className, points }: SparklineProps) {
     return (
       <div
         className={cn(
-          "flex h-8 items-center justify-center rounded-md bg-muted/35 text-[10px] text-muted-foreground",
+          "flex h-8 items-center justify-center rounded-md bg-muted/25 text-[10px] font-medium text-muted-foreground",
           className
         )}
       >
