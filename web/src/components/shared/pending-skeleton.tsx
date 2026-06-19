@@ -452,8 +452,11 @@ export function PortfolioSkeleton() {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <div className="flex flex-col gap-3">
         <div className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
-          <div className="gap-2 rounded-md border-0 bg-card pt-3 shadow-none ring-0">
-            <div className="grid gap-4 px-3 py-3">
+          <div className="gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <div className="border-b border-border/45 px-4 py-3">
+              <PulsingBlock className="h-4 w-24 rounded" />
+            </div>
+            <div className="grid gap-4 px-4 py-4">
               <div className="space-y-2">
                 <PulsingBlock className="h-8 w-48 rounded" />
                 <PulsingBlock className="h-3 w-32 rounded" />
@@ -462,7 +465,7 @@ export function PortfolioSkeleton() {
                 {Array.from({ length: 4 }).map((_, i) => (
                   <div
                     key={i}
-                    className="min-w-0 rounded-md bg-muted/35 px-2.5 py-2"
+                    className="min-w-0 rounded-md bg-muted/25 px-2.5 py-2"
                   >
                     <PulsingBlock className="h-2.5 w-14 rounded" />
                     <PulsingBlock className="mt-1 h-3.5 w-20 rounded" />
@@ -477,40 +480,43 @@ export function PortfolioSkeleton() {
           </div>
 
           <div className="min-h-[17rem] gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-            <div className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-3">
-              <PulsingBlock className="h-8 w-40 rounded-md" />
+            <div className="flex items-center justify-between gap-3 border-b border-border/45 px-4 py-3">
+              <div className="flex gap-5">
+                <PulsingBlock className="h-3 w-20 rounded" />
+                <PulsingBlock className="h-3 w-16 rounded" />
+              </div>
               <div className="hidden gap-1 sm:flex">
                 {Array.from({ length: 4 }).map((_, i) => (
                   <PulsingBlock key={i} className="h-7 w-10 rounded-md" />
                 ))}
               </div>
             </div>
-            <div className="grid min-h-52 place-items-center px-3 py-3">
+            <div className="grid min-h-52 place-items-center px-4 py-3">
               <PulsingBlock className="h-40 w-full max-w-2xl rounded-md" />
             </div>
           </div>
         </div>
 
         <div className="min-h-96 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-          <div className="flex flex-col gap-3 border-b border-border/40 px-3 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex gap-2">
+          <div className="flex flex-col gap-3 border-b border-border/45 px-4 py-3 lg:h-11 lg:flex-row lg:items-center lg:justify-between lg:py-0">
+            <div className="flex gap-5">
               {Array.from({ length: 4 }).map((_, i) => (
-                <PulsingBlock key={i} className="h-8 w-20 rounded-md" />
+                <PulsingBlock key={i} className="h-3 w-20 rounded" />
               ))}
             </div>
-            <PulsingBlock className="h-9 w-full rounded-md lg:w-72" />
+            <PulsingBlock className="h-8 w-full rounded-md lg:w-72" />
           </div>
           <div className="hidden lg:block">
-            <div className="min-w-[62rem]">
-              <div className="grid grid-cols-[minmax(14rem,1.8fr)_4rem_7rem_5rem_5rem_7rem_7rem_7rem_5rem] gap-4 bg-muted/35 px-3 py-2">
-                {Array.from({ length: 9 }).map((_, i) => (
+            <div className="min-w-[56rem]">
+              <div className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 bg-muted/45 px-3 py-2">
+                {Array.from({ length: 7 }).map((_, i) => (
                   <PulsingBlock key={i} className="h-2.5 rounded" />
                 ))}
               </div>
               {Array.from({ length: 5 }).map((_, i) => (
                 <div key={i} className="border-b border-border/30 px-3 py-2.5">
-                  <div className="grid grid-cols-[minmax(14rem,1.8fr)_4rem_7rem_5rem_5rem_7rem_7rem_7rem_5rem] gap-4">
-                    {Array.from({ length: 9 }).map((__, j) => (
+                  <div className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4">
+                    {Array.from({ length: 7 }).map((__, j) => (
                       <PulsingBlock key={j} className="h-3 rounded" />
                     ))}
                   </div>

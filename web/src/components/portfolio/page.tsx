@@ -1,8 +1,9 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { formatAddress } from "@mysten/sui/utils"
+import { Link } from "@tanstack/react-router"
 import { ArrowUpRightIcon, SearchIcon, WalletIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import { Link } from "@tanstack/react-router"
+import type { ReactNode } from "react"
 import {
   Area,
   AreaChart,
@@ -25,26 +26,35 @@ import {
 import {
   ChartContainer,
   ChartTooltip,
-  ChartTooltipContent
-  
+  ChartTooltipContent,
 } from "@/components/ui/chart"
-import type {ChartConfig} from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
-import { formatRelativeTime, formatUsd } from "@/lib/format"
 import {
   PREDICT_QUOTE_DECIMALS,
   PREDICT_PRICE_SCALE as PRICE_SCALE,
   QUOTE_SCALE,
 } from "@/lib/config"
+import { formatRelativeTime, formatUsd } from "@/lib/format"
+import type {
+  DirectionalPositionMintEvent,
+  DirectionalPositionRedeemEvent,
+  ManagerPositionSummary,
+  ManagerRangeActivityResponse,
+  ManagerSummary,
+  OracleInfo,
+  RangeMintEvent,
+  RangeRedeemEvent,
+  VaultSummary,
+} from "@/lib/types/predict"
 import {
   getDirectionalPositionMints,
   getDirectionalPositionRedeems,
   getManagerPositionSummaries,
   getManagerRanges,
 } from "@/services/predict-client"
-import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, RangeMintEvent, RangeRedeemEvent, VaultSummary} from "@/lib/types/predict";
 import {
   buildManagerDepositTransaction,
   buildManagerWithdrawTransaction,
@@ -52,7 +62,9 @@ import {
   executeSuiTransaction,
   simulatePredictRedeemTransaction,
 } from "@/services/predict-transactions"
-import type {PredictRedeemParams} from "@/services/predict-transactions";
+import type { PredictRedeemParams } from "@/services/predict-transactions"
+import { getShieldPositions } from "@/services/shield-client"
+import type { ShieldPositionRow } from "@/services/shield-client"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -60,8 +72,6 @@ import {
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
-import { getShieldPositions } from "@/services/shield-client"
-import type { ShieldPositionRow } from "@/services/shield-client"
 
 export interface PageProps {
   oracles: OracleInfo[]
@@ -208,16 +218,27 @@ function formatCents(value: number | null) {
   return value === null ? "--" : `${(value * 100).toFixed(1)}c`
 }
 
-function formatSignedUsd(value: number) {
+function formatDusdcNumber(value: number, maximumFractionDigits = 2) {
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  })
+}
+
+function formatDusdc(value: number, maximumFractionDigits = 2) {
+  return `${formatDusdcNumber(value, maximumFractionDigits)} DUSDC`
+}
+
+function formatSignedDusdc(value: number, maximumFractionDigits = 2) {
   if (value > 0) {
-    return `+${formatUsd(value)}`
+    return `+${formatDusdc(value, maximumFractionDigits)}`
   }
 
   if (value < 0) {
-    return `-${formatUsd(Math.abs(value))}`
+    return `-${formatDusdc(Math.abs(value), maximumFractionDigits)}`
   }
 
-  return formatUsd(0)
+  return formatDusdc(0, maximumFractionDigits)
 }
 
 function formatPercent(value: number) {
@@ -226,6 +247,66 @@ function formatPercent(value: number) {
     minimumFractionDigits: 1,
     style: "percent",
   }).format(value)
+}
+
+function DusdcValue({
+  className,
+  maximumFractionDigits = 2,
+  unitClassName,
+  value,
+}: {
+  className?: string
+  maximumFractionDigits?: number
+  unitClassName?: string
+  value: number
+}) {
+  return (
+    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
+      <span className="font-mono tabular-nums">
+        {formatDusdcNumber(value, maximumFractionDigits)}
+      </span>
+      <span
+        className={cn(
+          "text-[0.62em] font-medium tracking-normal text-current opacity-70",
+          unitClassName
+        )}
+      >
+        DUSDC
+      </span>
+    </span>
+  )
+}
+
+function SignedDusdcValue({
+  className,
+  maximumFractionDigits = 2,
+  unitClassName,
+  value,
+}: {
+  className?: string
+  maximumFractionDigits?: number
+  unitClassName?: string
+  value: number
+}) {
+  const absoluteValue = Math.abs(value)
+  const prefix = value > 0 ? "+" : value < 0 ? "-" : ""
+
+  return (
+    <span className={cn("inline-flex items-baseline gap-1.5", className)}>
+      <span className="font-mono tabular-nums">
+        {prefix}
+        {formatDusdcNumber(absoluteValue, maximumFractionDigits)}
+      </span>
+      <span
+        className={cn(
+          "text-[0.62em] font-medium tracking-normal text-current opacity-70",
+          unitClassName
+        )}
+      >
+        DUSDC
+      </span>
+    </span>
+  )
 }
 
 function formatExpiryDistance(expiryMs: number, nowMs = Date.now()) {
@@ -996,7 +1077,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       setCreateManagerError(
         error instanceof Error
           ? error.message
-          : "Failed to create trading account."
+          : "Failed to initialize portfolio."
       )
     }
   }
@@ -1010,8 +1091,8 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     if (!managerId) {
       setDepositError(
         predictAccount.status === "loading"
-          ? "Resolving trading account. Try again in a moment."
-          : "Create a trading account first."
+          ? "Preparing portfolio. Try again in a moment."
+          : "Initialize portfolio first."
       )
       return
     }
@@ -1053,9 +1134,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     } catch (error) {
       setDepositStatusMessage(undefined)
       setDepositError(
-        error instanceof Error
-          ? error.message
-          : "Failed to deposit to trading account."
+        error instanceof Error ? error.message : "Failed to deposit DUSDC."
       )
     } finally {
       setIsDepositing(false)
@@ -1071,8 +1150,8 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     if (!managerId) {
       setWithdrawError(
         predictAccount.status === "loading"
-          ? "Resolving trading account. Try again in a moment."
-          : "Create a trading account first."
+          ? "Preparing portfolio. Try again in a moment."
+          : "Initialize portfolio first."
       )
       return
     }
@@ -1095,7 +1174,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     )
 
     if (selectedWithdrawAmount > managerBalance) {
-      setWithdrawError("Withdrawal amount exceeds manager balance")
+      setWithdrawError("Withdrawal amount exceeds available DUSDC")
       return
     }
 
@@ -1118,9 +1197,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
     } catch (error) {
       setWithdrawStatusMessage(undefined)
       setWithdrawError(
-        error instanceof Error
-          ? error.message
-          : "Failed to withdraw from trading account."
+        error instanceof Error ? error.message : "Failed to withdraw DUSDC."
       )
     } finally {
       setIsWithdrawing(false)
@@ -1146,7 +1223,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
 
     if (!managerId) {
       setRedeemState({
-        errorMessage: "Could not resolve trading account.",
+        errorMessage: "Could not resolve portfolio.",
         positionId: position.id,
       })
       return
@@ -1185,8 +1262,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
       setRedeemState({
-        errorMessage:
-          error instanceof Error ? error.message : "Redeem failed.",
+        errorMessage: error instanceof Error ? error.message : "Redeem failed.",
         positionId: position.id,
       })
     }
@@ -1201,8 +1277,10 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
               <AccountCard
-                managerSummary={managerSummary}
                 summary={summary}
+                deployedDusdc={toQuoteAmount(
+                  managerSummary?.trading_balance ?? 0
+                )}
                 onOpenDeposit={() => {
                   resetTradingAccountState()
                   setTradingAccountModalMode("deposit")
@@ -1234,10 +1312,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 onDepositAmountChange={setDepositAmount}
                 onDepositMax={() =>
                   setDepositAmount(
-                    formatDecimalUnits(
-                      dusdcBalance,
-                      PREDICT_QUOTE_DECIMALS
-                    )
+                    formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS)
                   )
                 }
                 onDepositSubmit={handleDepositToTradingAccount}
@@ -1251,11 +1326,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 onWithdrawMax={() =>
                   setWithdrawAmount(
                     formatDecimalUnits(
-                      BigInt(
-                        Math.floor(
-                          managerSummary?.trading_balance ?? 0
-                        )
-                      ),
+                      BigInt(Math.floor(managerSummary?.trading_balance ?? 0)),
                       PREDICT_QUOTE_DECIMALS
                     )
                   )
@@ -1321,52 +1392,61 @@ function ConnectPortfolioCard({ onConnect }: { onConnect: () => void }) {
 }
 
 function AccountCard({
-  managerSummary,
+  deployedDusdc,
   summary,
   onOpenDeposit,
   onOpenWithdraw,
 }: {
-  managerSummary?: ManagerSummary
+  deployedDusdc: number
   summary: PortfolioSummary
   onOpenDeposit: () => void
   onOpenWithdraw: () => void
 }) {
-  const managerBalance = toQuoteAmount(managerSummary?.trading_balance ?? 0)
-
   return (
-    <Card className="gap-2 rounded-md border-0 bg-card py-0 pt-3 shadow-none ring-0">
-      <div className="grid gap-4 px-3 py-3">
+    <Card className="gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <div className="border-b border-border/45 px-4 py-3">
+        <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          Portfolio
+        </div>
+      </div>
+
+      <div className="grid gap-4 px-4 py-4">
         <div>
           <div className="truncate text-xs text-muted-foreground">
-            Total Value
+            Net Value
           </div>
 
           <div>
-            <div className="mt-1 font-mono text-2xl font-medium tracking-tight text-foreground tabular-nums">
-              {formatUsd(summary.portfolioValueUsd)}
-            </div>
+            <DusdcValue
+              className="mt-1 text-2xl font-medium tracking-tight text-foreground"
+              value={summary.portfolioValueUsd}
+            />
 
             <div
               className={cn(
-                "mt-1 text-xs",
+                "mt-1 flex items-baseline gap-1.5 text-xs",
                 getPnlClassName(summary.unrealizedPnlUsd)
               )}
             >
-              {formatSignedUsd(summary.unrealizedPnlUsd)} unrealized
+              <SignedDusdcValue value={summary.unrealizedPnlUsd} />
+              <span className="text-muted-foreground">unrealized</span>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <Metric
             label="Available DUSDC"
-            value={formatUsd(summary.availableDusdc)}
+            value={<DusdcValue value={summary.availableDusdc} />}
           />
           <Metric
-            label="Manager Balance"
-            value={formatUsd(managerBalance)}
+            label="Deployed DUSDC"
+            value={<DusdcValue value={deployedDusdc} />}
           />
-          <Metric label="Vault Value" value={formatUsd(summary.plpValueUsd)} />
+          <Metric
+            label="PLP Value"
+            value={<DusdcValue value={summary.plpValueUsd} />}
+          />
           <Metric
             label="Realized PnL"
             tone={
@@ -1376,20 +1456,20 @@ function AccountCard({
                   ? "up"
                   : "down"
             }
-            value={formatSignedUsd(summary.realizedPnlUsd)}
+            value={<SignedDusdcValue value={summary.realizedPnlUsd} />}
           />
         </div>
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Button
-            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            className="h-auto min-h-9 py-2 text-center leading-5 whitespace-normal"
             type="button"
             onClick={onOpenDeposit}
           >
             Deposit
           </Button>
           <Button
-            className="h-auto min-h-9 whitespace-normal py-2 text-center leading-5"
+            className="h-auto min-h-9 py-2 text-center leading-5 whitespace-normal"
             type="button"
             variant="secondary"
             onClick={onOpenWithdraw}
@@ -1457,12 +1537,10 @@ function TradingAccountDialog({
 }) {
   const isOpen = mode !== null
   const isDepositMode = mode === "deposit"
-  const title = isDepositMode
-    ? "Deposit to Trading Account"
-    : "Withdraw from Trading Account"
+  const title = isDepositMode ? "Deposit DUSDC" : "Withdraw DUSDC"
   const description = isDepositMode
-    ? "Move DUSDC from the connected wallet into the PredictManager used for trading."
-    : "Move available manager balance back from the PredictManager to the connected wallet."
+    ? "Move DUSDC from the connected wallet into your portfolio."
+    : "Move available DUSDC back to the connected wallet."
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -1476,24 +1554,26 @@ function TradingAccountDialog({
           <div className="grid gap-3 rounded-lg border border-border/60 bg-muted/20 p-4">
             <AccountModalRow
               label="Connected wallet"
-              value={walletAddress ? formatAddress(walletAddress) : "Not connected"}
+              value={
+                walletAddress ? formatAddress(walletAddress) : "Not connected"
+              }
             />
             <AccountModalRow
-              label="Trading account"
-              value={managerId ? formatAddress(managerId) : "No trading account"}
+              label="Portfolio"
+              value={managerId ? "Initialized" : "Not initialized"}
             />
           </div>
 
           {!managerId && isLoadingAccount ? (
             <div className="grid gap-3">
               <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                Resolving trading account...
+                Preparing portfolio...
               </div>
             </div>
           ) : !managerId ? (
             <div className="grid gap-3">
               <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
-                Create a trading account to start moving funds in and out.
+                Initialize your portfolio to start moving funds in and out.
               </div>
               {createManagerError ? (
                 <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
@@ -1506,7 +1586,7 @@ function TradingAccountDialog({
               <div className="rounded-lg border border-border/60 bg-card/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <label
-                    className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
+                    className="text-xs tracking-[0.18em] text-muted-foreground uppercase"
                     htmlFor="deposit-amount"
                   >
                     Deposit Amount
@@ -1525,14 +1605,16 @@ function TradingAccountDialog({
                   inputMode="decimal"
                   placeholder="Enter DUSDC amount"
                   value={depositAmount}
-                  onChange={(event) => onDepositAmountChange(event.target.value)}
+                  onChange={(event) =>
+                    onDepositAmountChange(event.target.value)
+                  }
                 />
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
                     Available:{" "}
                     {`${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
                   </span>
-                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
+                  <span>PLP value: {formatDusdc(summary.plpValueUsd)}</span>
                 </div>
               </div>
 
@@ -1552,7 +1634,7 @@ function TradingAccountDialog({
               <div className="rounded-lg border border-border/60 bg-card/70 p-3">
                 <div className="flex items-center justify-between gap-3">
                   <label
-                    className="text-xs uppercase tracking-[0.18em] text-muted-foreground"
+                    className="text-xs tracking-[0.18em] text-muted-foreground uppercase"
                     htmlFor="withdraw-amount"
                   >
                     Withdraw Amount
@@ -1571,14 +1653,16 @@ function TradingAccountDialog({
                   inputMode="decimal"
                   placeholder="Enter DUSDC amount"
                   value={withdrawAmount}
-                  onChange={(event) => onWithdrawAmountChange(event.target.value)}
+                  onChange={(event) =>
+                    onWithdrawAmountChange(event.target.value)
+                  }
                 />
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
                   <span>
                     Available:{" "}
                     {`${formatDecimalUnits(BigInt(Math.floor(managerSummary?.trading_balance ?? 0)), PREDICT_QUOTE_DECIMALS, 4)} DUSDC`}
                   </span>
-                  <span>Wallet PLP: {formatUsd(summary.plpValueUsd)}</span>
+                  <span>PLP value: {formatDusdc(summary.plpValueUsd)}</span>
                 </div>
               </div>
 
@@ -1598,11 +1682,11 @@ function TradingAccountDialog({
           <div className="rounded-lg border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
             {managerId
               ? isDepositMode
-                ? "Funds move from your wallet into the trading account."
-                : "Funds move from the trading account back to your wallet."
+                ? "Funds move from your wallet into your portfolio."
+                : "Funds move from your portfolio back to your wallet."
               : isLoadingAccount
-                ? "Checking your connected wallet for a trading account."
-              : "Create a trading account first."}
+                ? "Checking your connected wallet for portfolio setup."
+                : "Initialize portfolio first."}
           </div>
         </div>
 
@@ -1617,10 +1701,10 @@ function TradingAccountDialog({
               }}
             >
               {isLoadingAccount
-                ? "Resolving..."
+                ? "Preparing..."
                 : isCreatingManager
-                  ? "Creating..."
-                  : "Create Account"}
+                  ? "Initializing..."
+                  : "Initialize Portfolio"}
             </Button>
           ) : isDepositMode ? (
             <Button
@@ -1651,16 +1735,10 @@ function TradingAccountDialog({
   )
 }
 
-function AccountModalRow({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
+function AccountModalRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+      <span className="text-xs tracking-[0.18em] text-muted-foreground uppercase">
         {label}
       </span>
       <span className="font-mono text-sm text-foreground">{value}</span>
@@ -1675,14 +1753,14 @@ function Metric({
 }: {
   label: string
   tone?: "default" | "muted" | "up" | "down"
-  value: string
+  value: ReactNode
 }) {
   return (
-    <div className="min-w-0 rounded-md bg-muted/35 px-2.5 py-2">
+    <div className="min-w-0 rounded-md bg-muted/25 px-2.5 py-2">
       <div className="truncate text-xs text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-1 truncate font-mono text-sm font-medium tabular-nums",
+          "mt-1 truncate text-sm font-medium",
           tone === "default" && "text-foreground",
           tone === "muted" && "text-muted-foreground",
           tone === "up" && "text-outcome-up",
@@ -1726,12 +1804,12 @@ function getRealizedPnlTicks(domain: [number, number]) {
 
 function formatPnlAxisTick(value: number) {
   if (Math.abs(value) < 0.005) {
-    return "$0.00"
+    return "0 DUSDC"
   }
 
   const absoluteValue = Math.abs(value)
   const fractionDigits = absoluteValue < 10 ? 2 : absoluteValue < 100 ? 1 : 0
-  const formatted = formatUsd(absoluteValue, fractionDigits)
+  const formatted = formatDusdc(absoluteValue, fractionDigits)
 
   return value < 0 ? `-${formatted}` : formatted
 }
@@ -1821,50 +1899,61 @@ function PortfolioChartCard({
   const yTicks = getRealizedPnlTicks(yDomain)
 
   return (
-    <Card className="min-h-[17rem] gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <div className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-3">
+    <Card className="min-h-[17rem] gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <div className="flex items-center justify-between gap-3 border-b border-border/45 px-4 py-3">
         <Tabs
-          className="gap-0"
+          className="min-w-0 gap-0"
           value={chartMode}
           onValueChange={(value) => setChartMode(value as ChartMode)}
         >
-          <TabsList className="h-8 rounded-md bg-muted p-0.5">
-            <TabsTrigger className="text-xs" value="realized">
+          <TabsList
+            className="h-full w-full justify-start gap-5 overflow-x-auto rounded-none p-0"
+            variant="line"
+          >
+            <TabsTrigger
+              className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
+              value="realized"
+            >
               Realized PnL
             </TabsTrigger>
-            <TabsTrigger className="text-xs" value="exposure">
+            <TabsTrigger
+              className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
+              value="exposure"
+            >
               Exposure
             </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        <div className="hidden items-center gap-1 sm:flex">
-          {chartIntervals.map((interval) => (
-            <Button
-              className="font-mono text-xs text-muted-foreground data-[active=true]:text-foreground"
-              data-active={chartInterval === interval.value}
-              key={interval.value}
-              size="xs"
-              type="button"
-              variant={chartInterval === interval.value ? "secondary" : "ghost"}
-              onClick={() => setChartInterval(interval.value)}
-            >
-              {interval.label}
-            </Button>
-          ))}
-        </div>
+        {chartMode === "realized" ? (
+          <div className="hidden items-center gap-1 sm:flex">
+            {chartIntervals.map((interval) => (
+              <Button
+                className="h-7 px-2.5 font-mono text-[11px] text-muted-foreground data-[active=true]:text-foreground"
+                data-active={chartInterval === interval.value}
+                key={interval.value}
+                size="xs"
+                type="button"
+                variant={
+                  chartInterval === interval.value ? "secondary" : "ghost"
+                }
+                onClick={() => setChartInterval(interval.value)}
+              >
+                {interval.label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid min-h-52 place-items-center px-3 py-3">
+      <div className="grid min-h-52 place-items-center px-4 py-3">
         {isLoading ? (
           <SkeletonPanel />
         ) : chartMode === "exposure" ? (
           <ExposurePanel summary={summary} />
         ) : visibleRealizedPnlPoints.length === 0 ? (
           <div className="text-center">
-            <div className="font-mono text-2xl text-muted-foreground tabular-nums">
-              {formatUsd(0)}
-            </div>
+            <DusdcValue className="text-2xl text-muted-foreground" value={0} />
             <p className="mt-10 text-sm text-muted-foreground">
               No realized P&L yet. Close or redeem a position to start the
               chart.
@@ -1874,11 +1963,11 @@ function PortfolioChartCard({
           <div className="h-52 w-full">
             <div
               className={cn(
-                "mb-2 font-mono text-xl tabular-nums",
+                "mb-2 text-xl font-medium",
                 getPnlClassName(visibleRealizedPnl)
               )}
             >
-              {formatSignedUsd(visibleRealizedPnl)}
+              <SignedDusdcValue value={visibleRealizedPnl} />
             </div>
             <ChartContainer
               className="h-40 w-full [&_.recharts-cartesian-axis-tick_text]:font-mono"
@@ -1937,7 +2026,7 @@ function PortfolioChartCard({
                   }
                   tickLine={false}
                   tickMargin={10}
-                  width={64}
+                  width={82}
                 />
                 <ReferenceLine
                   stroke="var(--muted-foreground)"
@@ -1950,7 +2039,7 @@ function PortfolioChartCard({
                     <ChartTooltipContent
                       formatter={(value) =>
                         typeof value === "number"
-                          ? formatSignedUsd(value)
+                          ? formatSignedDusdc(value)
                           : String(value)
                       }
                       labelFormatter={(_, payload) => {
@@ -2000,78 +2089,134 @@ function SkeletonPanel() {
 }
 
 function ExposurePanel({ summary }: { summary: PortfolioSummary }) {
-  return (
-    <div className="grid w-full max-w-2xl gap-4">
-      <div>
-        <div className="font-mono text-xl text-foreground tabular-nums">
-          {formatUsd(summary.openCostBasisUsd)}
+  const total = summary.openCostBasisUsd
+  const segments = [
+    { label: "Up", tone: "up", value: summary.upCostBasisUsd },
+    { label: "Down", tone: "down", value: summary.downCostBasisUsd },
+    { label: "Range", tone: "range", value: summary.rangeCostBasisUsd },
+  ] satisfies ExposureSegment[]
+
+  if (total <= 0) {
+    return (
+      <div className="grid w-full max-w-2xl place-items-center gap-2 text-center">
+        <DusdcValue className="text-2xl text-muted-foreground" value={0} />
+        <div className="text-sm font-medium text-foreground">
+          No open exposure
         </div>
-        <div className="mt-1 text-xs text-muted-foreground">
-          Open prediction cost basis
+        <p className="max-w-sm text-sm text-muted-foreground">
+          Open positions will appear here once DUSDC is deployed.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid w-full max-w-3xl gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="text-xs text-muted-foreground">Open Cost Basis</div>
+          <DusdcValue
+            className="mt-1 text-xl font-medium text-foreground"
+            value={total}
+          />
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Current allocation across open Predict positions
         </div>
       </div>
-      <div className="grid gap-3">
-        <ExposureBar
-          label="Up"
-          tone="up"
-          total={summary.openCostBasisUsd}
-          value={summary.upCostBasisUsd}
-        />
-        <ExposureBar
-          label="Down"
-          tone="down"
-          total={summary.openCostBasisUsd}
-          value={summary.downCostBasisUsd}
-        />
-        <ExposureBar
-          label="Range"
-          tone="range"
-          total={summary.openCostBasisUsd}
-          value={summary.rangeCostBasisUsd}
-        />
+
+      <div className="flex h-2 overflow-hidden rounded-full bg-muted/45">
+        {segments.map((segment) => {
+          const percent = segment.value / total
+
+          return segment.value > 0 ? (
+            <div
+              className={cn("h-full", getExposureBgClassName(segment.tone))}
+              key={segment.label}
+              style={{ flexBasis: `${percent * 100}%` }}
+            />
+          ) : null
+        })}
+      </div>
+
+      <div className="grid gap-2 sm:grid-cols-3">
+        {segments.map((segment) => (
+          <ExposureTile key={segment.label} segment={segment} total={total} />
+        ))}
       </div>
     </div>
   )
 }
 
-function ExposureBar({
-  label,
-  tone,
-  total,
-  value,
-}: {
+type ExposureTone = "up" | "down" | "range"
+
+interface ExposureSegment {
   label: string
-  tone: "up" | "down" | "range"
-  total: number
+  tone: ExposureTone
   value: number
+}
+
+function getExposureTextClassName(tone: ExposureTone) {
+  if (tone === "up") {
+    return "text-outcome-up"
+  }
+
+  if (tone === "down") {
+    return "text-outcome-down"
+  }
+
+  return "text-primary"
+}
+
+function getExposureBgClassName(tone: ExposureTone) {
+  if (tone === "up") {
+    return "bg-outcome-up"
+  }
+
+  if (tone === "down") {
+    return "bg-outcome-down"
+  }
+
+  return "bg-primary"
+}
+
+function ExposureTile({
+  segment,
+  total,
+}: {
+  segment: ExposureSegment
+  total: number
 }) {
-  const percent = total > 0 ? value / total : 0
+  const percent = total > 0 ? segment.value / total : 0
 
   return (
-    <div>
-      <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+    <div className="min-w-0 overflow-hidden rounded-md bg-muted/25 px-3 py-2.5">
+      <div className="flex items-center justify-between gap-3">
         <span
           className={cn(
-            tone === "up" && "text-outcome-up",
-            tone === "down" && "text-outcome-down",
-            tone === "range" && "text-primary"
+            "text-xs font-medium",
+            getExposureTextClassName(segment.tone)
           )}
         >
-          {label}
+          {segment.label}
         </span>
-        <span className="font-mono text-foreground tabular-nums">
-          {formatUsd(value)} · {formatPercent(percent)}
+        <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
+          {formatPercent(percent)}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
+      <DusdcValue
+        className="mt-2 text-sm font-medium text-foreground"
+        value={segment.value}
+      />
+      <div className="mt-2 h-1 overflow-hidden rounded-full bg-background/45">
         <div
           className={cn(
             "h-full rounded-full",
-            tone === "up" && "bg-outcome-up",
-            tone === "down" && "bg-outcome-down",
-            tone === "range" && "bg-primary"
+            getExposureBgClassName(segment.tone)
           )}
-          style={{ width: `${Math.max(percent * 100, value > 0 ? 4 : 0)}%` }}
+          style={{
+            width: `${Math.max(percent * 100, segment.value > 0 ? 4 : 0)}%`,
+          }}
         />
       </div>
     </div>
@@ -2101,62 +2246,152 @@ function PositionsLedger({
 }) {
   return (
     <Card className="min-h-96 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <div className="flex flex-col gap-3 border-b border-border/40 px-3 py-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap items-center gap-1">
-          {portfolioTabs.map((tab) => (
-            <Button
-              className={cn(
-                "text-muted-foreground",
-                activeTab === tab.value && "bg-muted text-foreground"
-              )}
-              key={tab.value}
-              size="sm"
-              type="button"
-              variant="ghost"
-              onClick={() => onTabChange(tab.value)}
-            >
-              {tab.label}
-              <span className="rounded-sm bg-foreground/8 px-1.5 py-0.5 font-mono text-[10px] tabular-nums">
-                {getTabCount(totalPositions, tab.value)}
-              </span>
-            </Button>
-          ))}
-        </div>
+      <Tabs
+        className="flex min-h-96 min-w-0 flex-col gap-0"
+        value={activeTab}
+        onValueChange={(value) => onTabChange(value as PortfolioTab)}
+      >
+        <div className="flex shrink-0 flex-col gap-3 border-b border-border/45 px-4 py-3 lg:h-11 lg:flex-row lg:items-center lg:justify-between lg:py-0">
+          <TabsList
+            className="h-full w-full justify-start gap-5 overflow-x-auto rounded-none p-0"
+            variant="line"
+          >
+            {portfolioTabs.map((tab) => (
+              <TabsTrigger
+                className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
+                key={tab.value}
+                value={tab.value}
+              >
+                <span>{tab.label}</span>
+                <span className="rounded-sm bg-muted/45 px-1.5 py-0.5 font-mono text-[10px] leading-none text-current tabular-nums opacity-80">
+                  {getTabCount(totalPositions, tab.value)}
+                </span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
 
-        <div className="relative w-full lg:w-72">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-8"
-            placeholder="Search markets"
-            value={searchQuery}
-            onChange={(event) => onSearchChange(event.target.value)}
-          />
-        </div>
-      </div>
-
-      {activeTab === "activity" ? (
-        <ActivityList isLoading={isLoading} positions={positions} />
-      ) : (
-        <>
-          <div className="hidden overflow-auto lg:block">
-            <PositionsTable
-              isLoading={isLoading}
-              onRedeemPosition={onRedeemPosition}
-              positions={positions}
-              redeemingPositionId={redeemingPositionId}
+          <div className="relative w-full lg:w-72">
+            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="h-8 pl-8"
+              placeholder="Search markets"
+              value={searchQuery}
+              onChange={(event) => onSearchChange(event.target.value)}
             />
           </div>
-          <div className="grid gap-2 p-3 lg:hidden">
-            <MobilePositionsList
-              isLoading={isLoading}
-              onRedeemPosition={onRedeemPosition}
-              positions={positions}
-              redeemingPositionId={redeemingPositionId}
-            />
-          </div>
-        </>
-      )}
+        </div>
+
+        {portfolioTabs.map((tab) => (
+          <TabsContent
+            className="min-h-0 flex-1 overflow-hidden"
+            key={tab.value}
+            value={tab.value}
+          >
+            {tab.value === "activity" ? (
+              <ActivityTable isLoading={isLoading} positions={positions} />
+            ) : (
+              <>
+                <div className="hidden h-full min-h-0 overflow-auto lg:block">
+                  <PositionsTable
+                    isLoading={isLoading}
+                    onRedeemPosition={onRedeemPosition}
+                    positions={positions}
+                    redeemingPositionId={redeemingPositionId}
+                  />
+                </div>
+                <div className="grid gap-2 p-3 lg:hidden">
+                  <MobilePositionsList
+                    isLoading={isLoading}
+                    onRedeemPosition={onRedeemPosition}
+                    positions={positions}
+                    redeemingPositionId={redeemingPositionId}
+                  />
+                </div>
+              </>
+            )}
+          </TabsContent>
+        ))}
+      </Tabs>
     </Card>
+  )
+}
+
+function PortfolioHeaderRow({
+  className,
+  columns,
+}: {
+  className: string
+  columns: Array<{ align?: "left" | "right"; label: string }>
+}) {
+  return (
+    <div
+      className={cn(
+        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
+        className
+      )}
+    >
+      {columns.map((column, index) => (
+        <span
+          className={cn("truncate", column.align === "right" && "text-right")}
+          key={`${column.label}-${index}`}
+        >
+          {column.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function PositionTypeTag({ position }: { position: PortfolioPosition }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide uppercase",
+        getPositionTypeClassName(position.type)
+      )}
+    >
+      {position.type}
+    </span>
+  )
+}
+
+function PositionAction({
+  onRedeemPosition,
+  position,
+  redeemingPositionId,
+}: {
+  onRedeemPosition: (position: PortfolioPosition) => void
+  position: PortfolioPosition
+  redeemingPositionId?: string
+}) {
+  return canRedeemPortfolioPosition(position) ? (
+    <Button
+      className="justify-self-end"
+      disabled={redeemingPositionId === position.id}
+      size="xs"
+      type="button"
+      variant="secondary"
+      onClick={() => onRedeemPosition(position)}
+    >
+      {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
+    </Button>
+  ) : (
+    <Button
+      className="justify-self-end text-muted-foreground"
+      render={
+        <Link
+          params={{ oracleId: position.oracleId }}
+          search={position.manageSearch}
+          to="/markets/$oracleId"
+        />
+      }
+      size="xs"
+      type="button"
+      variant="ghost"
+    >
+      Manage
+      <ArrowUpRightIcon className="size-3" />
+    </Button>
   )
 }
 
@@ -2180,88 +2415,54 @@ function PositionsTable({
   }
 
   return (
-    <div className="min-w-[62rem]">
-      <div className="grid grid-cols-[minmax(14rem,1.8fr)_4rem_7rem_5rem_5rem_7rem_7rem_7rem_5rem] gap-4 border-b border-border/40 bg-muted/35 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        <span>Market</span>
-        <span>Type</span>
-        <span>Size</span>
-        <span>Entry</span>
-        <span>Mark</span>
-        <span>Value</span>
-        <span>PnL</span>
-        <span>Status</span>
-        <span className="text-right">Action</span>
-      </div>
+    <div className="min-w-[56rem]">
+      <PortfolioHeaderRow
+        className="grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem]"
+        columns={[
+          { label: "Contract" },
+          { label: "Contracts" },
+          { align: "right", label: "Entry" },
+          { align: "right", label: "Mark" },
+          { align: "right", label: "Value" },
+          { align: "right", label: "PnL" },
+          { align: "right", label: "" },
+        ]}
+      />
       {positions.map((position) => (
         <div
-          className="grid grid-cols-[minmax(14rem,1.8fr)_4rem_7rem_5rem_5rem_7rem_7rem_7rem_5rem] items-center gap-4 border-b border-border/30 px-3 py-2.5 text-xs"
+          className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0"
           key={position.id}
         >
           <PositionMarketCell position={position} />
-          <span
-            className={cn(
-              "font-mono text-[10px]",
-              getPositionTypeClassName(position.type)
-            )}
-          >
-            {position.type}
-          </span>
-          <span className="font-mono text-muted-foreground tabular-nums">
+          <span className="truncate font-mono text-muted-foreground tabular-nums">
             {formatQuantity(position.size)}
           </span>
-          <span className="font-mono tabular-nums">
+          <span className="truncate text-right font-mono tabular-nums">
             {formatCents(position.averageEntryPrice)}
           </span>
-          <span className="font-mono tabular-nums">
+          <span className="truncate text-right font-mono tabular-nums">
             {formatCents(position.markPrice)}
           </span>
-          <span className="font-mono tabular-nums">
+          <span className="truncate text-right font-mono tabular-nums">
             {position.currentValueUsd === null
               ? "--"
-              : formatUsd(position.currentValueUsd)}
+              : formatDusdc(position.currentValueUsd)}
           </span>
           <span
             className={cn(
-              "font-mono tabular-nums",
+              "truncate text-right font-mono tabular-nums",
               getPnlClassName(position.unrealizedPnlUsd)
             )}
           >
             {position.unrealizedPnlUsd === null
               ? "--"
-              : formatSignedUsd(position.unrealizedPnlUsd)}
+              : formatSignedDusdc(position.unrealizedPnlUsd)}
           </span>
-          <span className="truncate text-muted-foreground capitalize">
-            {position.status}
-          </span>
-          {canRedeemPortfolioPosition(position) ? (
-            <Button
-              className="justify-self-end"
-              disabled={redeemingPositionId === position.id}
-              size="xs"
-              type="button"
-              variant="secondary"
-              onClick={() => onRedeemPosition(position)}
-            >
-              {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
-            </Button>
-          ) : (
-            <Button
-              className="justify-self-end text-muted-foreground"
-              render={
-                <Link
-                  params={{ oracleId: position.oracleId }}
-                  search={position.manageSearch}
-                  to="/markets/$oracleId"
-                />
-              }
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              Manage
-              <ArrowUpRightIcon className="size-3" />
-            </Button>
-          )}
+          <PositionAction
+            onRedeemPosition={onRedeemPosition}
+            position={position}
+            redeemingPositionId={redeemingPositionId}
+          />
         </div>
       ))}
     </div>
@@ -2271,12 +2472,15 @@ function PositionsTable({
 function PositionMarketCell({ position }: { position: PortfolioPosition }) {
   return (
     <div className="min-w-0">
-      <div className="truncate font-medium text-foreground">
-        {position.contractLabel}
+      <div className="flex min-w-0 items-center gap-2">
+        <PositionTypeTag position={position} />
+        <span className="truncate font-medium text-foreground">
+          {position.contractLabel}
+        </span>
       </div>
       <div className="mt-0.5 flex min-w-0 items-center gap-2">
         <div className="truncate font-mono text-[10px] text-muted-foreground uppercase">
-          {formatExpiryDistance(position.expiryMs)} ·{" "}
+          {position.status} · {formatExpiryDistance(position.expiryMs)} ·{" "}
           {formatRelativeTime(position.lastActivityAt)}
         </div>
         <ReservationBadge position={position} />
@@ -2291,7 +2495,7 @@ function ReservationBadge({ position }: { position: PortfolioPosition }) {
   }
 
   return (
-    <span className="shrink-0 rounded-sm border border-amber-500/25 bg-amber-500/5 px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-amber-200/90">
+    <span className="shrink-0 rounded-sm border border-amber-500/25 bg-amber-500/5 px-1.5 py-0.5 font-mono text-[10px] tracking-wide text-amber-200/90 uppercase">
       {position.reservationLabel}
     </span>
   )
@@ -2325,7 +2529,10 @@ function MobilePositionsList({
   }
 
   return positions.map((position) => (
-    <div className="rounded-md bg-muted/35 px-3 py-3" key={position.id}>
+    <div
+      className="rounded-md border border-border/35 bg-muted/15 px-3 py-3"
+      key={position.id}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
@@ -2377,7 +2584,7 @@ function MobilePositionsList({
           </Button>
         )}
       </div>
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/35 pt-3 text-xs">
         <MobileStat
           label="Entry"
           value={formatCents(position.averageEntryPrice)}
@@ -2388,7 +2595,7 @@ function MobilePositionsList({
           value={
             position.currentValueUsd === null
               ? "--"
-              : formatUsd(position.currentValueUsd)
+              : formatDusdc(position.currentValueUsd)
           }
         />
         <MobileStat
@@ -2397,11 +2604,11 @@ function MobilePositionsList({
           value={
             position.unrealizedPnlUsd === null
               ? "--"
-              : formatSignedUsd(position.unrealizedPnlUsd)
+              : formatSignedDusdc(position.unrealizedPnlUsd)
           }
         />
       </div>
-      <div className="mt-3 font-mono text-[10px] text-muted-foreground uppercase">
+      <div className="mt-3 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
         {position.status} · {formatRelativeTime(position.lastActivityAt)}
       </div>
     </div>
@@ -2418,7 +2625,7 @@ function MobileStat({
   value: string
 }) {
   return (
-    <div>
+    <div className="min-w-0 rounded-md bg-background/35 px-2.5 py-2">
       <div className="text-muted-foreground">{label}</div>
       <div
         className={cn(
@@ -2432,7 +2639,7 @@ function MobileStat({
   )
 }
 
-function ActivityList({
+function ActivityTable({
   isLoading,
   positions,
 }: {
@@ -2448,25 +2655,100 @@ function ActivityList({
   }
 
   return (
-    <div className="grid gap-0">
-      {positions.map((position) => (
-        <div
-          className="flex items-center justify-between gap-4 border-b border-border/30 px-3 py-3 text-sm"
-          key={position.id}
-        >
-          <div className="min-w-0">
-            <div className="truncate text-foreground">
-              {position.contractLabel}
+    <>
+      <div className="hidden h-full min-h-0 overflow-auto lg:block">
+        <div className="min-w-[54rem]">
+          <PortfolioHeaderRow
+            className="grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_6rem_5.5rem]"
+            columns={[
+              { label: "Contract" },
+              { label: "Contracts" },
+              { align: "right", label: "Value" },
+              { align: "right", label: "PnL" },
+              { label: "Status" },
+              { align: "right", label: "Time" },
+            ]}
+          />
+          {positions.map((position) => (
+            <div
+              className="grid grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_6rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0"
+              key={position.id}
+            >
+              <PositionMarketCell position={position} />
+              <span className="truncate font-mono text-muted-foreground tabular-nums">
+                {formatQuantity(position.size)}
+              </span>
+              <span className="truncate text-right font-mono tabular-nums">
+                {position.currentValueUsd === null
+                  ? "--"
+                  : formatDusdc(position.currentValueUsd)}
+              </span>
+              <span
+                className={cn(
+                  "truncate text-right font-mono tabular-nums",
+                  getPnlClassName(position.unrealizedPnlUsd)
+                )}
+              >
+                {position.unrealizedPnlUsd === null
+                  ? "--"
+                  : formatSignedDusdc(position.unrealizedPnlUsd)}
+              </span>
+              <span className="truncate text-muted-foreground capitalize">
+                {position.status}
+              </span>
+              <span className="text-right font-mono text-muted-foreground tabular-nums">
+                {formatRelativeTime(position.lastActivityAt)}
+              </span>
             </div>
-            <div className="mt-0.5 text-xs text-muted-foreground">
-              Position updated · {formatRelativeTime(position.lastActivityAt)}
-            </div>
-          </div>
-          <div className="shrink-0 text-right font-mono text-xs text-muted-foreground tabular-nums">
-            {formatQuantity(position.size)} contracts
-          </div>
+          ))}
         </div>
-      ))}
-    </div>
+      </div>
+
+      <div className="grid gap-2 p-3 lg:hidden">
+        {positions.map((position) => (
+          <div
+            className="rounded-md border border-border/35 bg-muted/15 px-3 py-3"
+            key={position.id}
+          >
+            <div className="flex min-w-0 items-center gap-2">
+              <PositionTypeTag position={position} />
+              <span className="truncate text-sm font-medium text-foreground">
+                {position.contractLabel}
+              </span>
+            </div>
+            <div className="mt-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              {position.status} · {formatRelativeTime(position.lastActivityAt)}
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/35 pt-3 text-xs">
+              <MobileStat
+                label="Contracts"
+                value={formatQuantity(position.size)}
+              />
+              <MobileStat
+                label="Value"
+                value={
+                  position.currentValueUsd === null
+                    ? "--"
+                    : formatDusdc(position.currentValueUsd)
+                }
+              />
+              <MobileStat
+                className={getPnlClassName(position.unrealizedPnlUsd)}
+                label="PnL"
+                value={
+                  position.unrealizedPnlUsd === null
+                    ? "--"
+                    : formatSignedDusdc(position.unrealizedPnlUsd)
+                }
+              />
+              <MobileStat
+                label="Expiry"
+                value={formatExpiryDistance(position.expiryMs)}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   )
 }
