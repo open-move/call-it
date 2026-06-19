@@ -1,7 +1,21 @@
 import { QUOTE_SCALE, PREDICT_PRICE_SCALE as PRICE_SCALE } from "@/lib/config"
-import type {DirectionalPositionRedeemEvent, RangeMintEvent, RangeRedeemEvent} from "@/lib/types/predict";
+import type {
+  DirectionalPositionRedeemEvent,
+  RangeMintEvent,
+  RangeRedeemEvent,
+} from "@/lib/types/predict"
 
-import type {Position, PositionRow, RangePosition, RangeRedemption, RangeTrade, Redemption, RedemptionActivityRow, Trade, TradeActivityRow} from "@/lib/types/trade";
+import type {
+  Position,
+  PositionRow,
+  RangePosition,
+  RangeRedemption,
+  RangeTrade,
+  Redemption,
+  RedemptionActivityRow,
+  Trade,
+  TradeActivityRow,
+} from "@/lib/types/trade"
 
 export interface FilterActivityOptions {
   oracleId: string
@@ -62,6 +76,7 @@ export function filterRedemptions(
         side: event.is_up ? ("above" as const) : ("below" as const),
         strikePriceUsd: toUsdPrice(event.strike),
         timestampMs: event.checkpoint_timestamp_ms,
+        transactionDigest: event.digest,
       }))
   )
 }
@@ -83,6 +98,7 @@ export function filterRangeTrades(
         price: event.ask_price / PRICE_SCALE,
         quantity: event.quantity / QUOTE_SCALE,
         timestampMs: event.checkpoint_timestamp_ms,
+        transactionDigest: event.digest,
         trader: event.trader,
       }))
   )
@@ -106,6 +122,7 @@ export function filterRangeRedemptions(
         payoutUsd: event.payout / QUOTE_SCALE,
         quantity: event.quantity / QUOTE_SCALE,
         timestampMs: event.checkpoint_timestamp_ms,
+        transactionDigest: event.digest,
         trader: event.trader,
       }))
   )

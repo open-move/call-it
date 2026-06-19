@@ -1,7 +1,7 @@
 import { QUOTE_SCALE, PREDICT_PRICE_SCALE as PRICE_SCALE } from "@/lib/config"
-import type {DirectionalPositionMintEvent} from "@/lib/types/predict";
+import type { DirectionalPositionMintEvent } from "@/lib/types/predict"
 
-import type {Trade} from "@/lib/types/trade";
+import type { Trade } from "@/lib/types/trade"
 
 export interface FilterTradesOptions {
   oracleId: string
@@ -28,6 +28,7 @@ export function filterTrades(
       side: event.is_up ? ("above" as const) : ("below" as const),
       strikePriceUsd: toUsdPrice(event.strike),
       timestampMs: event.checkpoint_timestamp_ms,
+      transactionDigest: event.digest,
       trader: event.trader,
     }))
     .sort(

@@ -10,8 +10,8 @@ export interface AppNavItem {
   status: AppNavStatus
 }
 
-export interface ProtectionNavItem {
-  href: ProtectionNavHref
+export interface VaultNavItem {
+  href: VaultNavHref
   label: string
 }
 
@@ -24,13 +24,13 @@ export type AppNavHref =
   | "/risk"
   | "/leaderboard"
 
-export type ProtectionNavHref = "/shield" | "/protect" | "/range-ladder"
+export type VaultNavHref = "/shield" | "/range-ladder"
 
 export const appNavItems: AppNavItem[] = [
   { href: "/markets", label: "Trade", status: AppNavStatus.Active },
-  { href: "/arena", label: "Arena", status: AppNavStatus.Available },
   { href: "/earn", label: "Earn", status: AppNavStatus.Available },
   { href: "/risk", label: "Risk", status: AppNavStatus.Available },
+  { href: "/arena", label: "Arena", status: AppNavStatus.Available },
   {
     href: "/leaderboard",
     label: "Leaderboard",
@@ -39,8 +39,7 @@ export const appNavItems: AppNavItem[] = [
   { href: "/portfolio", label: "Portfolio", status: AppNavStatus.Available },
 ]
 
-export const protectionNavItems: ProtectionNavItem[] = [
+export const vaultNavItems: VaultNavItem[] = [
   { href: "/shield", label: "Shield" },
-  { href: "/protect", label: "Protect" },
   { href: "/range-ladder", label: "Range Ladder" },
 ]

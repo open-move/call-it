@@ -1,4 +1,4 @@
-import type {MarketPricePoint} from "@/lib/types/market";
+import type { MarketPricePoint } from "@/lib/types/market"
 
 export interface TradeMarket {
   id: string
@@ -41,6 +41,7 @@ export interface ToolbarQuote {
 export interface Trade {
   id: string
   trader: string
+  transactionDigest: string
   timestampMs: number
   strikePriceUsd: number
   side: "above" | "below"
@@ -53,6 +54,7 @@ export interface Redemption {
   id: string
   owner: string
   executor: string
+  transactionDigest: string
   timestampMs: number
   strikePriceUsd: number
   side: "above" | "below"
@@ -99,6 +101,7 @@ export type PositionRow = DirectionalPositionRow | RangePositionRow
 export interface RangeTrade {
   id: string
   trader: string
+  transactionDigest: string
   timestampMs: number
   lowerStrikePriceUsd: number
   higherStrikePriceUsd: number
@@ -110,6 +113,7 @@ export interface RangeTrade {
 export interface RangeRedemption {
   id: string
   trader: string
+  transactionDigest: string
   timestampMs: number
   lowerStrikePriceUsd: number
   higherStrikePriceUsd: number

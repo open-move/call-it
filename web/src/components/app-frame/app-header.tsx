@@ -23,9 +23,9 @@ import { cn } from "@/lib/utils"
 import {
   AppNavStatus,
   appNavItems,
-  protectionNavItems,
-  type ProtectionNavItem,
+  vaultNavItems,
 } from "./app-nav"
+import type { VaultNavItem } from "./app-nav"
 import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
@@ -50,23 +50,22 @@ function isHrefActive(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function isProtectionPath(pathname: string) {
+function isVaultPath(pathname: string) {
   return (
     isHrefActive(pathname, "/shield") ||
-    isHrefActive(pathname, "/protect") ||
     isHrefActive(pathname, "/range-ladder") ||
     isHrefActive(pathname, "/protection")
   )
 }
 
-function getProtectionTriggerClassName(isActive: boolean) {
+function getVaultTriggerClassName(isActive: boolean) {
   return cn(
     "flex h-auto items-center gap-1 rounded-md bg-transparent px-2.5 py-1.5 text-sm font-normal text-white/62 transition-colors outline-none hover:bg-transparent hover:text-white/78 focus:bg-transparent focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none data-popup-open:bg-white/[0.04] data-popup-open:text-white/78",
     isActive && "text-primary"
   )
 }
 
-function ProtectionDropdownLink({ item }: { item: ProtectionNavItem }) {
+function VaultDropdownLink({ item }: { item: VaultNavItem }) {
   return (
     <NavigationMenuLink
       className="group w-44 rounded-md px-2.5 py-2 text-sm font-normal text-white/62 hover:bg-white/[0.06] hover:text-white/78 focus:bg-white/[0.06]"
@@ -91,7 +90,7 @@ export function AppHeader() {
     return isActive ? AppNavStatus.Active : AppNavStatus.Available
   }
 
-  const isProtectionActive = isProtectionPath(pathname)
+  const isVaultActive = isVaultPath(pathname)
 
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
@@ -140,22 +139,20 @@ export function AppHeader() {
                       </NavigationMenuLink>
                     </NavigationMenuItem>
 
-                    {item.href === "/markets" ? (
+                    {item.href === "/earn" ? (
                       <NavigationMenuItem>
                         <NavigationMenuTrigger
-                          aria-current={isProtectionActive ? "page" : undefined}
-                          className={getProtectionTriggerClassName(
-                            isProtectionActive
-                          )}
+                          aria-current={isVaultActive ? "page" : undefined}
+                          className={getVaultTriggerClassName(isVaultActive)}
                         >
-                          Protection
+                          Vaults
                         </NavigationMenuTrigger>
                         <NavigationMenuContent className="bg-[#111112] text-white">
                           <div className="grid gap-1 p-1.5">
-                            {protectionNavItems.map((protectionItem) => (
-                              <ProtectionDropdownLink
-                                item={protectionItem}
-                                key={protectionItem.href}
+                            {vaultNavItems.map((vaultItem) => (
+                              <VaultDropdownLink
+                                item={vaultItem}
+                                key={vaultItem.href}
                               />
                             ))}
                           </div>
@@ -194,7 +191,7 @@ export function AppHeader() {
             className="mx-auto flex w-full max-w-[96rem] flex-col gap-1 px-4 py-3 sm:px-6"
           >
             {appNavItems.map((item) => (
-              <div key={item.href}>
+              <Fragment key={item.href}>
                 <Link
                   className={getMobileNavLinkClassName(getItemStatus(item))}
                   onClick={() => setIsMobileNavOpen(false)}
@@ -211,29 +208,29 @@ export function AppHeader() {
                   )}
                 </Link>
 
-                {item.href === "/markets" ? (
+                {item.href === "/earn" ? (
                   <div className="mt-1 rounded-md bg-white/[0.03] px-2 py-2">
                     <div
                       className={cn(
                         "px-1 pb-1 font-mono text-[10px] tracking-[0.18em] text-white/38 uppercase",
-                        isProtectionActive && "text-primary"
+                        isVaultActive && "text-primary"
                       )}
                     >
-                      Protection
+                      Vaults
                     </div>
-                    {protectionNavItems.map((protectionItem) => (
+                    {vaultNavItems.map((vaultItem) => (
                       <Link
                         className="block rounded-md px-2 py-2 text-sm text-white/62 transition-colors hover:bg-white/[0.06] hover:text-white/78 focus-visible:ring-2 focus-visible:ring-white/20 focus-visible:outline-none"
-                        key={protectionItem.href}
+                        key={vaultItem.href}
                         onClick={() => setIsMobileNavOpen(false)}
-                        to={protectionItem.href}
+                        to={vaultItem.href}
                       >
-                        {protectionItem.label}
+                        {vaultItem.label}
                       </Link>
                     ))}
                   </div>
                 ) : null}
-              </div>
+              </Fragment>
             ))}
             <div className="mt-3 sm:hidden">
               <DynamicWalletWidget />

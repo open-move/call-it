@@ -124,7 +124,15 @@ export function formatSignedPercent(value: number) {
 }
 
 export function formatStatus(status: string) {
-  return status === "active" ? "Live" : status
+  if (status === "active") {
+    return "Live"
+  }
+
+  if (status === "expired") {
+    return "Expired"
+  }
+
+  return status
 }
 
 export function formatProbability(value: number | undefined) {

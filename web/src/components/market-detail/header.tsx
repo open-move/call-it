@@ -15,16 +15,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { formatUsd,
+import {
   formatExpiryDistance,
   formatMarketTitleExpiry,
   formatProbability,
-  formatStatus } from "@/lib/format"
-import type {MarketSnapshot} from "@/lib/types/market";
-import type {TradeMarket, ToolbarQuote} from "@/lib/types/trade";
+  formatStatus,
+  formatUsd,
+} from "@/lib/format"
 import { formatUnitPrice } from "@/lib/amounts"
 import { QUOTE_QUANTITY as TOOLBAR_QUOTE_QUANTITY } from "@/lib/config"
 import { cn } from "@/lib/utils"
+import type { MarketSnapshot } from "@/lib/types/market"
+import type { TradeMarket, ToolbarQuote } from "@/lib/types/trade"
 
 export interface HeaderProps {
   market: MarketSnapshot
@@ -40,7 +42,19 @@ function formatToolbarPrice(value: number | undefined) {
 }
 
 function getStatusTone(status: string) {
-  return status === "active" ? BadgeTone.Live : BadgeTone.Neutral
+  if (status === "active") {
+    return BadgeTone.Live
+  }
+
+  if (status === "expired") {
+    return BadgeTone.Warning
+  }
+
+  return BadgeTone.Neutral
+}
+
+function getMarketDisplayStatus(market: MarketSnapshot) {
+  return market.expiryMs <= Date.now() ? "expired" : market.status
 }
 
 function filterMarketOptions(markets: TradeMarket[], query: string) {
@@ -203,6 +217,7 @@ function MarketSelector({
 export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
   const quoteValue = formatToolbarPrice(toolbarQuote?.aboveAsk)
   const spreadValue = formatToolbarPrice(toolbarQuote?.spread)
+  const displayStatus = getMarketDisplayStatus(market)
   const title = `${market.assetSymbol} Prediction · ${formatMarketTitleExpiry(market.expiryMs)}`
 
   return (
@@ -210,8 +225,8 @@ export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
       assetIconUrl={market.assetIconUrl}
       assetName={market.assetName}
       assetSymbol={market.assetSymbol}
-      badgeLabel={formatStatus(market.status)}
-      badgeTone={getStatusTone(market.status)}
+      badgeLabel={formatStatus(displayStatus)}
+      badgeTone={getStatusTone(displayStatus)}
       identity={
         <MarketSelector
           market={market}
@@ -220,11 +235,31 @@ export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
         />
       }
       metrics={[
-        { label: "Price (Up)", value: quoteValue },
-        { label: "Spread", value: spreadValue },
-        { label: "Spot", value: formatUsd(market.currentPriceUsd, 0) },
-        { label: "Min Strike", value: formatUsd(market.minStrikeUsd, 0) },
-        { label: "Expires", value: formatExpiryDistance(market.expiryMs) },
+        {
+          description: "Current ask price to open an Up position for this market.",
+          label: "Price (Up)",
+          value: quoteValue,
+        },
+        {
+          description: "Difference between the current bid and ask quotes.",
+          label: "Spread",
+          value: spreadValue,
+        },
+        {
+          description: "Latest oracle spot price for the underlying asset.",
+          label: "Spot",
+          value: formatUsd(market.currentPriceUsd, 0),
+        },
+        {
+          description: "Lowest strike currently listed for this market expiry.",
+          label: "Min Strike",
+          value: formatUsd(market.minStrikeUsd, 0),
+        },
+        {
+          description: "Time remaining until this market expiry.",
+          label: "Expires",
+          value: formatExpiryDistance(market.expiryMs),
+        },
       ]}
       title={title}
     />

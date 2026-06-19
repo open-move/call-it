@@ -1,5 +1,5 @@
-import {  useEffect, useState } from "react"
-import type {ReactNode} from "react";
+import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { MoreHorizontalIcon } from "lucide-react"
 
@@ -16,13 +16,18 @@ import {
 } from "@/components/primitives/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { formatRelativeTime, formatUsd } from "@/lib/format"
-import type {MarketSnapshot} from "@/lib/types/market";
+import type { MarketSnapshot } from "@/lib/types/market"
 import {
   getPositionRows,
   getRangePositionsFromActivity,
 } from "@/lib/trade-activity"
 import { filterPositions } from "@/lib/trade-positions"
-import type {PositionRow, PositionTradeIntent, RedemptionActivityRow, TradeActivityRow} from "@/lib/types/trade";
+import type {
+  PositionRow,
+  PositionTradeIntent,
+  RedemptionActivityRow,
+  TradeActivityRow,
+} from "@/lib/types/trade"
 import {
   getManagerRanges,
   getManagerPositionSummaries,
@@ -30,10 +35,9 @@ import {
 import {
   buildPredictRedeemTransaction,
   executeSuiTransaction,
-  simulatePredictRedeemTransaction
-  
+  simulatePredictRedeemTransaction,
 } from "@/services/predict-transactions"
-import type {PredictRedeemParams} from "@/services/predict-transactions";
+import type { PredictRedeemParams } from "@/services/predict-transactions"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -712,7 +716,7 @@ function ActivityTabsFrame({
   tradesLabel,
 }: ActivityTabsFrameProps) {
   return (
-    <Card className="h-[24rem] min-w-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:col-span-2">
+    <Card className="h-96 min-w-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:col-span-2">
       <Tabs
         className="flex h-full min-h-0 flex-col gap-0"
         defaultValue="positions"
@@ -726,9 +730,6 @@ function ActivityTabsFrame({
             <ActivityTabTrigger label={tradesLabel} value="trades" />
             <ActivityTabTrigger label={redemptionsLabel} value="redemptions" />
           </TabsList>
-          <div className="hidden shrink-0 text-xs text-muted-foreground lg:block">
-            Predict activity
-          </div>
         </div>
 
         <TabsContent

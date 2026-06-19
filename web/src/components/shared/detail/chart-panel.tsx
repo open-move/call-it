@@ -1,9 +1,15 @@
-import { useEffect, useMemo, useRef, useState  } from "react"
-import type {RefObject} from "react";
-import type {CandlestickData, IChartApi, IPriceLine, ISeriesApi, UTCTimestamp} from "lightweight-charts";
+import { useEffect, useMemo, useRef, useState } from "react"
+import type {
+  CandlestickData,
+  IChartApi,
+  IPriceLine,
+  ISeriesApi,
+  UTCTimestamp,
+} from "lightweight-charts"
+import type { RefObject } from "react"
 
 import { formatUsd } from "@/lib/format"
-import type {MarketPricePoint} from "@/lib/types/market";
+import type { MarketPricePoint } from "@/lib/types/market"
 
 export interface ChartPanelProps {
   points: MarketPricePoint[]
@@ -32,6 +38,7 @@ interface LightweightPriceChartProps {
 
 const CANDLE_DOWN_COLOR = "#ef6a5a"
 const CANDLE_UP_COLOR = "#7fd36b"
+const AXIS_FONT_SIZE = 11
 const RIGHT_CANDLE_OFFSET = 6
 const VISIBLE_CANDLE_COUNT = 90
 
@@ -249,6 +256,7 @@ function LightweightPriceChart({
           attributionLogo: false,
           background: { color: chartBackgroundColor, type: ColorType.Solid },
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+          fontSize: AXIS_FONT_SIZE,
           textColor: "#94a3b8",
         },
         localization: {
@@ -260,6 +268,7 @@ function LightweightPriceChart({
         },
         rightPriceScale: {
           borderColor: "rgba(148, 163, 184, 0.12)",
+          minimumWidth: 72,
         },
         timeScale: {
           barSpacing: 7,

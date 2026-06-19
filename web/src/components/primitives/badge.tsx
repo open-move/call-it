@@ -19,7 +19,7 @@ const badgeToneClassName: Record<BadgeTone, string> = {
   [BadgeTone.Neutral]: "border-border bg-secondary text-secondary-foreground",
   [BadgeTone.Live]: "border-primary/35 bg-primary/10 text-primary",
   [BadgeTone.Simulated]: "border-chart-4/35 bg-chart-4/10 text-chart-4",
-  [BadgeTone.Warning]: "border-chart-4/35 bg-chart-4/10 text-chart-4",
+  [BadgeTone.Warning]: "border-warning/35 bg-warning/12 text-warning",
   [BadgeTone.Risk]: "border-destructive/35 bg-destructive/10 text-destructive",
 }
 
