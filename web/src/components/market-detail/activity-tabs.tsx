@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { MoreHorizontalIcon } from "lucide-react"
+import { ArrowUpRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -46,7 +46,10 @@ import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 
-import { QUOTE_SCALE as POSITION_QUANTITY_SCALE } from "@/lib/config"
+import {
+  QUOTE_SCALE as POSITION_QUANTITY_SCALE,
+  SUI_NETWORK,
+} from "@/lib/config"
 
 interface PositionLoadState {
   errorMessage?: string
@@ -85,14 +88,18 @@ export interface ActivityTabsProps {
 
 interface ActivityTabsFrameProps {
   positionsContent: ReactNode
-  positionsLabel: string
+  positionsTab: ActivityTabMeta
   redemptionsContent: ReactNode
-  redemptionsLabel: string
+  redemptionsTab: ActivityTabMeta
   tradesContent: ReactNode
-  tradesLabel: string
+  tradesTab: ActivityTabMeta
 }
 
 type ActivityTabValue = "positions" | "trades" | "redemptions"
+interface ActivityTabMeta {
+  count?: number
+  label: string
+}
 type ContractTone = "above" | "below" | "range"
 
 interface ContractToneInput {
@@ -106,6 +113,10 @@ function formatAddress(address: string) {
 
 function addressMatches(firstAddress: string, secondAddress: string) {
   return firstAddress.toLowerCase() === secondAddress.toLowerCase()
+}
+
+function getTransactionUrl(transactionDigest: string) {
+  return `https://suiscan.xyz/${SUI_NETWORK}/tx/${transactionDigest}`
 }
 
 function formatDusdcValue(value: number) {
@@ -380,15 +391,15 @@ export function ActivityTabs(props: ActivityTabsProps) {
         positionsContent={
           <EmptyState message="Connect wallet to view your positions." />
         }
-        positionsLabel="Positions"
+        positionsTab={{ label: "Positions" }}
         redemptionsContent={
-          <EmptyState message="Connect wallet to view your redemptions." />
+          <EmptyState message="Connect wallet to view your redeem activity." />
         }
-        redemptionsLabel="Redemptions"
+        redemptionsTab={{ label: "Redeems" }}
         tradesContent={
-          <EmptyState message="Connect wallet to view your trades." />
+          <EmptyState message="Connect wallet to view your fills." />
         }
-        tradesLabel="Trades"
+        tradesTab={{ label: "Fills" }}
       />
     )
   }
@@ -651,16 +662,20 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         isWalletRedemption(redemption, walletAddress)
       )
     : []
-  const positionsLabel =
-    !walletAddress || positionState.isLoading
-      ? "Positions"
-      : `Positions (${visiblePositions.length})`
-  const tradesLabel = walletAddress
-    ? `Trades (${visibleTrades.length})`
-    : "Trades"
-  const redemptionsLabel = walletAddress
-    ? `Redemptions (${visibleRedemptions.length})`
-    : "Redemptions"
+  const positionsTab = {
+    count: walletAddress && !positionState.isLoading
+      ? visiblePositions.length
+      : undefined,
+    label: "Positions",
+  }
+  const tradesTab = {
+    count: walletAddress ? visibleTrades.length : undefined,
+    label: "Fills",
+  }
+  const redemptionsTab = {
+    count: walletAddress ? visibleRedemptions.length : undefined,
+    label: "Redeems",
+  }
 
   return (
     <ActivityTabsFrame
@@ -682,7 +697,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
           walletAddress={walletAddress}
         />
       }
-      positionsLabel={positionsLabel}
+      positionsTab={positionsTab}
       redemptionsContent={
         <RedemptionsPanel
           assetSymbol={market.assetSymbol}
@@ -690,7 +705,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
           walletAddress={walletAddress}
         />
       }
-      redemptionsLabel={redemptionsLabel}
+      redemptionsTab={redemptionsTab}
       tradesContent={
         <TradesPanel
           assetSymbol={market.assetSymbol}
@@ -698,18 +713,18 @@ function ActivityTabsClient(props: ActivityTabsProps) {
           walletAddress={walletAddress}
         />
       }
-      tradesLabel={tradesLabel}
+      tradesTab={tradesTab}
     />
   )
 }
 
 function ActivityTabsFrame({
   positionsContent,
-  positionsLabel,
+  positionsTab,
   redemptionsContent,
-  redemptionsLabel,
+  redemptionsTab,
   tradesContent,
-  tradesLabel,
+  tradesTab,
 }: ActivityTabsFrameProps) {
   return (
     <Card className="h-96 min-w-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:col-span-2">
@@ -719,12 +734,12 @@ function ActivityTabsFrame({
       >
         <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border/45 px-3">
           <TabsList
-            className="h-full w-full justify-start gap-6 overflow-x-auto rounded-none p-0"
+            className="h-full w-full justify-start gap-5 overflow-x-auto rounded-none p-0"
             variant="line"
           >
-            <ActivityTabTrigger label={positionsLabel} value="positions" />
-            <ActivityTabTrigger label={tradesLabel} value="trades" />
-            <ActivityTabTrigger label={redemptionsLabel} value="redemptions" />
+            <ActivityTabTrigger tab={positionsTab} value="positions" />
+            <ActivityTabTrigger tab={tradesTab} value="trades" />
+            <ActivityTabTrigger tab={redemptionsTab} value="redemptions" />
           </TabsList>
         </div>
 
@@ -751,15 +766,23 @@ function ActivityTabsFrame({
 }
 
 function ActivityTabTrigger({
-  label,
+  tab,
   value,
 }: {
-  label: string
+  tab: ActivityTabMeta
   value: ActivityTabValue
 }) {
   return (
-    <TabsTrigger className="flex-none rounded-none px-0" value={value}>
-      {label}
+    <TabsTrigger
+      className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 hover:text-foreground data-active:text-foreground after:bg-primary"
+      value={value}
+    >
+      <span>{tab.label}</span>
+      {tab.count === undefined ? null : (
+        <span className="rounded-sm bg-muted/45 px-1.5 py-0.5 font-mono text-[10px] leading-none text-current tabular-nums opacity-80">
+          {tab.count}
+        </span>
+      )}
     </TabsTrigger>
   )
 }
@@ -813,7 +836,7 @@ function PositionsPanel({
 
   const emptyMessage = isLoading
     ? "Loading positions."
-    : "No positions for this market."
+    : "No open positions for this market."
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -940,7 +963,7 @@ function PositionsTable({
         <PositionHeaderRow
           columns={[
             { label: "Contract" },
-            { label: "Position Size" },
+            { label: "Contracts" },
             { label: "Entry" },
             { label: "Mark" },
             { label: "Premium" },
@@ -964,7 +987,7 @@ function PositionsTable({
 
           return (
             <div
-              className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+              className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2 text-xs"
               key={position.id}
             >
               <div className="min-w-0">
@@ -1078,7 +1101,7 @@ function TradesPanel({
   walletAddress?: string
 }) {
   if (!walletAddress) {
-    return <EmptyState message="Connect wallet to view your trades." />
+    return <EmptyState message="Connect wallet to view your fills." />
   }
 
   return (
@@ -1086,7 +1109,7 @@ function TradesPanel({
       {trades.length > 0 ? (
         <TradesTable assetSymbol={assetSymbol} trades={trades} />
       ) : (
-        <EmptyState message="No trades for this market from your wallet." />
+        <EmptyState message="No fills for this market from your wallet." />
       )}
     </div>
   )
@@ -1102,7 +1125,7 @@ function RedemptionsPanel({
   walletAddress?: string
 }) {
   if (!walletAddress) {
-    return <EmptyState message="Connect wallet to view your redemptions." />
+    return <EmptyState message="Connect wallet to view your redeem activity." />
   }
 
   return (
@@ -1110,7 +1133,7 @@ function RedemptionsPanel({
       {redemptions.length > 0 ? (
         <RedemptionsTable assetSymbol={assetSymbol} redemptions={redemptions} />
       ) : (
-        <EmptyState message="No redemptions for this market from your wallet." />
+        <EmptyState message="No redeems for this market from your wallet." />
       )}
     </div>
   )
@@ -1163,19 +1186,19 @@ function TradesTable({
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="min-w-[54rem]">
         <ActivityHeaderRow
-          className="grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem]"
+          className="grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem]"
           columns={[
             "Contract",
             "Price",
-            "Position Size",
+            "Contracts",
             "Premium",
-            "Trader",
+            "Tx",
             "Time",
           ]}
         />
         {trades.map((trade) => (
           <div
-            className="grid grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+            className="grid grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2 text-xs"
             key={trade.id}
           >
             <div className="flex min-w-0 items-center gap-2">
@@ -1193,7 +1216,7 @@ function TradesTable({
             <span className="font-mono tabular-nums">
               {formatCompactDusdc(trade.costUsd)}
             </span>
-            <AddressText address={trade.trader} />
+            <TransactionLink transactionDigest={trade.transactionDigest} />
             <span className="text-right font-mono text-muted-foreground tabular-nums">
               {formatRelativeTime(trade.timestampMs)}
             </span>
@@ -1215,19 +1238,19 @@ function RedemptionsTable({
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="min-w-[54rem]">
         <ActivityHeaderRow
-          className="grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem]"
+          className="grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem]"
           columns={[
             "Contract",
             "Price",
-            "Position Size",
+            "Contracts",
             "Payout",
-            "Owner",
+            "Tx",
             "Time",
           ]}
         />
         {redemptions.map((redemption) => (
           <div
-            className="grid grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem] gap-4 border-b border-border/35 px-3 py-2.5 text-xs"
+            className="grid grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2 text-xs"
             key={redemption.id}
           >
             <div className="flex min-w-0 items-center gap-2">
@@ -1245,13 +1268,7 @@ function RedemptionsTable({
             <span className="font-mono tabular-nums">
               {formatCompactDusdc(redemption.payoutUsd)}
             </span>
-            <AddressText
-              address={
-                redemption.kind === "directional"
-                  ? redemption.owner
-                  : redemption.trader
-              }
-            />
+            <TransactionLink transactionDigest={redemption.transactionDigest} />
             <span className="text-right font-mono text-muted-foreground tabular-nums">
               {formatRelativeTime(redemption.timestampMs)}
             </span>
@@ -1262,10 +1279,17 @@ function RedemptionsTable({
   )
 }
 
-function AddressText({ address }: { address: string }) {
+function TransactionLink({ transactionDigest }: { transactionDigest: string }) {
   return (
-    <span className="truncate font-mono text-muted-foreground tabular-nums">
-      {formatAddress(address)}
-    </span>
+    <a
+      aria-label="Open transaction in explorer"
+      className="inline-flex min-w-0 items-center gap-1 truncate font-mono text-muted-foreground tabular-nums transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+      href={getTransactionUrl(transactionDigest)}
+      rel="noreferrer"
+      target="_blank"
+    >
+      <span className="truncate">{formatAddress(transactionDigest)}</span>
+      <ArrowUpRightIcon className="size-3 shrink-0" />
+    </a>
   )
 }
