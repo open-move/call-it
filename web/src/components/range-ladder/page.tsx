@@ -44,7 +44,7 @@ export interface PageProps {
 }
 
 type RangeLadderAction = "deposit" | "withdraw"
-type RoundStepId = "deposit" | "active" | "settle" | "reopened"
+type RoundStepId = "deposit" | "start" | "settle" | "roll"
 
 const bpsFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
@@ -57,10 +57,10 @@ const sharePriceFormatter = new Intl.NumberFormat("en-US", {
 })
 
 const roundSteps = [
-  { id: "deposit", label: "Deposit Window" },
-  { id: "active", label: "Rungs Active" },
-  { id: "settle", label: "Settle / Close" },
-  { id: "reopened", label: "Reopened" },
+  { id: "deposit", label: "Deposit" },
+  { id: "start", label: "Start" },
+  { id: "settle", label: "Settle" },
+  { id: "roll", label: "Roll" },
 ] satisfies { id: RoundStepId; label: string }[]
 
 function formatDusdc(value: bigint, maximumFractionDigits = 2) {
@@ -103,7 +103,10 @@ function getVaultStatus(vault?: RangeLadderVaultState) {
   return "Between rounds"
 }
 
-function getWithdrawQuote(amount: bigint | null, vault?: RangeLadderVaultState) {
+function getWithdrawQuote(
+  amount: bigint | null,
+  vault?: RangeLadderVaultState
+) {
   if (!amount || !vault || vault.shareSupply === 0n) {
     return undefined
   }
@@ -131,11 +134,29 @@ function getUserValue(
 }
 
 function getRoundStage(vault?: RangeLadderVaultState): RoundStepId {
-  return vault?.activeRound ? "active" : "deposit"
+  return vault?.activeRound ? "start" : "deposit"
+}
+
+function getRoundStateCopy(vault?: RangeLadderVaultState) {
+  if (!vault) {
+    return "Loading Range Ladder round state."
+  }
+
+  if (vault.paused) {
+    return "Vault actions are paused while the operator reviews the ladder."
+  }
+
+  if (!vault.activeRound) {
+    return "Deposits and withdrawals are open until the operator starts the next ladder."
+  }
+
+  return "The vault holds native Predict ranges. Settlement must land inside a rung for that rung to pay."
 }
 
 function getStepState(step: RoundStepId, activeStep: RoundStepId) {
-  const activeIndex = roundSteps.findIndex((roundStep) => roundStep.id === activeStep)
+  const activeIndex = roundSteps.findIndex(
+    (roundStep) => roundStep.id === activeStep
+  )
   const stepIndex = roundSteps.findIndex((roundStep) => roundStep.id === step)
 
   if (stepIndex < activeIndex) {
@@ -230,7 +251,6 @@ export function Page({ products }: PageProps) {
   const depositQuote = getDepositQuote(parsedAmount, vault)
   const withdrawQuote = getWithdrawQuote(parsedAmount, vault)
   const status = getVaultStatus(vault)
-  const userValue = getUserValue(wallet, vault)
   const activeRoundProduct = getRoundProduct(vault, products)
   const nextLadder = getNextLadder(products)
   const canUseVault = !!vault && !vault.paused && !vault.activeRound
@@ -277,7 +297,9 @@ export function Page({ products }: PageProps) {
       setWallet(await getRangeLadderWalletState(address))
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to load wallet balances"
+        error instanceof Error
+          ? error.message
+          : "Failed to load wallet balances"
       )
       setMessageTone("error")
     } finally {
@@ -357,7 +379,9 @@ export function Page({ products }: PageProps) {
     }
 
     setIsSubmitting(true)
-    setMessage(action === "deposit" ? "Preparing deposit" : "Preparing withdrawal")
+    setMessage(
+      action === "deposit" ? "Preparing deposit" : "Preparing withdrawal"
+    )
     setMessageTone("muted")
 
     try {
@@ -372,9 +396,13 @@ export function Page({ products }: PageProps) {
               walletAddress,
             })
 
-      setMessage(action === "deposit" ? "Depositing DUSDC" : "Withdrawing DUSDC")
+      setMessage(
+        action === "deposit" ? "Depositing DUSDC" : "Withdrawing DUSDC"
+      )
       await executeSuiTransaction(signer, transaction)
-      setMessage(action === "deposit" ? "Deposit confirmed" : "Withdrawal confirmed")
+      setMessage(
+        action === "deposit" ? "Deposit confirmed" : "Withdrawal confirmed"
+      )
       setAmount("")
       setDialogAction(undefined)
       await refreshAll()
@@ -393,23 +421,25 @@ export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <RangeLadderProductHeader />
+
+        <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
           <RangeLadderOverviewCard
             isLoading={isLoadingVault}
             status={status}
-            userValue={userValue}
             vault={vault}
           />
 
           <RangeLadderPositionPanel
             onOpenAction={openActionDialog}
+            onSignIn={() => setShowAuthFlow(true)}
             vault={vault}
             wallet={wallet}
             walletAddress={walletAddress}
           />
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-2">
           <RoundProgressCard
             nextLadder={nextLadder}
             product={activeRoundProduct}
@@ -445,75 +475,142 @@ export function Page({ products }: PageProps) {
   )
 }
 
+function RangeLadderProductHeader() {
+  return (
+    <div className="mx-auto max-w-5xl rounded-md bg-card px-4 py-3">
+      <div className="text-sm leading-none font-medium tracking-[-0.01em]">
+        Range Ladder · Native Predict range vault
+      </div>
+      <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
+        Back the calm market. Earn when price settles inside selected ranges.
+        Users hold cRANGE vault shares while the vault manages native Predict
+        range rungs, settlement, and roll-forward.
+      </p>
+    </div>
+  )
+}
+
 function RangeLadderOverviewCard({
   isLoading,
   status,
-  userValue,
   vault,
 }: {
   isLoading: boolean
   status: string
-  userValue: bigint
   vault?: RangeLadderVaultState
 }) {
   return (
-    <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Range Ladder Overview</CardTitle>
+    <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Vault Overview
+        </CardTitle>
       </CardHeader>
-      <CardContent className="px-3">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-2 lg:grid-cols-4">
-          <VaultStat
-            label="NAV"
+      <CardContent className="flex flex-1 flex-col px-4 pt-2 pb-4">
+        <div className="space-y-2.5">
+          <VaultOverviewRow
+            label="Vault cash"
             value={vault ? formatDusdc(vault.nav) : isLoading ? "--" : "Setup"}
           />
-          <VaultStat
-            label="Available Cash"
-            value={vault ? formatDusdc(vault.cash) : "--"}
+          <VaultOverviewRow
+            label="Premium deployed"
+            value={
+              vault?.activeRound
+                ? formatDusdc(vault.activeRound.totalCost, 4)
+                : "--"
+            }
           />
-          <VaultStat
-            label="Share Price"
-            value={vault ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC` : "--"}
+          <VaultOverviewRow
+            label="Active rungs"
+            value={
+              vault?.activeRound
+                ? vault.activeRound.positionCount.toString()
+                : "0"
+            }
           />
-          <VaultStat
-            label="Share Supply"
+          <VaultOverviewRow
+            label="cRANGE Supply"
             value={vault ? formatShares(vault.shareSupply) : "--"}
           />
-          <VaultStat
-            label="Active Rungs"
-            value={vault?.activeRound ? vault.activeRound.positionCount.toString() : "0"}
+          <VaultOverviewRow
+            label="cRANGE Price"
+            value={
+              vault
+                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+                : "--"
+            }
           />
-          <VaultStat
-            label="Premium Budget"
-            value={vault ? formatBps(vault.policy.premiumBudgetBps) : "--"}
-          />
-          <VaultStat label="Your Value" value={formatDusdc(userValue)} />
-          <VaultStat label="Status" value={status} />
+          <VaultOverviewRow label="Status" value={status} />
         </div>
 
-        <div className="mt-3 rounded-md bg-muted/40 px-3 py-3">
-          <div className="text-xs font-medium text-foreground">
-            What Range Ladder does
-          </div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            DUSDC deposits mint cRANGE vault shares. Between rounds the vault
-            holds DUSDC cash; during a round a keeper can deploy premium across
-            multiple Predict range rungs. Deposits and withdrawals reopen after
-            the active ladder is closed.
-          </p>
-        </div>
+        <RangePlan vault={vault} />
       </CardContent>
     </Card>
   )
 }
 
+function RangePlan({ vault }: { vault?: RangeLadderVaultState }) {
+  const premiumBudget = vault?.policy.premiumBudgetBps ?? 0
+  const reserve = vault?.policy.reserveBps ?? 0
+
+  return (
+    <div className="mt-4 rounded-md border border-border/35 bg-muted/25 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium text-foreground">Range plan</span>
+        <span className="font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+          Policy caps
+        </span>
+      </div>
+      <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-background/80">
+        <div
+          className="bg-primary"
+          style={{ width: `${Math.max(0, premiumBudget) / 100}%` }}
+        />
+        <div
+          className="bg-muted-foreground/35"
+          style={{ width: `${Math.max(0, reserve) / 100}%` }}
+        />
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <PlanItem
+          label="Premium budget"
+          value={vault ? formatBps(vault.policy.premiumBudgetBps) : "--"}
+        />
+        <PlanItem
+          label="Reserve"
+          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+        />
+        <PlanItem
+          label="Max rungs"
+          value={vault ? vault.policy.maxRungCount.toString() : "--"}
+        />
+      </div>
+    </div>
+  )
+}
+
+function PlanItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] leading-none text-muted-foreground uppercase">
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-xs font-medium text-foreground tabular-nums">
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function RangeLadderPositionPanel({
   onOpenAction,
+  onSignIn,
   vault,
   wallet,
   walletAddress,
 }: {
   onOpenAction: (action: RangeLadderAction) => void
+  onSignIn: () => void
   vault?: RangeLadderVaultState
   wallet?: RangeLadderWalletState
   walletAddress?: string
@@ -521,35 +618,42 @@ function RangeLadderPositionPanel({
   const walletValue = getUserValue(wallet, vault)
 
   return (
-    <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Your Position</CardTitle>
+    <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Your Position
+        </CardTitle>
       </CardHeader>
-      <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
+      <CardContent className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">
         {walletAddress ? (
           <div className="space-y-3 pt-1">
             <div>
-              <div className="text-xs text-muted-foreground">Range value</div>
-              <div className="mt-1 font-mono text-2xl font-medium tracking-tight text-foreground tabular-nums">
+              <div className="text-xs font-medium text-muted-foreground">
+                Range value
+              </div>
+              <div className="mt-1 font-mono text-xl leading-tight font-medium tracking-tight text-foreground tabular-nums">
                 {formatDusdc(walletValue)}
               </div>
             </div>
-            <div className="space-y-2 border-t border-border/40 pt-3">
+            <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5">
               <PanelRow
-                label="DUSDC"
+                label="DUSDC balance"
                 value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "--"}
               />
               <PanelRow
-                label="cRANGE"
+                label="cRANGE balance"
                 value={wallet ? formatShares(wallet.rangeShareBalance) : "--"}
               />
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col justify-center text-sm">
-            <p className="text-center text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
+            <p className="text-center text-xs text-muted-foreground">
               Connect wallet to view your Range Ladder position.
             </p>
+            <Button className="w-full" onClick={onSignIn} type="button">
+              Sign in to manage Range Ladder
+            </Button>
           </div>
         )}
 
@@ -586,14 +690,31 @@ function RoundProgressCard({
   const round = vault?.activeRound
   const activeStep = getRoundStage(vault)
   const contextProduct = product ?? nextLadder
+  const roundCopy = getRoundStateCopy(vault)
 
   return (
-    <Card className="gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Round Progress</CardTitle>
+    <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Current Ladder
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 px-3 pb-3">
-        <div className="grid overflow-hidden rounded-md bg-muted/35 md:grid-cols-4">
+      <CardContent className="space-y-3 px-4 pt-2 pb-4">
+        <div className="rounded-md border border-border/35 bg-muted/25 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium text-foreground">
+              {status}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+              Native ranges
+            </span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {roundCopy}
+          </p>
+        </div>
+
+        <div className="grid overflow-hidden rounded-md border border-border/35 bg-muted/25 md:grid-cols-4">
           {roundSteps.map((step) => (
             <RoundStep
               key={step.id}
@@ -603,26 +724,26 @@ function RoundProgressCard({
           ))}
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <RoundMetric label="Status" value={status} />
-          <RoundMetric
-            label="Oracle"
-            value={round ? formatAddress(round.oracleId) : "No active round"}
-          />
-          <RoundMetric
-            label="Rungs"
+        <div className="space-y-2 rounded-md border border-border/35 bg-muted/15 p-3">
+          <RoundDetailRow label="Vault state" value={status} />
+          <RoundDetailRow
+            label="Active rungs"
             value={round ? round.positionCount.toString() : "--"}
           />
-          <RoundMetric
-            label="Premium"
+          <RoundDetailRow
+            label="Premium spent"
             value={round ? formatDusdc(round.totalCost, 4) : "--"}
+          />
+          <RoundDetailRow
+            label="Oracle"
+            value={round ? formatAddress(round.oracleId) : "No active round"}
           />
         </div>
 
         {round ? <ActiveRungRail positions={round.positions} /> : null}
 
         {contextProduct ? (
-          <div className="flex items-center gap-2 rounded-md bg-muted/35 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/25 px-3 py-2">
             <AssetIcon
               assetIconUrl={contextProduct.market.assetIconUrl}
               assetName={contextProduct.market.assetName}
@@ -630,11 +751,13 @@ function RoundProgressCard({
               className="size-6"
             />
             <div className="min-w-0">
-              <div className="truncate text-xs text-foreground">
+              <div className="truncate text-xs font-medium text-foreground">
                 {contextProduct.market.assetSymbol} ladder context
               </div>
-              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground tabular-nums uppercase">
-                {formatExpiryDistance(contextProduct.market.expiryMs)} · {getRangeLadderPresetLabel(contextProduct.preset)} · {contextProduct.rungs.length} rungs
+              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+                {formatExpiryDistance(contextProduct.market.expiryMs)} ·{" "}
+                {getRangeLadderPresetLabel(contextProduct.preset)} ·{" "}
+                {contextProduct.rungs.length} rungs
               </div>
             </div>
           </div>
@@ -646,13 +769,15 @@ function RoundProgressCard({
 
 function RangeLadderPolicyCard({ vault }: { vault?: RangeLadderVaultState }) {
   return (
-    <Card className="gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Vault Policy</CardTitle>
+    <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Vault Policy
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3">
+      <CardContent className="space-y-2 px-4 pt-2 pb-4">
         <PolicyRow
-          label="Premium Budget"
+          label="Premium budget"
           value={vault ? formatBps(vault.policy.premiumBudgetBps) : "--"}
         />
         <PolicyRow
@@ -660,11 +785,11 @@ function RangeLadderPolicyCard({ vault }: { vault?: RangeLadderVaultState }) {
           value={vault ? formatBps(vault.policy.reserveBps) : "--"}
         />
         <PolicyRow
-          label="Max Range Ask"
+          label="Max range ask"
           value={vault ? formatBps(vault.policy.maxRangeAskBps) : "--"}
         />
         <PolicyRow
-          label="Max Rung Count"
+          label="Max rungs"
           value={vault ? vault.policy.maxRungCount.toString() : "--"}
         />
       </CardContent>
@@ -719,23 +844,25 @@ function RangeLadderActionDialog({
       ? "Depositing"
       : "Withdrawing"
     : isDeposit
-      ? "Deposit"
-      : "Withdraw"
+      ? "Deposit DUSDC"
+      : "Withdraw cRANGE"
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
         <DialogHeader className="gap-1">
-          <DialogTitle className="text-sm font-medium">
+          <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
             {isDeposit ? "Deposit DUSDC" : "Withdraw cRANGE"}
           </DialogTitle>
         </DialogHeader>
 
         <label className="block space-y-2">
-          <span className="text-xs text-muted-foreground">Amount</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Amount
+          </span>
           <div className="relative">
             <Input
-              className="border-0 pr-28 font-mono text-sm shadow-none ring-0 focus-visible:ring-1"
+              className="border-border/35 bg-muted/25 pr-28 font-mono text-sm shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
@@ -757,9 +884,12 @@ function RangeLadderActionDialog({
           </div>
         </label>
 
-        <div className="space-y-2.5 rounded-md bg-muted px-3 py-3">
+        <div className="space-y-2.5 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
+          <div className="text-xs font-medium text-muted-foreground">
+            Preview
+          </div>
           <PanelRow
-            label={isDeposit ? "DUSDC balance" : "cRANGE balance"}
+            label="Balance"
             value={
               actionBalance === undefined
                 ? "--"
@@ -781,13 +911,27 @@ function RangeLadderActionDialog({
             }
           />
           <PanelRow
-            label="Share price"
-            value={vault ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC` : "--"}
+            label="cRANGE price"
+            value={
+              vault
+                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+                : "--"
+            }
           />
           <PanelRow label="Vault status" value={status} />
+          {isDeposit ? (
+            <PanelRow
+              label="Round access"
+              value={
+                status === "Between rounds" ? "Open vault" : "Next open round"
+              }
+            />
+          ) : null}
         </div>
 
-        {message ? <RangeMessage tone={messageTone}>{message}</RangeMessage> : null}
+        {message ? (
+          <RangeMessage tone={messageTone}>{message}</RangeMessage>
+        ) : null}
         {!message && invalidReason ? (
           <RangeMessage tone="muted">{invalidReason}</RangeMessage>
         ) : null}
@@ -797,7 +941,7 @@ function RangeLadderActionDialog({
 
         <DialogFooter>
           <Button
-            className="w-full"
+            className="w-full active:scale-[0.98]"
             disabled={buttonDisabled || !canSubmit}
             onClick={onSubmit}
             size="lg"
@@ -811,11 +955,13 @@ function RangeLadderActionDialog({
   )
 }
 
-function VaultStat({ label, value }: { label: string; value: string }) {
+function VaultOverviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs leading-none text-muted-foreground">
+        {label}
+      </span>
+      <div className="truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>
@@ -832,8 +978,8 @@ function RoundStep({
   return (
     <div
       className={cn(
-        "px-3 py-2 text-xs md:border-r md:border-border/30 md:last:border-r-0",
-        state === "active" && "bg-primary/10 text-primary",
+        "px-3 py-2 text-center text-xs md:border-r md:border-border/30 md:last:border-r-0",
+        state === "active" && "bg-primary/10 font-medium text-primary",
         state === "complete" && "text-foreground",
         state === "idle" && "text-muted-foreground"
       )}
@@ -843,27 +989,32 @@ function RoundStep({
   )
 }
 
-function RoundMetric({ label, value }: { label: string; value: string }) {
+function RoundDetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="flex items-center justify-between gap-3 border-b border-border/30 pb-2 last:border-b-0 last:pb-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-xs text-foreground tabular-nums">
+      <div className="max-w-[58%] truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>
   )
 }
 
-function ActiveRungRail({ positions }: { positions: RangeLadderPositionRow[] }) {
+function ActiveRungRail({
+  positions,
+}: {
+  positions: RangeLadderPositionRow[]
+}) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 rounded-md border border-border/35 bg-muted/15 p-2">
       {positions.map((position) => (
         <div
-          className="grid gap-2 rounded-md bg-muted/35 px-2.5 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_7rem] sm:items-center"
+          className="grid gap-2 rounded-md border border-border/25 bg-muted/25 px-2.5 py-2 text-xs sm:grid-cols-[minmax(0,1fr)_7rem_7rem] sm:items-center"
           key={`${position.oracleId}-${position.lowerStrike}-${position.higherStrike}`}
         >
-          <div className="font-mono text-foreground tabular-nums">
-            {formatUsd(position.lowerStrikeUsd, 0)}-{formatUsd(position.higherStrikeUsd, 0)}
+          <div className="font-mono font-medium text-foreground tabular-nums">
+            {formatUsd(position.lowerStrikeUsd, 0)}-
+            {formatUsd(position.higherStrikeUsd, 0)}
           </div>
           <div className="font-mono text-muted-foreground tabular-nums sm:text-right">
             qty {formatDusdc(position.quantity, 4)}
@@ -889,8 +1040,8 @@ function RangeMessage({
       className={cn(
         "rounded-md px-3 py-2 text-xs leading-5",
         tone === "error"
-          ? "bg-destructive/10 text-destructive"
-          : "bg-muted text-muted-foreground"
+          ? "border border-destructive/25 bg-destructive/10 text-destructive"
+          : "bg-muted/15 text-muted-foreground"
       )}
     >
       {children}
@@ -902,7 +1053,9 @@ function PolicyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/35 pb-2 last:border-b-0 last:pb-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-mono text-xs text-foreground tabular-nums">{value}</div>
+      <div className="font-mono text-xs font-medium text-foreground tabular-nums">
+        {value}
+      </div>
     </div>
   )
 }
