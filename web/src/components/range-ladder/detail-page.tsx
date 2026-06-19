@@ -4,7 +4,6 @@ import { Layers3Icon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { BadgeTone } from "@/components/primitives/badge"
-import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { DetailChartCard } from "@/components/shared/detail/detail-chart-card"
 import {
   TicketCard,
@@ -72,17 +71,6 @@ export function DetailPage({ expiryProducts, product }: DetailPageProps) {
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mb-3">
-        <ProtectionFamilyHeader
-          actions={[
-            { href: "/range-ladder/claims", label: "Claims" },
-            { href: "/range-ladder", label: "All Ladders" },
-          ]}
-          description={`Product 2 · ${product.market.assetSymbol} ${getRangeLadderPresetLabel(product.preset)} range ladder with ${product.rungs.length} owned range positions. Claim consumes the policy after settlement.`}
-          title="Range Ladder"
-        />
-      </div>
-
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3">
           <div className="h-120 min-w-0">

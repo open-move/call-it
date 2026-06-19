@@ -10,12 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ShieldRouteRouteImport } from './routes/shield/route'
+import { Route as RiskRouteRouteImport } from './routes/risk/route'
 import { Route as RangeLadderRouteRouteImport } from './routes/range-ladder/route'
 import { Route as ProtectionRouteRouteImport } from './routes/protection/route'
 import { Route as ProtectRouteRouteImport } from './routes/protect/route'
 import { Route as PortfolioRouteRouteImport } from './routes/portfolio/route'
 import { Route as MarketsRouteRouteImport } from './routes/markets/route'
+import { Route as LeaderboardRouteRouteImport } from './routes/leaderboard/route'
 import { Route as EarnRouteRouteImport } from './routes/earn/route'
+import { Route as ArenaRouteRouteImport } from './routes/arena/route'
 import { Route as IndexRouteRouteImport } from './routes/index/route'
 import { Route as ShieldIndexRouteImport } from './routes/shield/index'
 import { Route as RangeLadderIndexRouteImport } from './routes/range-ladder/index'
@@ -32,6 +35,11 @@ import { Route as MarketsOracleIdRouteRouteImport } from './routes/markets/$orac
 const ShieldRouteRoute = ShieldRouteRouteImport.update({
   id: '/shield',
   path: '/shield',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RiskRouteRoute = RiskRouteRouteImport.update({
+  id: '/risk',
+  path: '/risk',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RangeLadderRouteRoute = RangeLadderRouteRouteImport.update({
@@ -59,9 +67,19 @@ const MarketsRouteRoute = MarketsRouteRouteImport.update({
   path: '/markets',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LeaderboardRouteRoute = LeaderboardRouteRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EarnRouteRoute = EarnRouteRouteImport.update({
   id: '/earn',
   path: '/earn',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArenaRouteRoute = ArenaRouteRouteImport.update({
+  id: '/arena',
+  path: '/arena',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRouteRoute = IndexRouteRouteImport.update({
@@ -128,12 +146,15 @@ const MarketsOracleIdRouteRoute = MarketsOracleIdRouteRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRouteRoute
+  '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
+  '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
   '/protect': typeof ProtectRouteRouteWithChildren
   '/protection': typeof ProtectionRouteRoute
   '/range-ladder': typeof RangeLadderRouteRouteWithChildren
+  '/risk': typeof RiskRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/protect/$oracleId': typeof ProtectOracleIdRouteRoute
@@ -149,9 +170,12 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRouteRoute
+  '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
+  '/leaderboard': typeof LeaderboardRouteRoute
   '/portfolio': typeof PortfolioRouteRoute
   '/protection': typeof ProtectionRouteRoute
+  '/risk': typeof RiskRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/protect/$oracleId': typeof ProtectOracleIdRouteRoute
   '/range-ladder/$oracleId': typeof RangeLadderOracleIdRouteRoute
@@ -167,12 +191,15 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRouteRoute
+  '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
+  '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
   '/protect': typeof ProtectRouteRouteWithChildren
   '/protection': typeof ProtectionRouteRoute
   '/range-ladder': typeof RangeLadderRouteRouteWithChildren
+  '/risk': typeof RiskRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/protect/$oracleId': typeof ProtectOracleIdRouteRoute
@@ -190,12 +217,15 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/arena'
     | '/earn'
+    | '/leaderboard'
     | '/markets'
     | '/portfolio'
     | '/protect'
     | '/protection'
     | '/range-ladder'
+    | '/risk'
     | '/shield'
     | '/markets/$oracleId'
     | '/protect/$oracleId'
@@ -211,9 +241,12 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/arena'
     | '/earn'
+    | '/leaderboard'
     | '/portfolio'
     | '/protection'
+    | '/risk'
     | '/markets/$oracleId'
     | '/protect/$oracleId'
     | '/range-ladder/$oracleId'
@@ -228,12 +261,15 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/arena'
     | '/earn'
+    | '/leaderboard'
     | '/markets'
     | '/portfolio'
     | '/protect'
     | '/protection'
     | '/range-ladder'
+    | '/risk'
     | '/shield'
     | '/markets/$oracleId'
     | '/protect/$oracleId'
@@ -250,12 +286,15 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRouteRoute: typeof IndexRouteRoute
+  ArenaRouteRoute: typeof ArenaRouteRoute
   EarnRouteRoute: typeof EarnRouteRoute
+  LeaderboardRouteRoute: typeof LeaderboardRouteRoute
   MarketsRouteRoute: typeof MarketsRouteRouteWithChildren
   PortfolioRouteRoute: typeof PortfolioRouteRoute
   ProtectRouteRoute: typeof ProtectRouteRouteWithChildren
   ProtectionRouteRoute: typeof ProtectionRouteRoute
   RangeLadderRouteRoute: typeof RangeLadderRouteRouteWithChildren
+  RiskRouteRoute: typeof RiskRouteRoute
   ShieldRouteRoute: typeof ShieldRouteRouteWithChildren
 }
 
@@ -266,6 +305,13 @@ declare module '@tanstack/react-router' {
       path: '/shield'
       fullPath: '/shield'
       preLoaderRoute: typeof ShieldRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/risk': {
+      id: '/risk'
+      path: '/risk'
+      fullPath: '/risk'
+      preLoaderRoute: typeof RiskRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/range-ladder': {
@@ -303,11 +349,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MarketsRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/earn': {
       id: '/earn'
       path: '/earn'
       fullPath: '/earn'
       preLoaderRoute: typeof EarnRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/arena': {
+      id: '/arena'
+      path: '/arena'
+      fullPath: '/arena'
+      preLoaderRoute: typeof ArenaRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -460,12 +520,15 @@ const ShieldRouteRouteWithChildren = ShieldRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRouteRoute: IndexRouteRoute,
+  ArenaRouteRoute: ArenaRouteRoute,
   EarnRouteRoute: EarnRouteRoute,
+  LeaderboardRouteRoute: LeaderboardRouteRoute,
   MarketsRouteRoute: MarketsRouteRouteWithChildren,
   PortfolioRouteRoute: PortfolioRouteRoute,
   ProtectRouteRoute: ProtectRouteRouteWithChildren,
   ProtectionRouteRoute: ProtectionRouteRoute,
   RangeLadderRouteRoute: RangeLadderRouteRouteWithChildren,
+  RiskRouteRoute: RiskRouteRoute,
   ShieldRouteRoute: ShieldRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport

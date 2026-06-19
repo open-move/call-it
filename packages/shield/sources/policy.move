@@ -1,110 +1,64 @@
-/// Owned Shield claim ticket.
-module shield::policy;
+/// Shared policy bounds for CallIt managed product vaults.
+module callit_vaults::policy;
 
-use sui::{
-    balance::Balance,
-    clock::Clock,
-    coin::Coin,
-    object::{Self, ID, UID},
-};
+const BPS_DENOMINATOR: u64 = 10_000;
+const MAX_HEDGE_BUDGET_BPS: u16 = 5_000;
+const MAX_STRIKE_BAND_BPS: u16 = 5_000;
+const MAX_PLP_ALLOCATION_BPS: u16 = 10_000;
+const MAX_HEDGE_ASK_BPS: u64 = 10_000;
 
-use deepbook_predict::{
-    market_key::{Self, MarketKey},
-    plp::PLP,
-};
+const EInvalidPolicy: u64 = 1;
 
-#[error]
-const EEmptyPolicy: vector<u8> = b"Policy must custody a non-zero LP balance";
-
-#[error]
-const EWrongPredict: vector<u8> = b"Predict object does not match policy";
-
-#[error]
-const EWrongManager: vector<u8> = b"PredictManager does not match policy";
-
-#[error]
-const EWrongOracle: vector<u8> = b"Oracle does not match policy";
-
-public struct ShieldPolicy<phantom Quote> has key, store {
-    id: UID,
-    predict_id: ID,
-    manager_id: ID,
-    key: MarketKey,
-    quantity: u64,
-    plp_balance: Balance<PLP>,
-    created_at_ms: u64,
+public struct VaultPolicy has copy, drop, store {
+    hedge_budget_bps: u16,
+    strike_band_bps: u16,
+    reserve_bps: u16,
+    max_plp_allocation_bps: u16,
+    max_hedge_ask_bps: u64,
 }
 
-public(package) fun new<Quote>(
-    plp: Coin<PLP>,
-    predict_id: ID,
-    manager_id: ID,
-    key: MarketKey,
-    quantity: u64,
-    clock: &Clock,
-    ctx: &mut TxContext,
-): ShieldPolicy<Quote> {
-    assert!(plp.value() > 0, EEmptyPolicy);
-    ShieldPolicy<Quote> {
-        id: object::new(ctx),
-        predict_id,
-        manager_id,
-        key,
-        quantity,
-        plp_balance: plp.into_balance(),
-        created_at_ms: clock.timestamp_ms(),
-    }
+public fun new(
+    hedge_budget_bps: u16,
+    strike_band_bps: u16,
+    reserve_bps: u16,
+    max_plp_allocation_bps: u16,
+    max_hedge_ask_bps: u64,
+): VaultPolicy {
+    assert_valid(hedge_budget_bps, strike_band_bps, reserve_bps, max_plp_allocation_bps, max_hedge_ask_bps);
+    VaultPolicy { hedge_budget_bps, strike_band_bps, reserve_bps, max_plp_allocation_bps, max_hedge_ask_bps }
 }
 
-public(package) fun take_plp<Quote>(policy: &mut ShieldPolicy<Quote>): Balance<PLP> {
-    let plp_amount = policy.plp_balance.value();
-    policy.plp_balance.split(plp_amount)
+public fun hedge_budget_bps(policy: &VaultPolicy): u16 {
+    policy.hedge_budget_bps
 }
 
-public(package) fun destroy<Quote>(policy: ShieldPolicy<Quote>): ID {
-    let ShieldPolicy { id, plp_balance, .. } = policy;
-    plp_balance.destroy_zero();
-    let policy_id = id.to_inner();
-    id.delete();
-    policy_id
+public fun strike_band_bps(policy: &VaultPolicy): u16 {
+    policy.strike_band_bps
 }
 
-public(package) fun assert_predict<Quote>(policy: &ShieldPolicy<Quote>, predict_id: ID) {
-    assert!(policy.predict_id == predict_id, EWrongPredict);
+public fun reserve_bps(policy: &VaultPolicy): u16 {
+    policy.reserve_bps
 }
 
-public(package) fun assert_manager<Quote>(policy: &ShieldPolicy<Quote>, manager_id: ID) {
-    assert!(policy.manager_id == manager_id, EWrongManager);
+public fun max_plp_allocation_bps(policy: &VaultPolicy): u16 {
+    policy.max_plp_allocation_bps
 }
 
-public(package) fun assert_oracle<Quote>(policy: &ShieldPolicy<Quote>, oracle_id: ID) {
-    assert!(market_key::oracle_id(&policy.key) == oracle_id, EWrongOracle);
+public fun max_hedge_ask_bps(policy: &VaultPolicy): u64 {
+    policy.max_hedge_ask_bps
 }
 
-public(package) fun id<Quote>(policy: &ShieldPolicy<Quote>): ID {
-    policy.id.to_inner()
-}
-
-public(package) fun created_at_ms<Quote>(policy: &ShieldPolicy<Quote>): u64 {
-    policy.created_at_ms
-}
-
-public(package) fun predict_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
-    policy.predict_id
-}
-
-public(package) fun manager_id<Quote>(policy: &ShieldPolicy<Quote>): ID {
-    policy.manager_id
-}
-
-public(package) fun key<Quote>(policy: &ShieldPolicy<Quote>): MarketKey {
-    policy.key
-}
-
-public(package) fun quantity<Quote>(policy: &ShieldPolicy<Quote>): u64 {
-    policy.quantity
-}
-
-public(package) fun plp_amount<Quote>(policy: &ShieldPolicy<Quote>): u64 {
-    policy.plp_balance.value()
+fun assert_valid(
+    hedge_budget_bps: u16,
+    strike_band_bps: u16,
+    reserve_bps: u16,
+    max_plp_allocation_bps: u16,
+    max_hedge_ask_bps: u64,
+) {
+    assert!(hedge_budget_bps > 0 && hedge_budget_bps <= MAX_HEDGE_BUDGET_BPS, EInvalidPolicy);
+    assert!(strike_band_bps > 0 && strike_band_bps <= MAX_STRIKE_BAND_BPS, EInvalidPolicy);
+    assert!((reserve_bps as u64) < BPS_DENOMINATOR, EInvalidPolicy);
+    assert!(max_plp_allocation_bps > 0 && max_plp_allocation_bps <= MAX_PLP_ALLOCATION_BPS, EInvalidPolicy);
+    assert!((reserve_bps as u64) + (max_plp_allocation_bps as u64) + (hedge_budget_bps as u64) <= BPS_DENOMINATOR, EInvalidPolicy);
+    assert!(max_hedge_ask_bps > 0 && max_hedge_ask_bps <= MAX_HEDGE_ASK_BPS, EInvalidPolicy);
 }

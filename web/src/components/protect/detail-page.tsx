@@ -4,7 +4,6 @@ import { TrendingDownIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { BadgeTone } from "@/components/primitives/badge"
-import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { DetailChartCard } from "@/components/shared/detail/detail-chart-card"
 import {
   TicketCard,
@@ -65,17 +64,6 @@ export function DetailPage({ expiryProducts, product }: DetailPageProps) {
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mb-3">
-        <ProtectionFamilyHeader
-          actions={[
-            { href: "/protect/claims", label: "Claims" },
-            { href: "/protect", label: "All Protect" },
-          ]}
-          description={`Product 1 · pure ${product.market.assetSymbol} DOWN hedge below ${formatUsd(product.triggerStrikeUsd, 0)}. Opens an owned ProtectionPolicy ticket backed by a reserved Predict position.`}
-          title="Protect"
-        />
-      </div>
-
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="h-120 min-w-0">
           <DetailChartCard

@@ -627,3 +627,155 @@ export function EarnSkeleton() {
     </main>
   )
 }
+
+export function RiskSkeleton() {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <section className="space-y-3">
+        <div className="rounded-md bg-card px-3 py-3 shadow-none ring-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
+              <PulsingBlock className="h-5 w-44 rounded" />
+              <PulsingBlock className="h-3.5 w-80 max-w-full rounded" />
+              <PulsingBlock className="h-2.5 w-48 rounded" />
+            </div>
+            <PulsingBlock className="h-9 w-full rounded-md sm:w-40" />
+          </div>
+        </div>
+
+        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <div className="border-b border-border/40 px-3 py-2.5">
+              <PulsingBlock className="h-4 w-24 rounded" />
+            </div>
+            <div className="grid grid-cols-2 gap-2 px-3 py-3 md:grid-cols-3">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="rounded-md bg-muted/35 px-2.5 py-2">
+                  <PulsingBlock className="h-2.5 w-20 rounded" />
+                  <PulsingBlock className="mt-1 h-3.5 w-24 rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <div className="border-b border-border/40 px-3 py-2.5">
+              <PulsingBlock className="h-4 w-36 rounded" />
+            </div>
+            <div className="space-y-4 px-3 py-3">
+              <PulsingBlock className="h-8 w-44 rounded" />
+              <PulsingBlock className="h-2 rounded-full" />
+              <PulsingBlock className="h-16 rounded-md" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+          <div className="border-b border-border/40 px-3 py-2.5">
+            <PulsingBlock className="h-4 w-36 rounded" />
+          </div>
+          <div className="grid gap-3 px-3 py-3 xl:grid-cols-[minmax(0,1fr)_minmax(30rem,1.2fr)]">
+            <PulsingBlock className="h-72 rounded-md" />
+            <div className="rounded-md bg-background/35">
+              {Array.from({ length: 7 }).map((_, i) => (
+                <div
+                  key={i}
+                  className="border-b border-border/25 px-3 py-2.5 last:border-b-0"
+                >
+                  <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+                    {Array.from({ length: 6 }).map((__, j) => (
+                      <PulsingBlock key={j} className="h-3 rounded" />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+          <div className="border-b border-border/40 px-3 py-2.5">
+            <PulsingBlock className="h-4 w-36 rounded" />
+          </div>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="border-b border-border/25 px-3 py-2.5 last:border-b-0"
+            >
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+                {Array.from({ length: 7 }).map((__, j) => (
+                  <PulsingBlock key={j} className="h-3 rounded" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}
+
+export function LeaderboardSkeleton() {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <section className="space-y-3">
+        <div className="rounded-md bg-card px-3 py-3 shadow-none ring-0">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-2">
+              <PulsingBlock className="h-5 w-44 rounded" />
+              <PulsingBlock className="h-3.5 w-96 max-w-full rounded" />
+              <PulsingBlock className="h-2.5 w-48 rounded" />
+            </div>
+            <PulsingBlock className="h-9 w-full rounded-md sm:w-40" />
+          </div>
+        </div>
+
+        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <div className="border-b border-border/40 px-3 py-2.5">
+              <PulsingBlock className="h-4 w-28 rounded" />
+            </div>
+            <div className="px-3 py-3">
+              <PulsingBlock className="h-64 rounded-md" />
+            </div>
+          </div>
+
+          <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <div className="border-b border-border/40 px-3 py-2.5">
+              <PulsingBlock className="h-4 w-36 rounded" />
+            </div>
+            <div className="space-y-4 px-3 py-3">
+              <div className="grid grid-cols-2 gap-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="rounded-md bg-muted/35 px-2.5 py-2">
+                    <PulsingBlock className="h-2.5 w-16 rounded" />
+                    <PulsingBlock className="mt-1 h-3.5 w-20 rounded" />
+                  </div>
+                ))}
+              </div>
+              <PulsingBlock className="h-20 rounded-md" />
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+          <div className="border-b border-border/40 px-3 py-2.5">
+            <PulsingBlock className="h-4 w-36 rounded" />
+          </div>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="border-b border-border/25 px-3 py-2.5 last:border-b-0"
+            >
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-9">
+                {Array.from({ length: 9 }).map((__, j) => (
+                  <PulsingBlock key={j} className="h-3 rounded" />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}

@@ -1,5 +1,5 @@
 #[test_only]
-module shield::test_quote;
+module callit_vaults::test_quote;
 
 use std::unit_test::destroy;
 use sui::coin_registry::{Self, Currency};
@@ -12,7 +12,7 @@ public fun create_currency(ctx: &mut TxContext): Currency<TEST_QUOTE> {
         6,
         b"TQ".to_string(),
         b"Test Quote".to_string(),
-        b"Shield test quote asset".to_string(),
+        b"CallIt vault test quote asset".to_string(),
         b"".to_string(),
         ctx,
     );

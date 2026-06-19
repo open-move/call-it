@@ -2,7 +2,6 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { Layers3Icon } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 
-import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { Button } from "@/components/ui/button"
 import { formatDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
@@ -242,15 +241,6 @@ export function Page() {
 
   return (
     <main className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
-      <ProtectionFamilyHeader
-        actions={[
-          { href: "/range-ladder", label: "Range Ladder" },
-          { href: "/protection", label: "Back to Protection" },
-        ]}
-        description="Claims surface for wallet-owned RangeLadderPolicy tickets. Active ladders become claimable after Predict settlement."
-        title="Range Ladder Claims"
-      />
-
       <div className="flex flex-wrap items-center gap-2">
         {(["claimable", "active"] as ClaimsTab[]).map((tab) => (
           <Button

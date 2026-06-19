@@ -3,7 +3,6 @@ import { ShieldCheckIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { BadgeTone } from "@/components/primitives/badge"
-import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { DetailChartCard } from "@/components/shared/detail/detail-chart-card"
 import { DetailTabs } from "@/components/shared/detail/detail-tabs"
 import {
@@ -15,17 +14,18 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PREDICT_QUOTE_DECIMALS, QUOTE_SCALE } from "@/lib/config"
-import { formatExpiryDistance, formatRelativeTime, formatUsd } from "@/lib/format"
+import {
+  formatExpiryDistance,
+  formatRelativeTime,
+  formatUsd,
+} from "@/lib/format"
 import type { ExpiryOption } from "@/lib/types/market"
 import {
   getShieldProductHref,
   getShieldTenorLabel,
 } from "@/lib/shield-products"
 import type { ShieldProduct } from "@/lib/types/shield"
-import {
-  formatDecimalUnits,
-  parseDecimalUnits,
-} from "@/lib/amounts"
+import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
 import {
   getManagerPositionSummaries,
   getOracleState,
@@ -150,17 +150,6 @@ export function DetailPage({ expiryProducts, product }: DetailPageProps) {
 
   return (
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mb-3">
-        <ProtectionFamilyHeader
-          actions={[
-            { href: "/shield/claims", label: "Claims" },
-            { href: "/shield", label: "All Shield products" },
-          ]}
-          description={`Product 0 · owned Yield Shield ticket. ${product.market.assetSymbol} protection below ${formatUsd(product.protectionStrikeUsd, 0)} with a hedge budget capped at ${product.hedgeBudgetBps / 100}%.`}
-          title="Shield"
-        />
-      </div>
-
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3">
           <div className="h-120 min-w-0">
@@ -304,7 +293,7 @@ function ShieldTicketFrame({
       ? "Submitting"
       : predictAccount.status === "loading"
         ? "Loading account"
-      : "Open Shield"
+        : "Open Shield"
   const buttonDisabled = walletAddress
     ? isSubmitting || predictAccount.status === "loading" || !depositAmount
     : !onConnect
@@ -418,9 +407,9 @@ function ShieldTicketFrame({
         </div>
 
         <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-xs leading-5 text-amber-200/90">
-          Keep the manager&apos;s matching DOWN position unchanged. Manual trades on
-          the same oracle, expiry, strike, and side can make the policy claim
-          abort.
+          Keep the manager&apos;s matching DOWN position unchanged. Manual
+          trades on the same oracle, expiry, strike, and side can make the
+          policy claim abort.
         </div>
 
         {(errorMessage || statusMessage) && (
@@ -538,7 +527,8 @@ function PositionsContentClient({
     if (getOwnedTicketClaimStatus(position.oracleStatus) !== "claimable") {
       setActionState({
         action: "claim",
-        errorMessage: "This Shield can only be claimed after the Predict market settles.",
+        errorMessage:
+          "This Shield can only be claimed after the Predict market settles.",
         positionId: position.policyId,
       })
       return
@@ -751,7 +741,7 @@ function ShieldPositionRowView({
           ? "--"
           : formatUsd(position.estimatedValueUsd)}
       </span>
-      <span className="text-right font-mono text-muted-foreground tabular-nums uppercase">
+      <span className="text-right font-mono text-muted-foreground uppercase tabular-nums">
         {claimStatus === "claimable" ? "Claimable" : "Active"}
       </span>
       <div className="flex justify-end gap-1">
@@ -768,7 +758,9 @@ function ShieldPositionRowView({
         <div
           className={cn(
             "col-span-full -mt-1 font-mono text-[10px]",
-            actionState.errorMessage ? "text-destructive" : "text-muted-foreground"
+            actionState.errorMessage
+              ? "text-destructive"
+              : "text-muted-foreground"
           )}
         >
           {actionState.errorMessage ?? actionState.message}

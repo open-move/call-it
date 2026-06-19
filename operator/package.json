@@ -1,0 +1,21 @@
+{
+  "name": "@callit/operator",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "operator": "bun src/index.ts",
+    "start": "bun src/index.ts --watch --run-all",
+    "once": "bun src/index.ts --once --run-all",
+    "status": "bun src/index.ts --status --run-all",
+    "shield": "bun src/index.ts --once --run-shield",
+    "range-ladder": "bun src/index.ts --once --run-range-ladder",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.17.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.4",
+    "typescript": "^6.0.0"
+  }
+}

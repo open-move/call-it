@@ -1,10 +1,14 @@
 import { Transaction } from "@mysten/sui/transactions"
+import type { SuiClientTypes } from "@mysten/sui/client"
+import type { TransactionObjectArgument } from "@mysten/sui/transactions"
 
 import {
   PREDICT_CLOCK_ID,
   PREDICT_OBJECT_ID,
   PREDICT_QUOTE_ASSET,
   SHIELD_PACKAGE_ID,
+  SHIELD_SHARE_ASSET,
+  SHIELD_VAULT_ID,
 } from "@/lib/config"
 import { quotePredictTradeSafe } from "./predict-quotes"
 import { buildQuoteCoin, toOnchainPrice } from "./predict-transactions"
@@ -34,11 +38,80 @@ export interface ShieldClaimParams {
   walletAddress: string
 }
 
+export interface ShieldVaultTransactionParams {
+  amount: bigint
+  walletAddress: string
+}
+
 const HEDGE_QUANTITY_BUFFER_BPS = 9_900n
 const MAX_PREPARE_ATTEMPTS = 6
 
 function shieldTarget(functionName: string) {
   return `${SHIELD_PACKAGE_ID}::shield::${functionName}`
+}
+
+function shieldVaultTarget(functionName: string) {
+  return `${SHIELD_PACKAGE_ID}::shield_vault::${functionName}`
+}
+
+function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {
+  const selectedCoins: SuiClientTypes.Coin[] = []
+  let selectedBalance = 0n
+
+  for (const coin of coins) {
+    selectedCoins.push(coin)
+    selectedBalance += BigInt(coin.balance)
+
+    if (selectedBalance >= amount) {
+      return { selectedBalance, selectedCoins }
+    }
+  }
+
+  return { selectedBalance, selectedCoins }
+}
+
+async function buildCoin(
+  tx: Transaction,
+  owner: string,
+  amount: bigint,
+  coinType: string,
+  insufficientBalanceMessage: string
+): Promise<TransactionObjectArgument> {
+  const { objects } = await getSuiGrpcClient().listCoins({
+    coinType,
+    limit: 50,
+    owner,
+  })
+  const { selectedBalance, selectedCoins } = selectCoins(objects, amount)
+  const [primaryCoin, ...sourceCoins] = selectedCoins
+
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+  if (!primaryCoin || selectedBalance < amount) {
+    throw new Error(insufficientBalanceMessage)
+  }
+
+  const paymentCoin = tx.object(primaryCoin.objectId)
+
+  if (sourceCoins.length > 0) {
+    tx.mergeCoins(
+      paymentCoin,
+      sourceCoins.map((coin) => tx.object(coin.objectId))
+    )
+  }
+
+  if (selectedBalance === amount) {
+    return paymentCoin
+  }
+
+  const [splitCoin] = tx.splitCoins(paymentCoin, [tx.pure.u64(amount)])
+
+  return splitCoin
+}
+
+function assertShieldVaultConfigured() {
+  if (!SHIELD_VAULT_ID) {
+    throw new Error("Shield vault is not initialized yet")
+  }
 }
 
 function formatShieldError(message: string) {
@@ -250,4 +323,50 @@ export async function prepareShieldClaimTransaction(params: ShieldClaimParams) {
   )
 
   return transaction
+}
+
+export async function buildShieldVaultDepositTransaction({
+  amount,
+  walletAddress,
+}: ShieldVaultTransactionParams) {
+  assertShieldVaultConfigured()
+
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
+  const shareCoin = tx.moveCall({
+    target: shieldVaultTarget("deposit"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [tx.object(SHIELD_VAULT_ID), paymentCoin],
+  })
+
+  tx.transferObjects([shareCoin], walletAddress)
+
+  return tx
+}
+
+export async function buildShieldVaultWithdrawTransaction({
+  amount,
+  walletAddress,
+}: ShieldVaultTransactionParams) {
+  assertShieldVaultConfigured()
+
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const shareCoin = await buildCoin(
+    tx,
+    walletAddress,
+    amount,
+    SHIELD_SHARE_ASSET,
+    "Insufficient cSHIELD balance"
+  )
+  const quoteCoin = tx.moveCall({
+    target: shieldVaultTarget("withdraw"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [tx.object(SHIELD_VAULT_ID), shareCoin],
+  })
+
+  tx.transferObjects([quoteCoin], walletAddress)
+
+  return tx
 }

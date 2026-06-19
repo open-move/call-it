@@ -1,14 +1,17 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useMemo, useState } from "react"
 
-import { ProtectionFamilyHeader } from "@/components/protection/family-header"
 import { Button } from "@/components/ui/button"
 import { formatDecimalUnits } from "@/lib/amounts"
 import {
   RECONNECT_SUI_WALLET_MESSAGE,
   getReadySuiTransactionSigner,
 } from "@/lib/dynamic/sui-wallet"
-import { formatExpiryDistance, formatRelativeTime, formatUsd } from "@/lib/format"
+import {
+  formatExpiryDistance,
+  formatRelativeTime,
+  formatUsd,
+} from "@/lib/format"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import type { OracleStateResponse } from "@/lib/types/predict"
 import { cn } from "@/lib/utils"
@@ -130,7 +133,9 @@ export function Page() {
     let isStale = false
 
     async function loadOracleStates() {
-      const oracleIds = Array.from(new Set(positions.map((position) => position.oracleId)))
+      const oracleIds = Array.from(
+        new Set(positions.map((position) => position.oracleId))
+      )
 
       if (oracleIds.length === 0) {
         setOracleStates({})
@@ -206,15 +211,6 @@ export function Page() {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <ProtectionFamilyHeader
-          actions={[
-            { href: "/shield", label: "All Shield products" },
-            { href: "/protection", label: "Back to Protection" },
-          ]}
-          description="Single claims surface for owned Shield policies. Review active tickets and claim after the Predict market settles."
-          title="Shield Claims"
-        />
-
         <div className="flex flex-wrap items-center gap-2">
           {(["claimable", "active"] as ClaimsTab[]).map((tab) => (
             <Button
@@ -246,8 +242,8 @@ export function Page() {
             DUSDC payout to your wallet.
           </div>
           <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2 text-amber-200/90">
-            Avoid manual trades on the same manager key while a Shield is active;
-            changing the reserved DOWN position can block claim.
+            Avoid manual trades on the same manager key while a Shield is
+            active; changing the reserved DOWN position can block claim.
           </div>
         </div>
 
@@ -265,7 +261,7 @@ export function Page() {
           </div>
         ) : (
           <div className="overflow-hidden rounded-2xl border border-border/60 bg-card/70">
-            <div className="hidden grid-cols-[minmax(12rem,1.4fr)_8rem_8rem_8rem_7rem] gap-4 border-b border-border/40 bg-muted/35 px-4 py-2 font-mono text-[10px] uppercase tracking-wide text-muted-foreground md:grid">
+            <div className="hidden grid-cols-[minmax(12rem,1.4fr)_8rem_8rem_8rem_7rem] gap-4 border-b border-border/40 bg-muted/35 px-4 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid">
               <span>Policy</span>
               <span>PLP</span>
               <span>Trigger</span>
@@ -275,7 +271,10 @@ export function Page() {
 
             <div className="divide-y divide-border/35">
               {grouped[selectedTab].map((position) => {
-                const oracleLabel = getOracleLabel(position.oracleId, oracleStates)
+                const oracleLabel = getOracleLabel(
+                  position.oracleId,
+                  oracleStates
+                )
                 const isClaiming = claimingPolicyId === position.policyId
                 const status = getPositionStatus(position, oracleStates)
 
@@ -315,7 +314,7 @@ export function Page() {
                           {isClaiming ? "Claiming" : "Claim"}
                         </Button>
                       ) : (
-                        <span className="font-mono text-[11px] uppercase text-muted-foreground">
+                        <span className="font-mono text-[11px] text-muted-foreground uppercase">
                           {getTabLabel(status)}
                         </span>
                       )}

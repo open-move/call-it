@@ -1,5 +1,5 @@
 [package]
-name = "shield"
+name = "callit_vaults"
 edition = "2024"
 
 [dependencies]
