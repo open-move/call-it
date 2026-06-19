@@ -359,7 +359,7 @@ export function buildLeaderboardModel(
       "Open cost basis reflects unredeemed quantities visible within the fetched event window.",
       "Rank is sorted by estimated realized PnL, then volume, then activity count.",
     ],
-    generatedAtMs: Date.now(),
+    generatedAtMs: input.generatedAtMs ?? Date.now(),
     rows,
     totals: getTotals(rows),
   }

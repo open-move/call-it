@@ -8,9 +8,12 @@ import type {
 export interface LeaderboardInput {
   directionalMints: DirectionalPositionMintEvent[]
   directionalRedeems: DirectionalPositionRedeemEvent[]
+  generatedAtMs?: number
   rangeMints: RangeMintEvent[]
   rangeRedeems: RangeRedeemEvent[]
 }
+
+export type LeaderboardPeriod = "today" | "weekly" | "monthly" | "allTime"
 
 export interface LeaderboardAccountRow {
   account: string
@@ -44,6 +47,11 @@ export interface LeaderboardModel {
   rows: LeaderboardAccountRow[]
   totals: LeaderboardTotals
 }
+
+export type LeaderboardPeriodModels = Record<
+  LeaderboardPeriod,
+  LeaderboardModel
+>
 
 export interface LeaderboardReport {
   assumptions: string[]

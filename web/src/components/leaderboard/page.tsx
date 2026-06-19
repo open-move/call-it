@@ -1,53 +1,56 @@
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  XAxis,
-  YAxis,
-} from "recharts"
+import { useState } from "react"
+import { ArrowUpRightIcon } from "lucide-react"
 
 import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { formatPercent, formatRelativeTime, formatUsd } from "@/lib/format"
+import { Card, CardContent } from "@/components/ui/card"
+import { SUI_NETWORK } from "@/lib/config"
+import { formatPercent, formatRelativeTime } from "@/lib/format"
 import { buildLeaderboardReport } from "@/lib/leaderboard/calculations"
 import type {
   LeaderboardAccountRow,
   LeaderboardModel,
+  LeaderboardPeriod,
+  LeaderboardPeriodModels,
 } from "@/lib/leaderboard/types"
 import { cn } from "@/lib/utils"
 
 export interface LeaderboardPageProps {
-  model: LeaderboardModel
+  models: LeaderboardPeriodModels
 }
 
-const compactUsdFormatter = new Intl.NumberFormat("en-US", {
-  currency: "USD",
-  maximumFractionDigits: 1,
-  notation: "compact",
-  style: "currency",
-})
-
-const compactNumberFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 1,
-  notation: "compact",
-})
+const leaderboardPeriodOptions = [
+  { id: "today", label: "Today", meta: "24h" },
+  { id: "weekly", label: "Weekly", meta: "7d" },
+  { id: "monthly", label: "Monthly", meta: "30d" },
+  { id: "allTime", label: "All time", meta: "Full" },
+] satisfies { id: LeaderboardPeriod; label: string; meta: string }[]
 
 function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-function formatSignedUsd(value: number) {
+function getAccountUrl(account: string) {
+  return `https://suiscan.xyz/${SUI_NETWORK}/account/${account}`
+}
+
+function formatDusdc(value: number, maximumFractionDigits = 2) {
+  return `${value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  })} DUSDC`
+}
+
+function formatSignedDusdc(value: number, maximumFractionDigits = 2) {
   if (value > 0) {
-    return `+${formatUsd(value)}`
+    return `+${formatDusdc(value, maximumFractionDigits)}`
   }
 
   if (value < 0) {
-    return `-${formatUsd(Math.abs(value))}`
+    return `-${formatDusdc(Math.abs(value), maximumFractionDigits)}`
   }
 
-  return formatUsd(0)
+  return formatDusdc(0, maximumFractionDigits)
 }
 
 function formatOptionalPercent(value: number | null) {
@@ -62,225 +65,218 @@ function getPnlClassName(value: number) {
   return value > 0 ? "text-outcome-up" : "text-outcome-down"
 }
 
-function exportLeaderboardReport(model: LeaderboardModel) {
+function getPeriodLabel(period: LeaderboardPeriod) {
+  return (
+    leaderboardPeriodOptions.find((option) => option.id === period)?.label ??
+    "All time"
+  )
+}
+
+function exportLeaderboardReport(
+  model: LeaderboardModel,
+  period: LeaderboardPeriod
+) {
   const report = buildLeaderboardReport(model)
   const blob = new Blob([JSON.stringify(report, null, 2)], {
     type: "application/json",
   })
   const url = URL.createObjectURL(blob)
   const link = document.createElement("a")
+  const periodSlug = period.replace(
+    /[A-Z]/g,
+    (match) => `-${match.toLowerCase()}`
+  )
 
   link.href = url
-  link.download = `callit-predict-leaderboard-${report.generatedAt.slice(0, 10)}.json`
+  link.download = `callit-predict-leaderboard-${periodSlug}-${report.generatedAt.slice(0, 10)}.json`
   link.click()
   URL.revokeObjectURL(url)
 }
 
-export function Page({ model }: LeaderboardPageProps) {
+export function Page({ models }: LeaderboardPageProps) {
+  const [period, setPeriod] = useState<LeaderboardPeriod>("allTime")
+  const model = models[period]
+
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <LeaderboardHeader model={model} />
-
-        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
-          <LeaderboardChart rows={model.rows} />
-          <LeaderboardTotals model={model} />
-        </div>
-
-        <LeaderboardTable rows={model.rows} />
-
-        <AssumptionsCard assumptions={model.assumptions} />
+        <LeaderboardHeader
+          model={model}
+          onPeriodChange={setPeriod}
+          period={period}
+        />
+        <LeaderboardSummary model={model} />
+        <AccountRankings rows={model.rows} />
+        <MethodologyNote assumptions={model.assumptions} />
       </section>
     </main>
   )
 }
 
-function LeaderboardHeader({ model }: { model: LeaderboardModel }) {
+function LeaderboardHeader({
+  model,
+  onPeriodChange,
+  period,
+}: {
+  model: LeaderboardModel
+  onPeriodChange: (period: LeaderboardPeriod) => void
+  period: LeaderboardPeriod
+}) {
   return (
-    <div className="flex flex-col gap-3 rounded-md bg-card px-3 py-3 shadow-none ring-0 sm:flex-row sm:items-start sm:justify-between">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-lg font-medium tracking-tight text-foreground">
-            Predict Leaderboard
-          </h1>
-          <Badge className="px-2 py-0.5 text-[10px]" tone={BadgeTone.Warning}>
-            Estimated
-          </Badge>
+    <div className="rounded-md bg-card px-4 py-3 shadow-none ring-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+              Predict Leaderboard
+            </h1>
+            <Badge className="px-2 py-0.5 text-[10px]" tone={BadgeTone.Warning}>
+              Estimated
+            </Badge>
+            <Badge className="px-2 py-0.5 text-[10px]" tone={BadgeTone.Neutral}>
+              Public data
+            </Badge>
+          </div>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
+            Account rank tape for realized PnL, volume, win rate, and public
+            Predict activity.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
+            <span>Built {formatRelativeTime(model.generatedAtMs)}</span>
+            <span>{model.rows.length.toLocaleString("en-US")} accounts</span>
+            <span>{getPeriodLabel(period)}</span>
+          </div>
         </div>
-        <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-          Rank public Predict accounts by estimated volume, realized PnL, and
-          activity from server events.
-        </p>
-        <div className="mt-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Built from public Predict data{" "}
-          {formatRelativeTime(model.generatedAtMs)}
+
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+          <PeriodSelector onChange={onPeriodChange} value={period} />
+          <Button
+            className="w-full sm:w-auto"
+            onClick={() => exportLeaderboardReport(model, period)}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            Export Leaderboard
+          </Button>
         </div>
       </div>
-
-      <Button
-        className="w-full sm:w-auto"
-        size="sm"
-        type="button"
-        onClick={() => exportLeaderboardReport(model)}
-      >
-        Export Leaderboard
-      </Button>
     </div>
   )
 }
 
-function LeaderboardTotals({ model }: { model: LeaderboardModel }) {
-  const leader = model.rows.at(0)
-
+function PeriodSelector({
+  onChange,
+  value,
+}: {
+  onChange: (period: LeaderboardPeriod) => void
+  value: LeaderboardPeriod
+}) {
   return (
-    <Card className="h-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">
-          Leaderboard Summary
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="flex h-full flex-col gap-4 px-3 py-3">
-        <div className="grid grid-cols-2 gap-2">
-          <MetricTile
+    <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
+      {leaderboardPeriodOptions.map((option) => (
+        <Button
+          className={cn(
+            "h-7 px-2.5 text-[11px] shadow-none",
+            value === option.id && "bg-primary/10 text-primary"
+          )}
+          key={option.id}
+          onClick={() => onChange(option.id)}
+          size="xs"
+          type="button"
+          variant="ghost"
+        >
+          {option.label}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+function LeaderboardSummary({ model }: { model: LeaderboardModel }) {
+  return (
+    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardContent className="p-0">
+        <div className="grid bg-muted/10 md:grid-cols-4">
+          <SummaryCell
             label="Accounts"
+            meta="Reconstructed book"
             value={model.totals.accounts.toLocaleString("en-US")}
           />
-          <MetricTile
+          <SummaryCell
             label="Activity"
+            meta="Public actions"
             value={model.totals.activityCount.toLocaleString("en-US")}
           />
-          <MetricTile
+          <SummaryCell
             label="Volume"
-            value={formatUsd(model.totals.volumeUsd)}
+            meta="Mint cost basis"
+            value={formatDusdc(model.totals.volumeUsd, 0)}
           />
-          <MetricTile
+          <SummaryCell
             className={getPnlClassName(model.totals.realizedPnlUsd)}
+            emphasis
             label="Realized PnL"
-            value={formatSignedUsd(model.totals.realizedPnlUsd)}
+            meta="Estimated settlement PnL"
+            value={formatSignedDusdc(model.totals.realizedPnlUsd, 0)}
           />
         </div>
-
-        {leader ? (
-          <div className="mt-auto rounded-md bg-muted/35 px-3 py-3">
-            <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-              Current leader
-            </div>
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="truncate font-mono text-sm text-foreground">
-                  {formatAddress(leader.account)}
-                </div>
-                <div className="mt-1 text-xs text-muted-foreground">
-                  {leader.activityCount} public actions
-                </div>
-              </div>
-              <div
-                className={cn(
-                  "font-mono text-sm tabular-nums",
-                  getPnlClassName(leader.realizedPnlUsd)
-                )}
-              >
-                {formatSignedUsd(leader.realizedPnlUsd)}
-              </div>
-            </div>
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   )
 }
 
-function MetricTile({
+function SummaryCell({
   className,
+  emphasis = false,
   label,
+  meta,
   value,
 }: {
   className?: string
+  emphasis?: boolean
   label: string
+  meta: string
   value: string
 }) {
   return (
-    <div className="min-w-0 rounded-md bg-muted/35 px-2.5 py-2">
-      <div className="truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
+    <div className="border-b border-border/35 px-3 py-2.5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
+      <div className="text-xs leading-none text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums",
+          "mt-2 truncate font-mono font-medium text-foreground tabular-nums",
+          emphasis ? "text-xl leading-tight" : "text-sm",
           className
         )}
       >
         {value}
       </div>
+      <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        {meta}
+      </div>
     </div>
   )
 }
 
-function LeaderboardChart({ rows }: { rows: LeaderboardAccountRow[] }) {
-  const chartRows = rows.slice(0, 10).map((row) => ({
-    account: `#${row.rank}`,
-    pnl: row.realizedPnlUsd,
-    volume: row.volumeUsd,
-  }))
-
+function AccountRankings({ rows }: { rows: LeaderboardAccountRow[] }) {
   return (
-    <Card className="h-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex items-end justify-between gap-3">
-          <CardTitle className="text-sm font-medium">Top Accounts</CardTitle>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Realized PnL by rank
+    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardContent className="p-0">
+        <div className="flex flex-col gap-3 px-4 pt-4 pb-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+              Account Rankings
+            </div>
+            <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
+              Top 50 accounts ranked by realized PnL, then volume and activity.
+            </p>
+          </div>
+          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
+            {rows.length.toLocaleString("en-US")} reconstructed
           </div>
         </div>
-      </CardHeader>
-      <CardContent className="px-3 py-3">
-        <div className="h-64 rounded-md bg-background/35 px-3 py-3">
-          {chartRows.length > 0 ? (
-            <ResponsiveContainer
-              height="100%"
-              initialDimension={{ height: 256, width: 760 }}
-              width="100%"
-            >
-              <BarChart
-                data={chartRows}
-                margin={{ bottom: 0, left: 0, right: 12, top: 10 }}
-              >
-                <CartesianGrid
-                  stroke="var(--border)"
-                  strokeDasharray="3 3"
-                  vertical={false}
-                />
-                <XAxis
-                  axisLine={false}
-                  dataKey="account"
-                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                  tickLine={false}
-                />
-                <YAxis
-                  axisLine={false}
-                  tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                  tickFormatter={(value) =>
-                    typeof value === "number"
-                      ? compactUsdFormatter.format(value)
-                      : ""
-                  }
-                  tickLine={false}
-                  width={58}
-                />
-                <Bar
-                  dataKey="pnl"
-                  fill="var(--primary)"
-                  isAnimationActive={false}
-                  radius={[4, 4, 0, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              No leaderboard activity is available yet.
-            </div>
-          )}
-        </div>
+
+        <LeaderboardTable rows={rows} />
       </CardContent>
     </Card>
   )
@@ -288,129 +284,110 @@ function LeaderboardChart({ rows }: { rows: LeaderboardAccountRow[] }) {
 
 function LeaderboardTable({ rows }: { rows: LeaderboardAccountRow[] }) {
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <CardTitle className="text-sm font-medium">
-            Account Rankings
-          </CardTitle>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Estimated from public events
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="px-0 py-0">
-        <div className="hidden border-b border-border/40 bg-muted/35 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase lg:grid lg:grid-cols-[4rem_minmax(11rem,1fr)_7rem_7rem_5rem_7rem_6rem_6rem_6rem] lg:items-center">
+    <div className="overflow-auto border-t border-border/45">
+      <div className="min-w-[58rem]">
+        <div className="grid grid-cols-[4rem_minmax(11rem,1fr)_8rem_5.5rem_8rem_7rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
           <span>Rank</span>
           <span>Account</span>
-          <span className="text-right">Volume</span>
-          <span className="text-right">Realized</span>
+          <span className="text-right">Realized PnL</span>
           <span className="text-right">ROI</span>
-          <span className="text-right">Open cost</span>
-          <span className="text-right">Win rate</span>
-          <span className="text-right">Actions</span>
+          <span className="text-right">Volume</span>
           <span className="text-right">Last</span>
         </div>
-        <div className="divide-y divide-border/25">
-          {rows.length > 0 ? (
-            rows
-              .slice(0, 50)
-              .map((row) => <LeaderboardRow key={row.account} row={row} />)
-          ) : (
-            <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              No accounts were reconstructed from the fetched Predict events.
-            </div>
-          )}
-        </div>
-      </CardContent>
-    </Card>
+        {rows.length > 0 ? (
+          rows
+            .slice(0, 50)
+            .map((row) => <LeaderboardRow key={row.account} row={row} />)
+        ) : (
+          <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+            No accounts were reconstructed from the fetched Predict events.
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
 function LeaderboardRow({ row }: { row: LeaderboardAccountRow }) {
   return (
-    <div className="grid gap-1.5 px-3 py-2.5 text-xs lg:grid-cols-[4rem_minmax(11rem,1fr)_7rem_7rem_5rem_7rem_6rem_6rem_6rem] lg:items-center lg:gap-0 lg:py-2">
-      <div className="flex items-center justify-between gap-3 lg:block">
-        <span className="font-mono text-sm font-medium text-primary tabular-nums">
-          #{row.rank}
-        </span>
-        <span className="font-mono text-muted-foreground lg:hidden">
-          {row.activityCount} actions
-        </span>
-      </div>
+    <div className="grid grid-cols-[4rem_minmax(11rem,1fr)_8rem_5.5rem_8rem_7rem] gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0">
+      <span className="font-mono text-sm font-medium text-primary tabular-nums">
+        #{row.rank}
+      </span>
       <div className="min-w-0">
-        <div className="truncate font-mono text-foreground">
-          {formatAddress(row.account)}
-        </div>
+        <a
+          className="group inline-flex max-w-full items-center gap-1.5 font-mono font-medium text-foreground underline-offset-4 hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+          href={getAccountUrl(row.account)}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <span className="truncate">{formatAddress(row.account)}</span>
+          <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+        </a>
         <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
-          {row.directionalCount} dir · {row.rangeCount} range
+          {row.directionalCount} dir / {row.rangeCount} range /{" "}
+          {row.settledCount} settled
         </div>
       </div>
-      <LabeledValue label="Volume" value={formatUsd(row.volumeUsd)} />
-      <LabeledValue
+      <TableValue
         className={getPnlClassName(row.realizedPnlUsd)}
-        label="Realized"
-        value={formatSignedUsd(row.realizedPnlUsd)}
+        value={formatSignedDusdc(row.realizedPnlUsd)}
       />
-      <LabeledValue
+      <TableValue
         className={
           row.realizedPnlPct === null
             ? "text-muted-foreground"
             : getPnlClassName(row.realizedPnlPct)
         }
-        label="ROI"
         value={formatOptionalPercent(row.realizedPnlPct)}
       />
-      <LabeledValue label="Open cost" value={formatUsd(row.openCostBasisUsd)} />
-      <LabeledValue
-        label="Win rate"
-        value={formatOptionalPercent(row.winRate)}
+      <TableValue value={formatDusdc(row.volumeUsd)} />
+      <TableValue
+        muted
+        value={
+          row.lastActivityAtMs > 0
+            ? formatRelativeTime(row.lastActivityAtMs)
+            : "--"
+        }
       />
-      <LabeledValue
-        label="Actions"
-        value={compactNumberFormatter.format(row.activityCount)}
-      />
-      <div className="font-mono text-muted-foreground tabular-nums lg:text-right">
-        {row.lastActivityAtMs > 0
-          ? formatRelativeTime(row.lastActivityAtMs)
-          : "--"}
-      </div>
     </div>
   )
 }
 
-function LabeledValue({
+function TableValue({
   className,
-  label,
+  muted = false,
   value,
 }: {
   className?: string
-  label: string
+  muted?: boolean
   value: string
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 font-mono text-foreground tabular-nums lg:block lg:text-right">
-      <span className="text-muted-foreground lg:hidden">{label}</span>
-      <span className={className}>{value}</span>
-    </div>
+    <span
+      className={cn(
+        "truncate text-right font-mono tabular-nums",
+        muted ? "text-muted-foreground" : "text-foreground",
+        className
+      )}
+    >
+      {value}
+    </span>
   )
 }
 
-function AssumptionsCard({ assumptions }: { assumptions: string[] }) {
+function MethodologyNote({ assumptions }: { assumptions: string[] }) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Methodology</CardTitle>
-      </CardHeader>
-      <CardContent className="grid gap-2 px-3 py-3 md:grid-cols-2">
-        {assumptions.map((assumption) => (
-          <div
-            className="rounded-md bg-muted/35 px-3 py-2 text-xs leading-5 text-muted-foreground"
-            key={assumption}
-          >
-            {assumption}
-          </div>
-        ))}
+      <CardContent className="px-4 py-3">
+        <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          Methodology
+        </div>
+        <div className="mt-2 space-y-1.5 text-xs leading-5 text-muted-foreground">
+          {assumptions.map((assumption) => (
+            <p key={assumption}>{assumption}</p>
+          ))}
+        </div>
       </CardContent>
     </Card>
   )
