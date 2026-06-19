@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type ProtectionHref = "/range-ladder" | "/shield" | "/protect"
-type ClaimsHref = "/range-ladder/claims" | "/protect/claims"
+type ClaimsHref = "/protect/claims"
 type ProductTone = "down" | "primary" | "up"
 
 interface ProtectionProductRow {
@@ -57,7 +57,6 @@ const products = [
   {
     actionLabel: "Open Ladder",
     claimModel: "Consumes RangeLadderPolicy",
-    claimsHref: "/range-ladder/claims",
     code: "02",
     description: "Multi-band range positions claimed together.",
     exposure: "Tiered range bands",

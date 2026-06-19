@@ -136,34 +136,3 @@ export function createRangeLadderProducts(markets: MarketSnapshot[]) {
       firstProduct.preset.localeCompare(secondProduct.preset)
   )
 }
-
-export function findRangeLadderProduct(
-  products: RangeLadderProduct[],
-  oracleId: string,
-  preset?: RangeLadderPreset
-) {
-  const oracleProducts = products.filter(
-    (product) => product.market.oracleId === oracleId
-  )
-
-  if (preset) {
-    const matchingPreset = oracleProducts.find(
-      (product) => product.preset === preset
-    )
-
-    if (matchingPreset) {
-      return matchingPreset
-    }
-  }
-
-  return (
-    oracleProducts.find((product) => product.preset === "balanced") ??
-    oracleProducts[0]
-  )
-}
-
-export function isRangeLadderPreset(
-  value: unknown
-): value is RangeLadderPreset {
-  return value === "tight" || value === "balanced" || value === "wide"
-}
