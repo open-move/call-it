@@ -113,15 +113,6 @@ function isEligibleStrike(market: MarketSnapshot, strikePriceUsd: number) {
   )
 }
 
-export function getShieldProductHref(product: ShieldProduct) {
-  const searchParams = new URLSearchParams({
-    preset: product.preset,
-    strike: product.protectionStrikeUsd.toString(),
-  })
-
-  return `/shield/${product.market.oracleId}?${searchParams.toString()}`
-}
-
 export function createShieldProducts(markets: MarketSnapshot[]) {
   const products: ShieldProduct[] = []
   const seenProducts = new Set<string>()

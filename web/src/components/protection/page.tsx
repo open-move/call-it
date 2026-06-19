@@ -11,13 +11,13 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 type ProtectionHref = "/range-ladder" | "/shield" | "/protect"
-type ClaimsHref = "/range-ladder/claims" | "/shield/claims" | "/protect/claims"
+type ClaimsHref = "/range-ladder/claims" | "/protect/claims"
 type ProductTone = "down" | "primary" | "up"
 
 interface ProtectionProductRow {
   actionLabel: string
   claimModel: string
-  claimsHref: ClaimsHref
+  claimsHref?: ClaimsHref
   code: string
   description: string
   exposure: string
@@ -32,7 +32,6 @@ const products = [
   {
     actionLabel: "Open Shield",
     claimModel: "Consumes ShieldPolicy",
-    claimsHref: "/shield/claims",
     code: "00",
     description: "Yield ticket with a capped reserved DOWN hedge.",
     exposure: "PLP yield + hedge budget",
@@ -324,23 +323,25 @@ function ClaimsPanel() {
       </div>
 
       <div className="mt-3 space-y-1.5">
-        {products.map((product) => (
-          <Link
-            className="group flex items-center justify-between gap-3 rounded-md bg-background/40 px-2.5 py-2 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-            key={product.claimsHref}
-            to={product.claimsHref}
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-xs font-medium text-foreground group-hover:text-primary">
-                {product.name} claims
-              </span>
-              <span className="mt-0.5 block truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-                Active and claimable policies
-              </span>
-            </span>
-            <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
-          </Link>
-        ))}
+          {products.map((product) =>
+            product.claimsHref ? (
+              <Link
+                className="group flex items-center justify-between gap-3 rounded-md bg-background/40 px-2.5 py-2 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
+                key={product.claimsHref}
+                to={product.claimsHref}
+              >
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-foreground group-hover:text-primary">
+                    {product.name} claims
+                  </span>
+                  <span className="mt-0.5 block truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+                    Active and claimable policies
+                  </span>
+                </span>
+                <ArrowRightIcon className="size-3.5 shrink-0 text-muted-foreground group-hover:text-primary" />
+              </Link>
+            ) : null
+          )}
       </div>
     </div>
   )
