@@ -197,7 +197,7 @@ function AccountHubDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] border-0 shadow-none ring-0 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Account</DialogTitle>
           <DialogDescription>

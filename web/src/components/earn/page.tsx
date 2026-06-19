@@ -20,16 +20,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { formatRelativeTime, formatUsd } from "@/lib/format"
-import {
-  formatDecimalUnits,
-  parseDecimalUnits,
-} from "@/lib/amounts"
+import { formatRelativeTime } from "@/lib/format"
+import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
 import {
   PREDICT_LP_ASSET,
   PREDICT_QUOTE_ASSET,
   PREDICT_QUOTE_DECIMALS,
   QUOTE_SCALE,
+  SUI_NETWORK,
 } from "@/lib/config"
 import {
   buildSupplyLiquidityTransaction,
@@ -67,6 +65,7 @@ type LpActivity =
       id: string
       shares: number
       timestampMs: number
+      transactionDigest: string
       type: "Supply"
     }
   | {
@@ -75,6 +74,7 @@ type LpActivity =
       id: string
       shares: number
       timestampMs: number
+      transactionDigest: string
       type: "Withdraw"
     }
 
@@ -107,15 +107,19 @@ function toQuoteUsd(value: number) {
   return value / QUOTE_SCALE
 }
 
-function formatQuoteUsd(value: number, maximumFractionDigits = 2) {
-  return formatUsd(toQuoteUsd(value), maximumFractionDigits)
+function formatTokenAmount(
+  value: number,
+  symbol: string,
+  maximumFractionDigits = 4
+) {
+  return `${value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  })} ${symbol}`
 }
 
 function formatQuoteAmount(value: number, symbol = "DUSDC") {
-  return `${toQuoteUsd(value).toLocaleString("en-US", {
-    maximumFractionDigits: 4,
-    minimumFractionDigits: 0,
-  })} ${symbol}`
+  return formatTokenAmount(toQuoteUsd(value), symbol)
 }
 
 function formatSharePrice(value: number) {
@@ -140,6 +144,7 @@ function getActivity(
     id: event.event_digest,
     shares: event.shares_minted,
     timestampMs: event.checkpoint_timestamp_ms,
+    transactionDigest: event.digest,
     type: "Supply" as const,
   }))
   const withdrawalActivity = withdrawals.map((event) => ({
@@ -148,24 +153,20 @@ function getActivity(
     id: event.event_digest,
     shares: event.shares_burned,
     timestampMs: event.checkpoint_timestamp_ms,
+    transactionDigest: event.digest,
     type: "Withdraw" as const,
   }))
 
   return [...supplyActivity, ...withdrawalActivity]
     .sort((first, second) => second.timestampMs - first.timestampMs)
-    .slice(0, 10)
 }
 
-function getPerformanceReturn(performance: VaultPerformanceResponse) {
-  const firstPoint = performance.points[0]
-  const lastPoint = performance.points.at(-1)
+function getAccountUrl(account: string) {
+  return `https://suiscan.xyz/${SUI_NETWORK}/account/${account}`
+}
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!firstPoint || !lastPoint || firstPoint.share_price === 0) {
-    return 0
-  }
-
-  return lastPoint.share_price / firstPoint.share_price - 1
+function getTransactionUrl(transactionDigest: string) {
+  return `https://suiscan.xyz/${SUI_NETWORK}/tx/${transactionDigest}`
 }
 
 function getChartDomain(points: VaultPerformanceResponse["points"]) {
@@ -188,7 +189,6 @@ export function Page({
   withdrawals,
 }: PageProps) {
   const activity = getActivity(supplies, withdrawals)
-  const performanceReturn = getPerformanceReturn(performance)
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -197,7 +197,6 @@ export function Page({
           <section className="min-w-0">
             <VaultStatsCard
               performance={performance}
-              performanceReturn={performanceReturn}
               summary={summary}
             />
           </section>
@@ -207,8 +206,6 @@ export function Page({
           </aside>
         </div>
 
-        <VaultAccountingCard summary={summary} />
-
         <ActivityCard activity={activity} />
       </section>
     </main>
@@ -217,36 +214,29 @@ export function Page({
 
 function VaultStatsCard({
   performance,
-  performanceReturn,
   summary,
 }: {
   performance: VaultPerformanceResponse
-  performanceReturn: number
   summary: VaultSummary
 }) {
   return (
     <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex items-end justify-between gap-3">
-          <CardTitle className="text-sm font-medium">Vault Stats</CardTitle>
-          <div className="font-mono text-sm font-medium text-foreground tabular-nums">
-            {formatQuoteUsd(summary.vault_value)}
-          </div>
-        </div>
+        <CardTitle className="text-sm font-medium">Vault Overview</CardTitle>
       </CardHeader>
       <CardContent className="px-3">
         <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-2 lg:grid-cols-4">
           <VaultStat
+            label="Vault Value"
+            value={formatQuoteAmount(summary.vault_value)}
+          />
+          <VaultStat
             label="Available"
-            value={formatQuoteUsd(summary.available_withdrawal)}
+            value={formatQuoteAmount(summary.available_withdrawal)}
           />
           <VaultStat
             label="PLP Price"
             value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
-          />
-          <VaultStat
-            label="PLP Supply"
-            value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
           />
           <VaultStat
             label="Utilization"
@@ -254,10 +244,7 @@ function VaultStatsCard({
           />
         </div>
 
-        <VaultPriceChart
-          performance={performance}
-          performanceReturn={performanceReturn}
-        />
+        <VaultPriceChart performance={performance} />
       </CardContent>
     </Card>
   )
@@ -276,10 +263,8 @@ function VaultStat({ label, value }: { label: string; value: string }) {
 
 function VaultPriceChart({
   performance,
-  performanceReturn,
 }: {
   performance: VaultPerformanceResponse
-  performanceReturn: number
 }) {
   const yDomain = getChartDomain(performance.points)
 
@@ -302,18 +287,18 @@ function VaultPriceChart({
                 >
                   <stop
                     offset="5%"
-                    stopColor="var(--chart-1)"
+                    stopColor="rgb(var(--chart-1))"
                     stopOpacity={0.28}
                   />
                   <stop
                     offset="95%"
-                    stopColor="var(--chart-1)"
+                    stopColor="rgb(var(--chart-1))"
                     stopOpacity={0}
                   />
                 </linearGradient>
               </defs>
               <CartesianGrid
-                stroke="var(--border)"
+                stroke="rgb(var(--border))"
                 strokeDasharray="3 3"
                 vertical={false}
               />
@@ -323,7 +308,7 @@ function VaultPriceChart({
                 domain={["dataMin", "dataMax"]}
                 minTickGap={34}
                 scale="time"
-                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
                 tickFormatter={(value) => dateFormatter.format(new Date(value))}
                 tickLine={false}
                 type="number"
@@ -331,7 +316,7 @@ function VaultPriceChart({
               <YAxis
                 axisLine={false}
                 domain={yDomain}
-                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+                tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
                 tickFormatter={(value) => Number(value).toFixed(4)}
                 tickLine={false}
                 width={58}
@@ -340,7 +325,7 @@ function VaultPriceChart({
                 dataKey="share_price"
                 fill="url(#plpShareGradient)"
                 isAnimationActive={false}
-                stroke="var(--chart-1)"
+                stroke="rgb(var(--chart-1))"
                 strokeWidth={2}
                 type="monotone"
               />
@@ -348,7 +333,7 @@ function VaultPriceChart({
                 dataKey="share_price"
                 dot={false}
                 isAnimationActive={false}
-                stroke="var(--chart-1)"
+                stroke="rgb(var(--chart-1))"
                 strokeWidth={2}
                 type="monotone"
               />
@@ -394,7 +379,6 @@ function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
       messageTone="muted"
       onActionChange={setAction}
       onAmountChange={setAmount}
-      onConnect={undefined}
       onMaxAmount={undefined}
       onSubmit={() => undefined}
       summary={summary}
@@ -624,7 +608,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
   const plpBalanceValue = balances
     ? `${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`
     : "--"
-  const plpValueLabel = balances ? formatUsd(plpValue) : "--"
+  const plpValueLabel = balances ? formatTokenAmount(plpValue, "DUSDC") : "--"
   const actionBalanceLabel =
     action === "supply" ? "DUSDC balance" : "PLP balance"
   const actionBalanceValue =
@@ -656,7 +640,6 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       messageTone={errorMessage ? "error" : "muted"}
       onActionChange={setAction}
       onAmountChange={setAmount}
-      onConnect={() => setShowAuthFlow(true)}
       onDialogOpenChange={handleDialogOpenChange}
       onMaxAmount={balances ? handleMaxAmount : undefined}
       onOpenAction={openActionDialog}
@@ -697,7 +680,6 @@ function LiquidityPanelFrame({
   messageTone,
   onActionChange,
   onAmountChange,
-  onConnect,
   onDialogOpenChange,
   onMaxAmount,
   onOpenAction,
@@ -719,7 +701,6 @@ function LiquidityPanelFrame({
   messageTone: "error" | "muted"
   onActionChange: (action: EarnAction) => void
   onAmountChange: (amount: string) => void
-  onConnect?: () => void
   onDialogOpenChange?: (open: boolean) => void
   onMaxAmount?: () => void
   onOpenAction?: (action: EarnAction) => void
@@ -735,14 +716,11 @@ function LiquidityPanelFrame({
 
   return (
     <>
-      <Card className="h-full rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
+      <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
+        <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
+          <CardTitle className="text-sm font-medium">Your Position</CardTitle>
+        </CardHeader>
         <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
-          <div>
-            <div className="text-sm font-medium text-foreground">
-              Your Position
-            </div>
-          </div>
-
           {walletAddress ? (
             walletBlock
           ) : (
@@ -750,14 +728,6 @@ function LiquidityPanelFrame({
               <p className="text-center text-muted-foreground">
                 Connect wallet to view your position.
               </p>
-              <Button
-                className="mt-3 w-full"
-                disabled={!onConnect}
-                onClick={onConnect}
-                type="button"
-              >
-                Sign in
-              </Button>
             </div>
           )}
 
@@ -839,7 +809,7 @@ function EarnActionDialog({
 }) {
   return (
     <Dialog onOpenChange={(nextOpen) => onOpenChange?.(nextOpen)} open={open}>
-      <DialogContent className="gap-5 rounded-md bg-card p-5 sm:max-w-lg">
+      <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
         <DialogHeader className="gap-1">
           <DialogTitle className="text-sm font-medium">
             {action === "supply" ? "Deposit DUSDC" : "Withdraw PLP"}
@@ -881,19 +851,21 @@ function EarnActionDialog({
             value={
               estimatedOutput === undefined
                 ? "--"
-                : estimatedOutput.toLocaleString("en-US", {
-                    maximumFractionDigits: 6,
-                  })
+                : formatTokenAmount(
+                    estimatedOutput,
+                    action === "supply" ? "PLP" : "DUSDC",
+                    6
+                  )
             }
           />
           <PanelRow
             label="PLP price"
-            value={formatSharePrice(summary.plp_share_price)}
+            value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
           />
           {action === "withdraw" && (
             <PanelRow
               label="Vault available"
-              value={formatQuoteUsd(summary.available_withdrawal)}
+              value={formatQuoteAmount(summary.available_withdrawal)}
             />
           )}
         </div>
@@ -1023,69 +995,25 @@ function minBigInt(first: bigint, second: bigint) {
   return first < second ? first : second
 }
 
-function VaultAccountingCard({ summary }: { summary: VaultSummary }) {
-  return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex items-end justify-between gap-3">
-          <CardTitle className="text-sm font-medium">
-            Vault Accounting
-          </CardTitle>
-          <div className="font-mono text-sm font-medium text-foreground tabular-nums">
-            {formatQuoteUsd(summary.net_deposits)}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="grid gap-4 px-3 py-3 md:grid-cols-2">
-        <div className="space-y-2">
-          <PanelRow
-            label="Vault balance"
-            value={formatQuoteUsd(summary.vault_balance)}
-          />
-          <PanelRow
-            label="Total MTM"
-            value={formatQuoteUsd(summary.total_mtm)}
-          />
-          <PanelRow
-            label="Max payout"
-            value={formatQuoteUsd(summary.total_max_payout)}
-          />
-          <PanelRow
-            label="Payout util"
-            value={formatPercent(summary.max_payout_utilization)}
-          />
-        </div>
-        <div className="space-y-2 border-t border-border/40 pt-3 md:border-t-0 md:border-l md:pt-0 md:pl-4">
-          <PanelRow
-            label="Available liquidity"
-            value={formatQuoteUsd(summary.available_liquidity)}
-          />
-          <PanelRow
-            label="Total supplied"
-            value={formatQuoteUsd(summary.total_supplied)}
-          />
-          <PanelRow
-            label="Total withdrawn"
-            value={formatQuoteUsd(summary.total_withdrawn)}
-          />
-          <PanelRow
-            label="Net deposits"
-            value={formatQuoteUsd(summary.net_deposits)}
-          />
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
-
 function ActivityCard({ activity }: { activity: LpActivity[] }) {
+  const pageSize = 10
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(activity.length / pageSize))
+  const pageStart = page * pageSize
+  const visibleActivity = activity.slice(pageStart, pageStart + pageSize)
+
+  useEffect(() => {
+    setPage(0)
+  }, [activity.length])
+
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
         <CardTitle className="text-sm font-medium">LP Activity</CardTitle>
       </CardHeader>
       <CardContent className="px-0 py-0">
-        <div className="hidden border-b border-border/40 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr]">
+        <div className="hidden border-b border-border/40 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid md:grid-cols-[1fr_0.6fr_1fr_1fr_1fr_0.7fr]">
+          <div>Digest</div>
           <div>Type</div>
           <div>Account</div>
           <div className="text-right">Amount</div>
@@ -1094,11 +1022,17 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
         </div>
         <div className="divide-y divide-border/25">
           {activity.length > 0 ? (
-            activity.map((event) => (
+            visibleActivity.map((event) => (
               <div
-                className="grid gap-1.5 px-3 py-2.5 text-sm md:grid-cols-[0.7fr_1fr_1fr_1fr_0.7fr] md:items-center md:gap-0 md:py-2"
+                className="grid gap-1.5 px-3 py-2.5 text-sm md:grid-cols-[1fr_0.6fr_1fr_1fr_1fr_0.7fr] md:items-center md:gap-0 md:py-2"
                 key={event.id}
               >
+                <LabeledActivityLink
+                  align="left"
+                  href={getTransactionUrl(event.transactionDigest)}
+                  label="Digest"
+                  value={formatAddress(event.transactionDigest)}
+                />
                 <div className="flex items-center justify-between gap-3 md:block">
                   <span
                     className={cn(
@@ -1114,9 +1048,14 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
                     {formatRelativeTime(event.timestampMs)}
                   </span>
                 </div>
-                <div className="font-mono text-xs text-muted-foreground">
+                <a
+                  className="font-mono text-xs text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  href={getAccountUrl(event.account)}
+                  rel="noreferrer"
+                  target="_blank"
+                >
                   {formatAddress(event.account)}
-                </div>
+                </a>
                 <LabeledActivityValue
                   label="Amount"
                   value={formatQuoteAmount(event.amount)}
@@ -1136,6 +1075,33 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
             </div>
           )}
         </div>
+        {activity.length > pageSize && (
+          <div className="flex items-center justify-between border-t border-border/40 px-3 py-2">
+            <Button
+              disabled={page === 0}
+              onClick={() => setPage((currentPage) => Math.max(0, currentPage - 1))}
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Previous
+            </Button>
+            <div className="font-mono text-[10px] text-muted-foreground tabular-nums">
+              Page {page + 1} / {pageCount}
+            </div>
+            <Button
+              disabled={page >= pageCount - 1}
+              onClick={() =>
+                setPage((currentPage) => Math.min(pageCount - 1, currentPage + 1))
+              }
+              size="xs"
+              type="button"
+              variant="outline"
+            >
+              Next
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -1152,6 +1118,37 @@ function LabeledActivityValue({
     <div className="flex items-center justify-between gap-3 font-mono text-xs text-foreground tabular-nums md:block md:text-right">
       <span className="text-muted-foreground md:hidden">{label}</span>
       <span>{value}</span>
+    </div>
+  )
+}
+
+function LabeledActivityLink({
+  align = "right",
+  href,
+  label,
+  value,
+}: {
+  align?: "left" | "right"
+  href: string
+  label: string
+  value: string
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-center justify-between gap-3 font-mono text-xs tabular-nums md:block",
+        align === "right" ? "md:text-right" : "md:text-left"
+      )}
+    >
+      <span className="text-muted-foreground md:hidden">{label}</span>
+      <a
+        className="text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+        href={href}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {value}
+      </a>
     </div>
   )
 }

@@ -141,12 +141,7 @@ function PlpHealthCard({ model }: { model: RiskModel }) {
   return (
     <Card className="h-full rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex items-end justify-between gap-3">
-          <CardTitle className="text-sm font-medium">PLP Health</CardTitle>
-          <div className="font-mono text-sm font-medium text-foreground tabular-nums">
-            {formatQuoteUsd(summary.vault_value)}
-          </div>
-        </div>
+        <CardTitle className="text-sm font-medium">PLP Health</CardTitle>
       </CardHeader>
       <CardContent className="px-3 py-3">
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
@@ -179,12 +174,28 @@ function PlpHealthCard({ model }: { model: RiskModel }) {
             value={formatQuoteUsd(summary.available_withdrawal)}
           />
           <MetricTile
+            label="Available liquidity"
+            value={formatQuoteUsd(summary.available_liquidity)}
+          />
+          <MetricTile
             label="PLP price"
             value={formatSharePrice(summary.plp_share_price)}
           />
           <MetricTile
             label="PLP supply"
             value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
+          />
+          <MetricTile
+            label="Total supplied"
+            value={formatQuoteUsd(summary.total_supplied)}
+          />
+          <MetricTile
+            label="Total withdrawn"
+            value={formatQuoteUsd(summary.total_withdrawn)}
+          />
+          <MetricTile
+            label="Net deposits"
+            value={formatQuoteUsd(summary.net_deposits)}
           />
         </div>
       </CardContent>
@@ -267,14 +278,9 @@ function ScenarioSimulatorCard({ rows }: { rows: RiskScenarioRow[] }) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <CardTitle className="text-sm font-medium">
-            Scenario Simulator
-          </CardTitle>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Estimates from public data
-          </div>
-        </div>
+        <CardTitle className="text-sm font-medium">
+          Scenario Simulator
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-0 py-0">
         <div className="grid gap-3 px-3 py-3 xl:grid-cols-[minmax(0,1fr)_minmax(30rem,1.2fr)]">
@@ -319,30 +325,30 @@ function ScenarioChart({ rows }: { rows: RiskScenarioRow[] }) {
               >
                 <stop
                   offset="5%"
-                  stopColor="var(--outcome-down)"
+                  stopColor="rgb(var(--outcome-down))"
                   stopOpacity={0.28}
                 />
                 <stop
                   offset="95%"
-                  stopColor="var(--outcome-down)"
+                  stopColor="rgb(var(--outcome-down))"
                   stopOpacity={0}
                 />
               </linearGradient>
             </defs>
             <CartesianGrid
-              stroke="var(--border)"
+              stroke="rgb(var(--border))"
               strokeDasharray="3 3"
               vertical={false}
             />
             <XAxis
               axisLine={false}
               dataKey="label"
-              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
               tickLine={false}
             />
             <YAxis
               axisLine={false}
-              tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
+              tick={{ fill: "rgb(var(--muted-foreground))", fontSize: 11 }}
               tickFormatter={(value) =>
                 typeof value === "number"
                   ? compactPercentFormatter.format(value)
@@ -355,7 +361,7 @@ function ScenarioChart({ rows }: { rows: RiskScenarioRow[] }) {
               dataKey="drawdownPct"
               fill="url(#riskDrawdownGradient)"
               isAnimationActive={false}
-              stroke="var(--outcome-down)"
+              stroke="rgb(var(--outcome-down))"
               strokeWidth={2}
               type="monotone"
             />
@@ -363,7 +369,7 @@ function ScenarioChart({ rows }: { rows: RiskScenarioRow[] }) {
               dataKey="drawdownPct"
               dot={false}
               isAnimationActive={false}
-              stroke="var(--outcome-down)"
+              stroke="rgb(var(--outcome-down))"
               strokeWidth={2}
               type="monotone"
             />
@@ -451,14 +457,9 @@ function ExposureBreakdownCard({ model }: { model: RiskModel }) {
   return (
     <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <CardTitle className="text-sm font-medium">
-            Exposure Breakdown
-          </CardTitle>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            Estimated from public event data
-          </div>
-        </div>
+        <CardTitle className="text-sm font-medium">
+          Exposure Breakdown
+        </CardTitle>
       </CardHeader>
       <CardContent className="px-0 py-0">
         {model.hasIncompleteReconstruction ? (

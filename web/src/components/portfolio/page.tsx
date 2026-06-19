@@ -60,10 +60,8 @@ import {
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
-import {
-  getShieldPositions,
-  type ShieldPositionRow,
-} from "@/services/shield-client"
+import { getShieldPositions } from "@/services/shield-client"
+import type { ShieldPositionRow } from "@/services/shield-client"
 
 export interface PageProps {
   oracles: OracleInfo[]
@@ -1468,7 +1466,7 @@ function TradingAccountDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-lg border-0 shadow-none ring-0">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

@@ -119,7 +119,7 @@ function MarketSelector({
       </DialogTrigger>
 
       <DialogContent
-        className="max-h-[min(36rem,calc(100vh-2rem))] gap-0 overflow-hidden rounded-md border border-border/50 bg-card p-0 shadow-none ring-0 sm:max-w-2xl"
+        className="max-h-[min(36rem,calc(100vh-2rem))] gap-0 overflow-hidden rounded-md border-0 bg-card p-0 shadow-none ring-0 sm:max-w-2xl"
         showCloseButton={false}
       >
         <DialogClose

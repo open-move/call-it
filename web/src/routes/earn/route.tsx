@@ -14,8 +14,8 @@ export const Route = createFileRoute("/earn")({
     const [summary, performance, supplies, withdrawals] = await Promise.all([
       getPredictVaultSummary(),
       getPredictVaultPerformance("ALL"),
-      getLpSupplies(10),
-      getLpWithdrawals(10),
+      getLpSupplies(100),
+      getLpWithdrawals(100),
     ])
 
     return { performance, supplies, summary, withdrawals }

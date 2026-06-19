@@ -3,8 +3,8 @@ import {
   DynamicUserProfile,
 } from "@dynamic-labs/sdk-react-core"
 import { SuiWalletConnectors } from "@dynamic-labs/sui"
-import {  useEffect, useState } from "react"
-import type {ReactNode} from "react";
+import { useEffect, useState } from "react"
+import type { ReactNode } from "react"
 
 import { PredictAccountProvider } from "@/lib/providers/predict-account"
 
@@ -18,7 +18,7 @@ const dynamicCssOverrides = `
   .modal-card,
   .dynamic-widget-modal {
     background: var(--dynamic-base-1) !important;
-    border: var(--dynamic-modal-border) !important;
+    border: 0 !important;
     border-radius: var(--dynamic-border-radius) !important;
     box-shadow: none !important;
   }
