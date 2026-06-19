@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, SearchIcon } from "lucide-react"
+import { CheckIcon, ChevronDownIcon, SearchIcon, XIcon } from "lucide-react"
 import { useState } from "react"
 import { Link } from "@tanstack/react-router"
 
@@ -8,8 +8,8 @@ import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
+  DialogClose,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -118,28 +118,42 @@ function MarketSelector({
         <ChevronDownIcon className="size-3.5 text-muted-foreground transition-transform group-aria-expanded/button:rotate-180" />
       </DialogTrigger>
 
-      <DialogContent className="max-h-[min(42rem,calc(100vh-2rem))] gap-0 overflow-hidden rounded-xl bg-card p-0 sm:max-w-3xl">
-        <DialogHeader className="border-b border-border/45 px-4 py-3">
-          <DialogTitle className="text-base">Select market</DialogTitle>
-          <DialogDescription className="text-xs">
-            Switch expiry or asset without leaving the trading layout.
-          </DialogDescription>
+      <DialogContent
+        className="max-h-[min(36rem,calc(100vh-2rem))] gap-0 overflow-hidden rounded-md border border-border/50 bg-card p-0 shadow-none ring-0 sm:max-w-2xl"
+        showCloseButton={false}
+      >
+        <DialogClose
+          render={
+            <Button
+              aria-label="Close market selector"
+              className="absolute top-2.5 right-3 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              size="icon-xs"
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          <XIcon className="size-3.5" />
+          <span className="sr-only">Close</span>
+        </DialogClose>
+        <DialogHeader className="border-b border-border/45 px-4 py-3 pr-12">
+          <DialogTitle className="text-sm">Select Market</DialogTitle>
         </DialogHeader>
 
-        <div className="border-b border-border/35 px-4 py-3">
+        <div className="px-4 pt-3 pb-2">
           <label className="relative block">
             <span className="sr-only">Search markets</span>
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              className="border-0 bg-muted/60 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+              className="border-0 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search markets..."
+              placeholder="Search asset, expiry, or oracle..."
               value={query}
             />
           </label>
         </div>
 
-        <div className="max-h-[min(30rem,calc(100vh-13rem))] overflow-y-auto px-2 py-2">
+        <div className="max-h-[min(24rem,calc(100vh-12rem))] overflow-y-auto px-2 py-2">
           {visibleMarkets.length > 0 ? (
             <div className="grid gap-1">
               {visibleMarkets.map((option) => {
@@ -148,10 +162,11 @@ function MarketSelector({
                 return (
                   <Link
                     className={cn(
-                      "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2.5 py-2 transition-colors hover:bg-accent/40 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-                      isSelected && "bg-primary/10 text-primary hover:bg-primary/15"
+                      "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+                      isSelected && "bg-primary/10 text-primary hover:bg-primary/12"
                     )}
                     key={option.oracleId}
+                    onClick={() => setOpen(false)}
                     params={{ oracleId: option.oracleId }}
                     to="/markets/$oracleId"
                   >
@@ -159,25 +174,23 @@ function MarketSelector({
                       assetIconUrl={option.assetIconUrl}
                       assetName={option.assetName}
                       assetSymbol={option.assetSymbol}
-                      className="size-7"
+                      className="size-5"
                     />
                     <div className="min-w-0">
-                      <div className="truncate text-sm font-medium text-foreground">
-                        {option.assetSymbol} Prediction ·{" "}
-                        {formatMarketTitleExpiry(option.expiryMs)}
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="truncate text-sm leading-none font-medium tracking-tight text-foreground">
+                          {option.assetSymbol} Prediction ·{" "}
+                          {formatMarketTitleExpiry(option.expiryMs)}
+                        </div>
                       </div>
-                      <div className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                        <span className="font-mono tabular-nums">
+                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                        <span className="tabular-nums">
                           Spot {formatUsd(option.currentPriceUsd, 0)}
-                        </span>
-                        <span aria-hidden="true">·</span>
-                        <span className="font-mono tabular-nums">
-                          Expires {formatExpiryDistance(option.expiryMs)}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-right">
-                      <div className="font-mono tabular-nums">
+                      <div className="tabular-nums">
                         <div className="text-sm font-medium text-foreground">
                           {formatProbability(option.fairUpProbability)}
                         </div>
@@ -196,7 +209,7 @@ function MarketSelector({
                       {isSelected ? (
                         <CheckIcon className="size-4 text-primary" />
                       ) : (
-                        <span className="size-4" />
+                        <span className="size-4 text-muted-foreground/40" />
                       )}
                     </div>
                   </Link>
