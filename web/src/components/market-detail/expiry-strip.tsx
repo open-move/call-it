@@ -1,5 +1,5 @@
 import { DetailExpiryStrip } from "@/components/shared/detail/detail-expiry-strip"
-import type {ExpiryOption} from "@/lib/types/market";
+import type { ExpiryOption } from "@/lib/types/market"
 
 export interface ExpiryStripProps {
   expiryOptions: ExpiryOption[]

@@ -22,22 +22,20 @@ import {
   formatUnitPrice,
   parseDecimalUnits,
 } from "@/lib/amounts"
-import type {MarketSnapshot} from "@/lib/types/market";
-import type {PositionTradeIntent} from "@/lib/types/trade";
+import type { MarketSnapshot } from "@/lib/types/market"
+import type { PositionTradeIntent } from "@/lib/types/trade"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   executeSuiTransaction,
-  preparePredictMintTransaction
-  
+  preparePredictMintTransaction,
 } from "@/services/predict-transactions"
-import type {PredictTradeParams} from "@/services/predict-transactions";
+import type { PredictTradeParams } from "@/services/predict-transactions"
 import {
   formatPredictTradeError,
   formatPredictQuoteMessage,
-  quotePredictTradeSafe
-  
+  quotePredictTradeSafe,
 } from "@/services/predict-quotes"
-import type {PredictQuoteResult} from "@/services/predict-quotes";
+import type { PredictQuoteResult } from "@/services/predict-quotes"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -47,8 +45,8 @@ import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 import {
   getShieldPositions,
-  type ShieldPositionRow,
 } from "@/services/shield-client"
+import type { ShieldPositionRow } from "@/services/shield-client"
 
 type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
@@ -299,6 +297,20 @@ function OrderTicketClient({
     market.fairUpProbability === undefined
       ? "--"
       : `${Math.round((isAbove ? market.fairUpProbability : 1 - market.fairUpProbability) * 100)}%`
+  const quotePriceValue = !isRangeValid && ticketMode === "range"
+    ? "Invalid range"
+    : quotedQuote && selectedQuantity
+      ? `${formatUnitPrice(quotedQuote.mintCost, selectedQuantity)} DUSDC`
+      : quote?.status === "no_quote"
+        ? "No quote"
+        : isQuoting
+          ? "Quoting"
+          : "--"
+  const premiumValue = quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"
+  const maxLossValue = premiumValue
+  const potentialPayoutValue = quotedQuote
+    ? formatDusdc(quotedQuote.redeemPayout)
+    : "--"
   const isTradeDisabled =
     isSubmitting ||
     predictAccount.status === "loading" ||
@@ -314,7 +326,9 @@ function OrderTicketClient({
       ? "Sign in to trade"
       : isSubmitting
         ? "Submitting"
-        : "Mint Position"
+        : ticketMode === "range"
+          ? "Open Range"
+          : "Open Position"
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000)
@@ -575,7 +589,7 @@ function OrderTicketClient({
         }}
         value={ticketMode}
       >
-        <TabsList className="w-full overflow-hidden rounded-md bg-muted p-0">
+        <TabsList className="w-full overflow-hidden rounded-md bg-muted/25 p-0">
           {(["binary", "range"] satisfies TicketMode[]).map((mode) => (
             <TicketModeTab key={mode} mode={mode} />
           ))}
@@ -594,11 +608,11 @@ function OrderTicketClient({
                   <Button
                     aria-pressed={isSelected}
                     className={cn(
-                      "border-0 bg-muted text-sm font-normal text-muted-foreground shadow-none ring-0 hover:bg-accent focus-visible:ring-0",
+                      "border border-border/35 bg-muted/25 text-sm font-medium text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color,transform] duration-150 hover:border-border/50 hover:bg-muted/35 hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/30",
                       isSelected &&
                         (side === "above"
-                          ? "bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
-                          : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15")
+                          ? "border-outcome-up/30 bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
+                          : "border-outcome-down/30 bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15")
                     )}
                     key={side}
                     onClick={() => setContractSide(side)}
@@ -647,10 +661,12 @@ function OrderTicketClient({
         )}
 
         <label className="block space-y-2">
-          <span className="text-xs text-muted-foreground">Contracts</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Contracts
+          </span>
           <div className="relative">
             <Input
-              className="border-0 pr-24 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+              className="border-border/35 bg-muted/25 pr-24 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => setSize(event.target.value)}
               placeholder="0.00"
@@ -662,28 +678,19 @@ function OrderTicketClient({
           </div>
         </label>
 
-        <TicketSection title="Order">
+        <TicketSection title="Preview">
           {ticketMode === "binary" ? (
             <>
-              <TicketRow
-                label="Price"
-                value={
-                  quotedQuote && selectedQuantity
-                    ? `${formatUnitPrice(
-                        quotedQuote.mintCost,
-                        selectedQuantity
-                      )} DUSDC`
-                    : quote?.status === "no_quote"
-                      ? "No quote"
-                      : isQuoting
-                        ? "Quoting"
-                        : "--"
-                }
-              />
+              <TicketRow label="Price" value={quotePriceValue} />
               <TicketRow label="Chance" value={chance} />
+              <TicketRow label="Premium" value={premiumValue} />
               <TicketRow
-                label="Cost"
-                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+                label="Max loss"
+                value={maxLossValue}
+              />
+              <TicketRow
+                label="Potential payout"
+                value={potentialPayoutValue}
               />
             </>
           ) : (
@@ -697,24 +704,16 @@ function OrderTicketClient({
               />
               <TicketRow
                 label="Price"
-                value={
-                  !isRangeValid
-                    ? "Invalid range"
-                    : quotedQuote && selectedQuantity
-                      ? `${formatUnitPrice(
-                          quotedQuote.mintCost,
-                          selectedQuantity
-                        )} DUSDC`
-                      : quote?.status === "no_quote"
-                        ? "No quote"
-                        : isQuoting
-                          ? "Quoting"
-                          : "--"
-                }
+                value={quotePriceValue}
+              />
+              <TicketRow label="Premium" value={premiumValue} />
+              <TicketRow
+                label="Max loss"
+                value={maxLossValue}
               />
               <TicketRow
-                label="Cost"
-                value={quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"}
+                label="Potential payout"
+                value={potentialPayoutValue}
               />
             </>
           )}
@@ -742,7 +741,7 @@ function OrderTicketClient({
         ) : null}
 
         <Button
-          className="w-full"
+          className="w-full active:scale-[0.96]"
           disabled={
             !!marketUnavailableMessage || (isTradeDisabled && !!walletAddress)
           }
@@ -761,7 +760,7 @@ function TicketModeTab({ mode }: { mode: TicketMode }) {
 
   return (
     <TabsTrigger
-      className="rounded-none border-0 !border-transparent text-sm font-normal text-muted-foreground shadow-none ring-0 outline-none after:hidden focus-visible:!border-transparent focus-visible:!ring-0 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/10 data-active:!text-primary dark:data-active:!border-transparent"
+      className="rounded-none border-0 !border-transparent text-sm font-medium text-muted-foreground shadow-none ring-0 outline-none transition-[background-color,color] duration-150 after:hidden hover:bg-muted/25 hover:text-foreground focus-visible:!border-transparent focus-visible:!ring-2 focus-visible:!ring-primary/30 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/8 data-active:!text-primary dark:data-active:!border-transparent"
       value={mode}
     >
       <ModeIcon className="size-3.5" />
@@ -783,9 +782,11 @@ function StrikeInput({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-xs text-muted-foreground">Strike (USD)</span>
+      <span className="text-xs font-medium text-muted-foreground">
+        Strike (USD)
+      </span>
       <Input
-        className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+        className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
         inputMode="decimal"
         onBlur={onCommitStrike}
         onChange={(event) => onCustomStrikeChange(event.target.value)}
@@ -851,11 +852,11 @@ function RangeSelector({
   return (
     <div className="grid grid-cols-2 gap-2">
       <label className="space-y-2">
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           Lower Strike (USD)
         </span>
         <Input
-          className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
           inputMode="decimal"
           onBlur={commitLowerStrike}
           onChange={(event) => setLowerInput(event.target.value)}
@@ -868,11 +869,11 @@ function RangeSelector({
         />
       </label>
       <label className="space-y-2">
-        <span className="text-xs text-muted-foreground">
+        <span className="text-xs font-medium text-muted-foreground">
           Upper Strike (USD)
         </span>
         <Input
-          className="border-0 font-mono text-xs shadow-none ring-0 focus-visible:ring-1"
+          className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
           inputMode="decimal"
           onBlur={commitHigherStrike}
           onChange={(event) => setHigherInput(event.target.value)}

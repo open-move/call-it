@@ -70,7 +70,7 @@ export function DetailHeader({
         </div>
 
         <div className="overflow-x-auto pb-1">
-          <div className="flex min-w-150 items-end gap-6">
+          <div className="flex min-w-128 items-end gap-6">
             {metrics.map((metric) => (
               <DetailHeaderMetric key={metric.label} {...metric} />
             ))}
@@ -109,7 +109,7 @@ function DetailHeaderMetric({
 
   return (
     <div className="min-w-0 whitespace-nowrap">
-      <div className="text-[11px] text-muted-foreground">
+      <div className="text-[11px] font-medium text-muted-foreground">
         {description ? (
           <span
             aria-describedby={tooltipPosition ? tooltipId : undefined}
@@ -139,7 +139,7 @@ function DetailHeaderMetric({
       ) : null}
       <div
         className={cn(
-          "mt-1 truncate text-xs leading-none font-medium text-foreground tabular-nums",
+          "mt-1 truncate font-mono text-xs leading-none font-medium text-foreground tabular-nums",
           value === "--" && "text-muted-foreground",
           className
         )}

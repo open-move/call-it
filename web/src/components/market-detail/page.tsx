@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react"
 
-import type {ExpiryOption, MarketSnapshot} from "@/lib/types/market";
-import type {PositionTradeIntent, RangeRedemption, RangeTrade, Redemption, TradeMarket, ToolbarQuote, Trade} from "@/lib/types/trade";
+import type { ExpiryOption, MarketSnapshot } from "@/lib/types/market"
+import type {
+  PositionTradeIntent,
+  RangeRedemption,
+  RangeTrade,
+  Redemption,
+  Trade,
+  TradeMarket,
+} from "@/lib/types/trade"
+import { Card } from "@/components/ui/card"
 import {
   getRedemptionActivityRows,
   getTradeActivityRows,
@@ -13,7 +21,6 @@ import { ExpiryStrip } from "./expiry-strip"
 import { Header } from "./header"
 import { OrderTicket } from "./order-ticket"
 import { Trades } from "./trades"
-import { Card } from "@/components/ui/card"
 
 export interface PageProps {
   expiryOptions: ExpiryOption[]
@@ -24,7 +31,6 @@ export interface PageProps {
   rangeTrades: RangeTrade[]
   redemptions: Redemption[]
   selectedStrikePriceUsd: number
-  toolbarQuote: ToolbarQuote | null
   trades: Trade[]
 }
 
@@ -37,7 +43,6 @@ export function Page({
   rangeTrades,
   redemptions,
   selectedStrikePriceUsd,
-  toolbarQuote,
   trades,
 }: PageProps) {
   const [tradeIntent, setTradeIntent] = useState<PositionTradeIntent>()
@@ -58,13 +63,12 @@ export function Page({
     <main className="mx-auto w-full max-w-384 px-4 py-4 sm:px-6 lg:px-8">
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
-          <div className="h-120 min-w-0">
+          <div className="h-[28rem] min-w-0 xl:h-[min(34rem,calc(100vh-9rem))]">
             <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
               <Header
                 market={market}
                 marketOptions={marketOptions}
                 selectedStrikePriceUsd={activeStrikePriceUsd}
-                toolbarQuote={toolbarQuote}
               />
 
               <ExpiryStrip
@@ -82,7 +86,7 @@ export function Page({
             </Card>
           </div>
 
-          <div className="h-[30rem] min-w-0">
+          <div className="h-[22rem] min-w-0 xl:h-[min(34rem,calc(100vh-9rem))]">
             <Trades
               redemptions={redemptionActivityRows}
               trades={tradeActivityRows}
@@ -102,7 +106,7 @@ export function Page({
           />
         </section>
 
-        <aside className="h-full min-w-0">
+        <aside className="h-full min-w-0 xl:sticky xl:top-[4.25rem] xl:self-start">
           <OrderTicket
             initialSide={initialSide}
             market={market}

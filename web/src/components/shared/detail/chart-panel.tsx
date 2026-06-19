@@ -36,8 +36,9 @@ interface LightweightPriceChartProps {
   size: ElementSize
 }
 
-const CANDLE_DOWN_COLOR = "#ef6a5a"
-const CANDLE_UP_COLOR = "#7fd36b"
+const FALLBACK_CANDLE_DOWN_COLOR = "#ef6a5a"
+const FALLBACK_CANDLE_UP_COLOR = "#7fd36b"
+const FALLBACK_REFERENCE_COLOR = "#5b8def"
 const AXIS_FONT_SIZE = 11
 const RIGHT_CANDLE_OFFSET = 6
 const VISIBLE_CANDLE_COUNT = 90
@@ -154,6 +155,23 @@ function formatPriceSummary(summary: PriceSummary) {
   return `${summary.count} pts · ${formatUsd(summary.min, 0)}-${formatUsd(summary.max, 0)}`
 }
 
+function isChartSupportedColor(value: string) {
+  return (
+    value.startsWith("#") ||
+    value.startsWith("rgb(") ||
+    value.startsWith("rgba(") ||
+    /^[a-z]+$/i.test(value)
+  )
+}
+
+function getChartColor(token: string, fallback: string) {
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(token)
+    .trim()
+
+  return value && isChartSupportedColor(value) ? value : fallback
+}
+
 function applyDefaultVisibleRange(chart: IChartApi, candleCount: number) {
   const rightEdge = candleCount - 1 + RIGHT_CANDLE_OFFSET
   const leftEdge = rightEdge - VISIBLE_CANDLE_COUNT
@@ -235,16 +253,27 @@ function LightweightPriceChart({
         computedBackgroundColor === "rgba(0, 0, 0, 0)"
           ? "transparent"
           : computedBackgroundColor
+      const candleUpColor = getChartColor(
+        "--outcome-up",
+        FALLBACK_CANDLE_UP_COLOR
+      )
+      const candleDownColor = getChartColor(
+        "--outcome-down",
+        FALLBACK_CANDLE_DOWN_COLOR
+      )
+      const referenceColor = getChartColor("--primary", FALLBACK_REFERENCE_COLOR)
+      const popoverColor = getChartColor("--popover", "#1e293b")
+      const mutedForegroundColor = getChartColor("--muted-foreground", "#94a3b8")
       const chart = createChart(chartContainer, {
         autoSize: false,
         crosshair: {
           horzLine: {
             color: "rgba(148, 163, 184, 0.22)",
-            labelBackgroundColor: "#1e293b",
+            labelBackgroundColor: popoverColor,
           },
           vertLine: {
             color: "rgba(148, 163, 184, 0.18)",
-            labelBackgroundColor: "#1e293b",
+            labelBackgroundColor: popoverColor,
           },
         },
         grid: {
@@ -257,7 +286,7 @@ function LightweightPriceChart({
           background: { color: chartBackgroundColor, type: ColorType.Solid },
           fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
           fontSize: AXIS_FONT_SIZE,
-          textColor: "#94a3b8",
+          textColor: mutedForegroundColor,
         },
         localization: {
           priceFormatter: (price: number) =>
@@ -279,23 +308,23 @@ function LightweightPriceChart({
         width: size.width,
       })
       const series = chart.addSeries(CandlestickSeries, {
-        borderDownColor: CANDLE_DOWN_COLOR,
-        borderUpColor: CANDLE_UP_COLOR,
-        downColor: CANDLE_DOWN_COLOR,
+        borderDownColor: candleDownColor,
+        borderUpColor: candleUpColor,
+        downColor: candleDownColor,
         priceFormat: {
           minMove: 0.01,
           precision: 2,
           type: "price",
         },
-        upColor: CANDLE_UP_COLOR,
-        wickDownColor: CANDLE_DOWN_COLOR,
-        wickUpColor: CANDLE_UP_COLOR,
+        upColor: candleUpColor,
+        wickDownColor: candleDownColor,
+        wickUpColor: candleUpColor,
       })
 
       series.setData(seriesData)
       priceLineRef.current = series.createPriceLine({
         axisLabelVisible: true,
-        color: "rgba(91, 141, 239, 0.9)",
+        color: referenceColor,
         lineStyle: LineStyle.Dashed,
         lineVisible: true,
         lineWidth: 1,

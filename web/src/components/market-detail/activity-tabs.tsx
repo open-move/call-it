@@ -108,13 +108,11 @@ function addressMatches(firstAddress: string, secondAddress: string) {
   return firstAddress.toLowerCase() === secondAddress.toLowerCase()
 }
 
-function formatCostUsd(value: number) {
-  return value.toLocaleString("en-US", {
-    currency: "USD",
+function formatDusdcValue(value: number) {
+  return `${value.toLocaleString("en-US", {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
-    style: "currency",
-  })
+  })} DUSDC`
 }
 
 function formatPriceCents(price: number) {
@@ -141,17 +139,15 @@ function toOnchainPositionQuantity(quantity: number) {
   return BigInt(Math.round(quantity * POSITION_QUANTITY_SCALE))
 }
 
-function formatCompactCostUsd(value: number) {
-  return value.toLocaleString("en-US", {
-    currency: "USD",
+function formatCompactDusdc(value: number) {
+  return `${value.toLocaleString("en-US", {
     maximumFractionDigits: value >= 100 ? 0 : 2,
     minimumFractionDigits: value >= 100 ? 0 : 2,
-    style: "currency",
-  })
+  })} DUSDC`
 }
 
-function formatPnlUsd(value: number) {
-  const formatted = formatCostUsd(Math.abs(value))
+function formatPnlDusdc(value: number) {
+  const formatted = formatDusdcValue(Math.abs(value))
 
   if (value > 0) {
     return `+${formatted}`
@@ -947,7 +943,7 @@ function PositionsTable({
             { label: "Position Size" },
             { label: "Entry" },
             { label: "Mark" },
-            { label: "Cost" },
+            { label: "Premium" },
             { align: "right", label: "PnL" },
             { align: "right", label: "" },
           ]}
@@ -993,7 +989,7 @@ function PositionsTable({
                 {formatNullablePriceCents(position.markPrice)}
               </span>
               <span className="font-mono tabular-nums">
-                {formatCompactCostUsd(position.openCostBasisUsd)}
+                {formatCompactDusdc(position.openCostBasisUsd)}
               </span>
               <span
                 className={cn(
@@ -1001,7 +997,7 @@ function PositionsTable({
                   pnlClassName
                 )}
               >
-                {pnl === null ? "--" : formatPnlUsd(pnl)}
+                {pnl === null ? "--" : formatPnlDusdc(pnl)}
               </span>
               <PositionActionMenu
                 onAddPosition={onAddPosition}
@@ -1172,7 +1168,7 @@ function TradesTable({
             "Contract",
             "Price",
             "Position Size",
-            "Cost",
+            "Premium",
             "Trader",
             "Time",
           ]}
@@ -1195,7 +1191,7 @@ function TradesTable({
               {formatQuantity(trade.quantity)}
             </span>
             <span className="font-mono tabular-nums">
-              {formatCompactCostUsd(trade.costUsd)}
+              {formatCompactDusdc(trade.costUsd)}
             </span>
             <AddressText address={trade.trader} />
             <span className="text-right font-mono text-muted-foreground tabular-nums">
@@ -1247,7 +1243,7 @@ function RedemptionsTable({
               {formatQuantity(redemption.quantity)}
             </span>
             <span className="font-mono tabular-nums">
-              {formatCompactCostUsd(redemption.payoutUsd)}
+              {formatCompactDusdc(redemption.payoutUsd)}
             </span>
             <AddressText
               address={

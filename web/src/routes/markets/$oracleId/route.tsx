@@ -2,9 +2,7 @@ import { createFileRoute, notFound } from "@tanstack/react-router"
 import { MarketDetailSkeleton } from "@/components/shared/pending-skeleton"
 
 import { Page as MarketDetailPage } from "@/components/market-detail/page"
-import {
-  loadMarketSnapshot,
-} from "@/lib/market-loaders"
+import { loadMarketSnapshot } from "@/lib/market-loaders"
 import {
   filterRangeRedemptions,
   filterRangeTrades,
@@ -68,7 +66,6 @@ export const Route = createFileRoute("/markets/$oracleId")({
       rangeTrades: filterRangeTrades(rangeMints, activityOptions),
       redemptions: filterRedemptions(positionRedeems, activityOptions),
       selectedStrikePriceUsd,
-      toolbarQuote: null,
       trades: filterTrades(positionMints, activityOptions),
     }
   },
@@ -89,7 +86,6 @@ function Market() {
       rangeTrades={loaderData.rangeTrades}
       redemptions={loaderData.redemptions}
       selectedStrikePriceUsd={loaderData.selectedStrikePriceUsd}
-      toolbarQuote={loaderData.toolbarQuote}
       trades={loaderData.trades}
     />
   )

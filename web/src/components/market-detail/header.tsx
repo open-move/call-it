@@ -22,23 +22,14 @@ import {
   formatStatus,
   formatUsd,
 } from "@/lib/format"
-import { formatUnitPrice } from "@/lib/amounts"
-import { QUOTE_QUANTITY as TOOLBAR_QUOTE_QUANTITY } from "@/lib/config"
 import { cn } from "@/lib/utils"
 import type { MarketSnapshot } from "@/lib/types/market"
-import type { TradeMarket, ToolbarQuote } from "@/lib/types/trade"
+import type { TradeMarket } from "@/lib/types/trade"
 
 export interface HeaderProps {
   market: MarketSnapshot
   marketOptions: TradeMarket[]
   selectedStrikePriceUsd: number
-  toolbarQuote: ToolbarQuote | null
-}
-
-function formatToolbarPrice(value: number | undefined) {
-  return value === undefined
-    ? "--"
-    : formatUnitPrice(BigInt(value), TOOLBAR_QUOTE_QUANTITY)
 }
 
 function getStatusTone(status: string) {
@@ -75,11 +66,9 @@ function filterMarketOptions(markets: TradeMarket[], query: string) {
 function MarketSelector({
   market,
   marketOptions,
-  title,
 }: {
   market: MarketSnapshot
   marketOptions: TradeMarket[]
-  title: string
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -99,7 +88,7 @@ function MarketSelector({
       <DialogTrigger
         render={
           <Button
-            className="h-auto min-w-0 justify-start gap-2 px-0 py-0 text-left hover:bg-transparent focus-visible:ring-2 focus-visible:ring-ring/40 aria-expanded:bg-transparent"
+            className="h-auto min-w-0 justify-start gap-2 px-0 py-0 text-left hover:bg-transparent focus-visible:ring-2 focus-visible:ring-primary/30 aria-expanded:bg-transparent"
             size="sm"
             type="button"
             variant="ghost"
@@ -112,8 +101,11 @@ function MarketSelector({
           assetSymbol={market.assetSymbol}
           className="size-5"
         />
-        <span className="min-w-0 truncate text-sm leading-none font-medium tracking-tight text-foreground">
-          {title}
+        <span className="min-w-0 truncate text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          {market.assetSymbol}{" "}
+          <span className="text-xs font-normal text-muted-foreground">
+            Prediction · {formatMarketTitleExpiry(market.expiryMs)}
+          </span>
         </span>
         <ChevronDownIcon className="size-3.5 text-muted-foreground transition-transform group-aria-expanded/button:rotate-180" />
       </DialogTrigger>
@@ -126,7 +118,7 @@ function MarketSelector({
           render={
             <Button
               aria-label="Close market selector"
-              className="absolute top-2.5 right-3 text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              className="absolute top-2.5 right-3 text-muted-foreground hover:bg-muted/35 hover:text-foreground"
               size="icon-xs"
               type="button"
               variant="ghost"
@@ -145,7 +137,7 @@ function MarketSelector({
             <span className="sr-only">Search markets</span>
             <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
-              className="border-0 pl-8 text-xs shadow-none ring-0 focus-visible:ring-1"
+              className="border-border/35 bg-muted/25 pl-8 text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 placeholder:text-muted-foreground/65 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search asset, expiry, or oracle..."
               value={query}
@@ -162,8 +154,8 @@ function MarketSelector({
                 return (
                   <Link
                     className={cn(
-                      "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2.5 py-2.5 transition-colors hover:bg-accent/35 focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
-                      isSelected && "bg-primary/10 text-primary hover:bg-primary/12"
+                      "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-md px-2.5 py-2.5 transition-[background-color,color,transform] duration-150 hover:bg-muted/25 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+                      isSelected && "bg-primary/8 text-primary hover:bg-primary/12"
                     )}
                     key={option.oracleId}
                     onClick={() => setOpen(false)}
@@ -178,25 +170,27 @@ function MarketSelector({
                     />
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <div className="truncate text-sm leading-none font-medium tracking-tight text-foreground">
-                          {option.assetSymbol} Prediction ·{" "}
-                          {formatMarketTitleExpiry(option.expiryMs)}
+                        <div className="truncate text-sm leading-5 font-medium tracking-[-0.01em] text-foreground">
+                          {option.assetSymbol}{" "}
+                          <span className="text-xs font-normal text-muted-foreground">
+                            Prediction · {formatMarketTitleExpiry(option.expiryMs)}
+                          </span>
                         </div>
                       </div>
-                      <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                        <span className="tabular-nums">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
+                        <span className="font-mono tabular-nums">
                           Spot {formatUsd(option.currentPriceUsd, 0)}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3 text-right">
-                      <div className="tabular-nums">
-                        <div className="text-sm font-medium text-foreground">
+                      <div className="font-mono tabular-nums">
+                        <div className="text-sm leading-5 font-semibold text-foreground">
                           {formatProbability(option.fairUpProbability)}
                         </div>
                         <div
                           className={cn(
-                            "text-[10px]",
+                            "text-[11px] leading-4",
                             option.priceChangePercent >= 0
                               ? "text-outcome-up"
                               : "text-outcome-down"
@@ -227,9 +221,11 @@ function MarketSelector({
   )
 }
 
-export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
-  const quoteValue = formatToolbarPrice(toolbarQuote?.aboveAsk)
-  const spreadValue = formatToolbarPrice(toolbarQuote?.spread)
+export function Header({
+  market,
+  marketOptions,
+  selectedStrikePriceUsd,
+}: HeaderProps) {
   const displayStatus = getMarketDisplayStatus(market)
   const title = `${market.assetSymbol} Prediction · ${formatMarketTitleExpiry(market.expiryMs)}`
 
@@ -244,34 +240,28 @@ export function Header({ market, marketOptions, toolbarQuote }: HeaderProps) {
         <MarketSelector
           market={market}
           marketOptions={marketOptions}
-          title={title}
         />
       }
       metrics={[
-        {
-          description: "Current ask price to open an Up position for this market.",
-          label: "Price (Up)",
-          value: quoteValue,
-        },
-        {
-          description: "Difference between the current bid and ask quotes.",
-          label: "Spread",
-          value: spreadValue,
-        },
         {
           description: "Latest oracle spot price for the underlying asset.",
           label: "Spot",
           value: formatUsd(market.currentPriceUsd, 0),
         },
         {
-          description: "Lowest strike currently listed for this market expiry.",
-          label: "Min Strike",
-          value: formatUsd(market.minStrikeUsd, 0),
+          description: "Selected settlement threshold for this ticket.",
+          label: "Strike",
+          value: formatUsd(selectedStrikePriceUsd, 0),
         },
         {
           description: "Time remaining until this market expiry.",
           label: "Expires",
           value: formatExpiryDistance(market.expiryMs),
+        },
+        {
+          description: "Current fair Up probability from Predict market data.",
+          label: "Up Prob.",
+          value: formatProbability(market.fairUpProbability),
         },
       ]}
       title={title}

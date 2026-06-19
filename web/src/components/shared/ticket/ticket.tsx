@@ -1,4 +1,4 @@
-import type {ReactNode} from "react";
+import type { ReactNode } from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -23,8 +23,8 @@ export function TicketSection({
   title: string
 }) {
   return (
-    <div className="space-y-2 rounded-md bg-muted p-2.5 text-sm">
-      <div className="text-xs text-muted-foreground">{title}</div>
+    <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5 text-sm">
+      <div className="text-xs font-medium text-muted-foreground">{title}</div>
       <div className="space-y-2">{children}</div>
     </div>
   )
@@ -53,10 +53,10 @@ export function TicketMessage({
       className={cn(
         "rounded-md px-3 py-2 text-xs leading-5",
         kind === "error"
-          ? "bg-destructive/10 text-destructive"
+          ? "border border-destructive/25 bg-destructive/10 text-destructive"
           : kind === "success"
-            ? "bg-outcome-up/10 text-outcome-up"
-            : "bg-muted text-muted-foreground"
+            ? "border border-outcome-up/25 bg-outcome-up/10 text-outcome-up"
+            : "bg-muted/15 text-muted-foreground"
       )}
     >
       {children}

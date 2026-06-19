@@ -51,7 +51,7 @@ export function Trades({ redemptions, trades }: TradesProps) {
       <CardContent className="min-h-0 flex-1 overflow-y-auto px-0 pt-0 pb-2.5">
         {tapeRows.length > 0 ? (
           <div className="space-y-0.5 px-2">
-            <div className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_0.75rem] gap-x-1 gap-y-2 px-2 pb-1 text-[10px] tracking-wide text-muted-foreground uppercase sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem_0.75rem]">
+            <div className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_1.25rem] gap-x-1 gap-y-2 px-2 pb-1 text-[10px] tracking-wide text-muted-foreground uppercase sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem_1.25rem]">
               <span>Price</span>
               <span className="text-center">Size</span>
               <span className="text-right">Time</span>
@@ -60,7 +60,7 @@ export function Trades({ redemptions, trades }: TradesProps) {
             {tapeRows.map((row) => (
               <div
                 className={cn(
-                  "grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_0.75rem] items-center gap-x-1 gap-y-2 rounded-sm px-2 py-1.5 text-[10px] tabular-nums sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem_0.75rem]",
+                  "grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_1.25rem] items-center gap-x-1 gap-y-2 rounded-sm px-2 py-1 text-[10px] tabular-nums sm:grid-cols-[minmax(0,1fr)_3.25rem_4.75rem_1.25rem]",
                   row.action === "mint"
                     ? "bg-outcome-up/5"
                     : "bg-outcome-down/5"
@@ -85,7 +85,7 @@ export function Trades({ redemptions, trades }: TradesProps) {
                 </span>
                 <a
                   aria-label="Open transaction in explorer"
-                  className="inline-flex size-3 items-center justify-center text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                  className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground transition-[background-color,color,transform] duration-150 hover:bg-muted/30 hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
                   href={getTransactionUrl(row.transactionDigest)}
                   rel="noreferrer"
                   target="_blank"
