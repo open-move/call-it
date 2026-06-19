@@ -42,7 +42,7 @@ export interface PageProps {
 }
 
 type ShieldAction = "deposit" | "withdraw"
-type RoundStepId = "deposit" | "active" | "settled" | "reopened"
+type RoundStepId = "deposit" | "start" | "settle" | "realize"
 
 const bpsFormatter = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
@@ -55,10 +55,10 @@ const sharePriceFormatter = new Intl.NumberFormat("en-US", {
 })
 
 const roundSteps = [
-  { id: "deposit", label: "Deposit Window" },
-  { id: "active", label: "Round Active" },
-  { id: "settled", label: "Oracle Settled" },
-  { id: "reopened", label: "Reopened" },
+  { id: "deposit", label: "Deposit" },
+  { id: "start", label: "Start" },
+  { id: "settle", label: "Settle" },
+  { id: "realize", label: "Realize" },
 ] satisfies { id: RoundStepId; label: string }[]
 
 function formatDusdc(value: bigint, maximumFractionDigits = 2) {
@@ -134,11 +134,33 @@ function getRoundStage(vault?: ShieldVaultState): RoundStepId {
     return "deposit"
   }
 
-  return vault.activeRound.settled ? "settled" : "active"
+  return vault.activeRound.settled ? "settle" : "start"
+}
+
+function getRoundStateCopy(vault?: ShieldVaultState) {
+  if (!vault) {
+    return "Loading Shield round state."
+  }
+
+  if (vault.paused) {
+    return "Vault actions are paused while the operator reviews the round."
+  }
+
+  if (!vault.activeRound) {
+    return "Deposits and withdrawals are open until the next Predict round starts."
+  }
+
+  if (vault.activeRound.settled) {
+    return "Oracle settled. The vault can redeem the hedge, withdraw PLP, and reopen."
+  }
+
+  return "Capital is deployed into PLP with a DOWN hedge below spot."
 }
 
 function getStepState(step: RoundStepId, activeStep: RoundStepId) {
-  const activeIndex = roundSteps.findIndex((roundStep) => roundStep.id === activeStep)
+  const activeIndex = roundSteps.findIndex(
+    (roundStep) => roundStep.id === activeStep
+  )
   const stepIndex = roundSteps.findIndex((roundStep) => roundStep.id === step)
 
   if (stepIndex < activeIndex) {
@@ -152,7 +174,10 @@ function getStepState(step: RoundStepId, activeStep: RoundStepId) {
   return "idle"
 }
 
-function getRoundProduct(vault: ShieldVaultState | undefined, products: ShieldProduct[]) {
+function getRoundProduct(
+  vault: ShieldVaultState | undefined,
+  products: ShieldProduct[]
+) {
   const oracleId = vault?.activeRound?.oracleId
 
   if (!oracleId) {
@@ -230,7 +255,6 @@ export function Page({ products }: PageProps) {
   const depositQuote = getDepositQuote(parsedAmount, vault)
   const withdrawQuote = getWithdrawQuote(parsedAmount, vault)
   const status = getVaultStatus(vault)
-  const userValue = getUserValue(wallet, vault)
   const roundProduct = getRoundProduct(vault, products)
   const canUseVault = !!vault && !vault.paused && !vault.activeRound
   const actionBalance =
@@ -261,7 +285,9 @@ export function Page({ products }: PageProps) {
       setVault(nextVault)
       setMessage(undefined)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to load Shield")
+      setMessage(
+        error instanceof Error ? error.message : "Failed to load Shield"
+      )
       setMessageTone("error")
     } finally {
       setIsLoadingVault(false)
@@ -275,7 +301,9 @@ export function Page({ products }: PageProps) {
       setWallet(await getShieldWalletState(address))
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to load wallet balances"
+        error instanceof Error
+          ? error.message
+          : "Failed to load wallet balances"
       )
       setMessageTone("error")
     } finally {
@@ -355,7 +383,9 @@ export function Page({ products }: PageProps) {
     }
 
     setIsSubmitting(true)
-    setMessage(action === "deposit" ? "Preparing deposit" : "Preparing withdrawal")
+    setMessage(
+      action === "deposit" ? "Preparing deposit" : "Preparing withdrawal"
+    )
     setMessageTone("muted")
 
     try {
@@ -370,9 +400,13 @@ export function Page({ products }: PageProps) {
               walletAddress,
             })
 
-      setMessage(action === "deposit" ? "Depositing DUSDC" : "Withdrawing DUSDC")
+      setMessage(
+        action === "deposit" ? "Depositing DUSDC" : "Withdrawing DUSDC"
+      )
       await executeSuiTransaction(signer, transaction)
-      setMessage(action === "deposit" ? "Deposit confirmed" : "Withdrawal confirmed")
+      setMessage(
+        action === "deposit" ? "Deposit confirmed" : "Withdrawal confirmed"
+      )
       setAmount("")
       setDialogAction(undefined)
       await refreshAll()
@@ -389,23 +423,25 @@ export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <ShieldProductHeader />
+
+        <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
           <ShieldOverviewCard
             isLoading={isLoadingVault}
             status={status}
-            userValue={userValue}
             vault={vault}
           />
 
           <ShieldPositionPanel
             onOpenAction={openActionDialog}
+            onSignIn={() => setShowAuthFlow(true)}
             vault={vault}
             wallet={wallet}
             walletAddress={walletAddress}
           />
         </div>
 
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-2">
           <RoundProgressCard
             product={roundProduct}
             status={status}
@@ -440,76 +476,149 @@ export function Page({ products }: PageProps) {
   )
 }
 
+function ShieldProductHeader() {
+  return (
+    <div className="mx-auto max-w-5xl rounded-md bg-card px-4 py-3">
+      <div className="text-sm leading-none font-medium tracking-[-0.01em]">
+        Shield · Predict LP + downside hedge
+      </div>
+      <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
+        Earn Predict LP returns with a built-in downside hedge. Users hold
+        cSHIELD vault shares while the vault manages PLP supply, hedge spend,
+        settlement, and roll-forward.
+      </p>
+    </div>
+  )
+}
+
 function ShieldOverviewCard({
   isLoading,
   status,
-  userValue,
   vault,
 }: {
   isLoading: boolean
   status: string
-  userValue: bigint
   vault?: ShieldVaultState
 }) {
   return (
-    <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Shield Overview</CardTitle>
+    <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Vault Overview
+        </CardTitle>
       </CardHeader>
-      <CardContent className="px-3">
-        <div className="grid grid-cols-2 gap-x-4 gap-y-2 py-2 lg:grid-cols-4">
-          <VaultStat
-            label="NAV"
+      <CardContent className="flex flex-1 flex-col px-4 pt-2 pb-4">
+        <div className="space-y-2.5">
+          <VaultOverviewRow
+            label="Vault NAV"
             value={vault ? formatDusdc(vault.nav) : isLoading ? "--" : "Setup"}
           />
-          <VaultStat
-            label="Available Cash"
+          <VaultOverviewRow
+            label="Cash reserve"
             value={vault ? formatDusdc(vault.cash) : "--"}
           />
-          <VaultStat
-            label="Share Price"
-            value={vault ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC` : "--"}
-          />
-          <VaultStat
-            label="Share Supply"
-            value={vault ? formatShares(vault.shareSupply) : "--"}
-          />
-          <VaultStat
-            label="PLP Cost Basis"
+          <VaultOverviewRow
+            label="PLP deployed"
             value={vault ? formatDusdc(vault.plpCostBasis) : "--"}
           />
-          <VaultStat
-            label="PLP Shares"
+          <VaultOverviewRow
+            label="PLP balance"
             value={
               vault
                 ? formatDecimalUnits(vault.plpAmount, PREDICT_QUOTE_DECIMALS, 4)
                 : "--"
             }
           />
-          <VaultStat label="Your Value" value={formatDusdc(userValue)} />
-          <VaultStat label="Status" value={status} />
+          <VaultOverviewRow
+            label="cSHIELD Supply"
+            value={vault ? formatShares(vault.shareSupply) : "--"}
+          />
+          <VaultOverviewRow
+            label="cSHIELD Price"
+            value={
+              vault
+                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+                : "--"
+            }
+          />
+          <VaultOverviewRow label="Status" value={status} />
         </div>
 
-        <div className="mt-3 rounded-md bg-muted/40 px-3 py-3">
-          <div className="text-xs font-medium text-foreground">What Shield does</div>
-          <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            DUSDC deposits mint cSHIELD vault shares. Between rounds the vault
-            holds DUSDC cash; during a round it can deploy PLP plus a capped DOWN
-            hedge. Deposits and withdrawals reopen after the round is realized.
-          </p>
-        </div>
+        <CapitalStack vault={vault} />
       </CardContent>
     </Card>
   )
 }
 
+function CapitalStack({ vault }: { vault?: ShieldVaultState }) {
+  const plpAllocation = vault?.policy.maxPlpAllocationBps ?? 0
+  const hedgeBudget = vault?.policy.hedgeBudgetBps ?? 0
+  const reserve = vault?.policy.reserveBps ?? 0
+
+  return (
+    <div className="mt-4 rounded-md border border-border/35 bg-muted/25 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-xs font-medium text-foreground">
+          Capital stack
+        </span>
+        <span className="font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+          Policy caps
+        </span>
+      </div>
+      <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-background/80">
+        <div
+          className="bg-primary"
+          style={{ width: `${Math.max(0, plpAllocation) / 100}%` }}
+        />
+        <div
+          className="bg-primary/45"
+          style={{ width: `${Math.max(0, hedgeBudget) / 100}%` }}
+        />
+        <div
+          className="bg-muted-foreground/35"
+          style={{ width: `${Math.max(0, reserve) / 100}%` }}
+        />
+      </div>
+      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+        <AllocationItem
+          label="PLP cap"
+          value={vault ? formatBps(vault.policy.maxPlpAllocationBps) : "--"}
+        />
+        <AllocationItem
+          label="Hedge budget"
+          value={vault ? formatBps(vault.policy.hedgeBudgetBps) : "--"}
+        />
+        <AllocationItem
+          label="Reserve"
+          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+        />
+      </div>
+    </div>
+  )
+}
+
+function AllocationItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[10px] leading-none text-muted-foreground uppercase">
+        {label}
+      </div>
+      <div className="mt-1 font-mono text-xs font-medium text-foreground tabular-nums">
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function ShieldPositionPanel({
   onOpenAction,
+  onSignIn,
   vault,
   wallet,
   walletAddress,
 }: {
   onOpenAction: (action: ShieldAction) => void
+  onSignIn: () => void
   vault?: ShieldVaultState
   wallet?: ShieldWalletState
   walletAddress?: string
@@ -517,35 +626,42 @@ function ShieldPositionPanel({
   const walletValue = getUserValue(wallet, vault)
 
   return (
-    <Card className="h-full gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Your Position</CardTitle>
+    <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Your Position
+        </CardTitle>
       </CardHeader>
-      <CardContent className="flex h-full flex-col gap-4 px-4 py-4">
+      <CardContent className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">
         {walletAddress ? (
           <div className="space-y-3 pt-1">
             <div>
-              <div className="text-xs text-muted-foreground">Shield value</div>
-              <div className="mt-1 font-mono text-2xl font-medium tracking-tight text-foreground tabular-nums">
+              <div className="text-xs font-medium text-muted-foreground">
+                Shield value
+              </div>
+              <div className="mt-1 font-mono text-xl leading-tight font-medium tracking-tight text-foreground tabular-nums">
                 {formatDusdc(walletValue)}
               </div>
             </div>
-            <div className="space-y-2 border-t border-border/40 pt-3">
+            <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5">
               <PanelRow
-                label="DUSDC"
+                label="DUSDC balance"
                 value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "--"}
               />
               <PanelRow
-                label="cSHIELD"
+                label="cSHIELD balance"
                 value={wallet ? formatShares(wallet.shieldShareBalance) : "--"}
               />
             </div>
           </div>
         ) : (
-          <div className="flex flex-1 flex-col justify-center text-sm">
-            <p className="text-center text-muted-foreground">
+          <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
+            <p className="text-center text-xs text-muted-foreground">
               Connect wallet to view your Shield position.
             </p>
+            <Button className="w-full" onClick={onSignIn} type="button">
+              Sign in to manage Shield
+            </Button>
           </div>
         )}
 
@@ -579,14 +695,31 @@ function RoundProgressCard({
 }) {
   const round = vault?.activeRound
   const activeStep = getRoundStage(vault)
+  const roundCopy = getRoundStateCopy(vault)
 
   return (
-    <Card className="gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Round Progress</CardTitle>
+    <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Current Round
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 px-3 pb-3">
-        <div className="grid overflow-hidden rounded-md bg-muted/35 md:grid-cols-4">
+      <CardContent className="space-y-3 px-4 pt-2 pb-4">
+        <div className="rounded-md border border-border/35 bg-muted/25 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium text-foreground">
+              {status}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+              PLP + DOWN hedge
+            </span>
+          </div>
+          <p className="mt-2 text-xs leading-5 text-muted-foreground">
+            {roundCopy}
+          </p>
+        </div>
+
+        <div className="grid overflow-hidden rounded-md border border-border/35 bg-muted/25 md:grid-cols-4">
           {roundSteps.map((step) => (
             <RoundStep
               key={step.id}
@@ -596,24 +729,32 @@ function RoundProgressCard({
           ))}
         </div>
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-          <RoundMetric label="Status" value={status} />
-          <RoundMetric
-            label="Oracle"
-            value={round ? formatAddress(round.oracleId) : "No active round"}
-          />
-          <RoundMetric
-            label="Trigger"
+        <div className="space-y-2 rounded-md border border-border/35 bg-muted/15 p-3">
+          <RoundDetailRow label="Vault state" value={status} />
+          <RoundDetailRow
+            label="Downside trigger"
             value={round ? `Below ${formatUsd(round.strikeUsd, 0)}` : "--"}
           />
-          <RoundMetric
-            label="Hedge"
-            value={round ? formatDusdc(round.hedgeQuantity, 4) : "--"}
+          <RoundDetailRow
+            label="DOWN hedge size"
+            value={
+              round
+                ? formatDecimalUnits(
+                    round.hedgeQuantity,
+                    PREDICT_QUOTE_DECIMALS,
+                    4
+                  )
+                : "--"
+            }
+          />
+          <RoundDetailRow
+            label="Oracle"
+            value={round ? formatAddress(round.oracleId) : "No active round"}
           />
         </div>
 
         {product ? (
-          <div className="flex items-center gap-2 rounded-md bg-muted/35 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/25 px-3 py-2">
             <AssetIcon
               assetIconUrl={product.market.assetIconUrl}
               assetName={product.market.assetName}
@@ -621,11 +762,12 @@ function RoundProgressCard({
               className="size-6"
             />
             <div className="min-w-0">
-              <div className="truncate text-xs text-foreground">
-                {product.market.assetSymbol} round context
+              <div className="truncate text-xs font-medium text-foreground">
+                {product.market.assetSymbol} hedge context
               </div>
-              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground tabular-nums uppercase">
-                {formatExpiryDistance(product.market.expiryMs)} · spot {formatUsd(product.market.currentPriceUsd, 0)}
+              <div className="mt-0.5 font-mono text-[10px] text-muted-foreground uppercase tabular-nums">
+                {formatExpiryDistance(product.market.expiryMs)} · spot{" "}
+                {formatUsd(product.market.currentPriceUsd, 0)}
               </div>
             </div>
           </div>
@@ -637,13 +779,15 @@ function RoundProgressCard({
 
 function ShieldPolicyCard({ vault }: { vault?: ShieldVaultState }) {
   return (
-    <Card className="gap-2 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="border-b border-border/40 px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm font-medium">Vault Policy</CardTitle>
+    <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
+        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+          Vault Policy
+        </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-2 px-3 pb-3">
+      <CardContent className="space-y-2 px-4 pt-2 pb-4">
         <PolicyRow
-          label="Hedge Budget"
+          label="Hedge budget"
           value={vault ? formatBps(vault.policy.hedgeBudgetBps) : "--"}
         />
         <PolicyRow
@@ -651,15 +795,15 @@ function ShieldPolicyCard({ vault }: { vault?: ShieldVaultState }) {
           value={vault ? formatBps(vault.policy.reserveBps) : "--"}
         />
         <PolicyRow
-          label="Max PLP Allocation"
+          label="PLP allocation cap"
           value={vault ? formatBps(vault.policy.maxPlpAllocationBps) : "--"}
         />
         <PolicyRow
-          label="Strike Band"
+          label="Strike band"
           value={vault ? formatBps(vault.policy.strikeBandBps) : "--"}
         />
         <PolicyRow
-          label="Max Hedge Ask"
+          label="Max hedge ask"
           value={vault ? formatBps(vault.policy.maxHedgeAskBps) : "--"}
         />
       </CardContent>
@@ -714,23 +858,25 @@ function ShieldActionDialog({
       ? "Depositing"
       : "Withdrawing"
     : isDeposit
-      ? "Deposit"
-      : "Withdraw"
+      ? "Deposit DUSDC"
+      : "Withdraw cSHIELD"
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
         <DialogHeader className="gap-1">
-          <DialogTitle className="text-sm font-medium">
+          <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
             {isDeposit ? "Deposit DUSDC" : "Withdraw cSHIELD"}
           </DialogTitle>
         </DialogHeader>
 
         <label className="block space-y-2">
-          <span className="text-xs text-muted-foreground">Amount</span>
+          <span className="text-xs font-medium text-muted-foreground">
+            Amount
+          </span>
           <div className="relative">
             <Input
-              className="border-0 pr-28 font-mono text-sm shadow-none ring-0 focus-visible:ring-1"
+              className="border-border/35 bg-muted/25 pr-28 font-mono text-sm shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
               inputMode="decimal"
               onChange={(event) => onAmountChange(event.target.value)}
               placeholder="0.00"
@@ -752,9 +898,12 @@ function ShieldActionDialog({
           </div>
         </label>
 
-        <div className="space-y-2.5 rounded-md bg-muted px-3 py-3">
+        <div className="space-y-2.5 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
+          <div className="text-xs font-medium text-muted-foreground">
+            Preview
+          </div>
           <PanelRow
-            label={isDeposit ? "DUSDC balance" : "cSHIELD balance"}
+            label="Balance"
             value={
               actionBalance === undefined
                 ? "--"
@@ -776,13 +925,25 @@ function ShieldActionDialog({
             }
           />
           <PanelRow
-            label="Share price"
-            value={vault ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC` : "--"}
+            label="cSHIELD price"
+            value={
+              vault
+                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+                : "--"
+            }
           />
           <PanelRow label="Vault status" value={status} />
+          {isDeposit ? (
+            <PanelRow
+              label="Round access"
+              value={status === "Open" ? "Open vault" : "Next open round"}
+            />
+          ) : null}
         </div>
 
-        {message ? <ShieldMessage tone={messageTone}>{message}</ShieldMessage> : null}
+        {message ? (
+          <ShieldMessage tone={messageTone}>{message}</ShieldMessage>
+        ) : null}
         {!message && invalidReason ? (
           <ShieldMessage tone="muted">{invalidReason}</ShieldMessage>
         ) : null}
@@ -792,7 +953,7 @@ function ShieldActionDialog({
 
         <DialogFooter>
           <Button
-            className="w-full"
+            className="w-full active:scale-[0.98]"
             disabled={buttonDisabled || !canSubmit}
             onClick={onSubmit}
             size="lg"
@@ -806,11 +967,13 @@ function ShieldActionDialog({
   )
 }
 
-function VaultStat({ label, value }: { label: string; value: string }) {
+function VaultOverviewRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="min-w-0">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <div className="mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums">
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-xs leading-none text-muted-foreground">
+        {label}
+      </span>
+      <div className="truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>
@@ -827,8 +990,8 @@ function RoundStep({
   return (
     <div
       className={cn(
-        "px-3 py-2 text-xs md:border-r md:border-border/30 md:last:border-r-0",
-        state === "active" && "bg-primary/10 text-primary",
+        "px-3 py-2 text-center text-xs md:border-r md:border-border/30 md:last:border-r-0",
+        state === "active" && "bg-primary/10 font-medium text-primary",
         state === "complete" && "text-foreground",
         state === "idle" && "text-muted-foreground"
       )}
@@ -838,11 +1001,11 @@ function RoundStep({
   )
 }
 
-function RoundMetric({ label, value }: { label: string; value: string }) {
+function RoundDetailRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="flex items-center justify-between gap-3 border-b border-border/30 pb-2 last:border-b-0 last:pb-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 font-mono text-xs text-foreground tabular-nums">
+      <div className="max-w-[58%] truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
         {value}
       </div>
     </div>
@@ -861,8 +1024,8 @@ function ShieldMessage({
       className={cn(
         "rounded-md px-3 py-2 text-xs leading-5",
         tone === "error"
-          ? "bg-destructive/10 text-destructive"
-          : "bg-muted text-muted-foreground"
+          ? "border border-destructive/25 bg-destructive/10 text-destructive"
+          : "bg-muted/15 text-muted-foreground"
       )}
     >
       {children}
@@ -874,7 +1037,9 @@ function PolicyRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between gap-3 border-b border-border/35 pb-2 last:border-b-0 last:pb-0">
       <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="font-mono text-xs text-foreground tabular-nums">{value}</div>
+      <div className="font-mono text-xs font-medium text-foreground tabular-nums">
+        {value}
+      </div>
     </div>
   )
 }
