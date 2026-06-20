@@ -70,7 +70,7 @@ export function Page({
       <div className="grid items-stretch gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,7fr)_minmax(0,2.5fr)] xl:items-stretch">
           <div className="h-[28rem] min-w-0 xl:h-[min(34rem,calc(100vh-9rem))]">
-            <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+            <Card className="flex h-full min-h-0 flex-col gap-0 overflow-hidden rounded-lg border-0 bg-card py-0 shadow-none ring-0">
               <Header
                 market={market}
                 marketOptions={marketOptions}

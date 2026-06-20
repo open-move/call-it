@@ -41,7 +41,7 @@ export function ActivityTabsFrame<TValue extends string>({
   return (
     <Card
       className={cn(
-        "h-96 min-w-0 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0",
+        "h-96 min-w-0 overflow-hidden rounded-lg border-0 bg-card py-0 shadow-none ring-0",
         cardClassName
       )}
     >

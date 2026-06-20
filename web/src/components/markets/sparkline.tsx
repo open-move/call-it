@@ -98,6 +98,7 @@ export function Sparkline({ className, points }: SparklineProps) {
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="2"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   )

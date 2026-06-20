@@ -135,7 +135,7 @@ export function Row({ market }: RowProps) {
       {/* Mobile card */}
       <Link
         aria-label={`Open ${market.assetName} market`}
-        className="group block space-y-2 rounded-md border-0 bg-card p-3 transition-[background-color,transform] duration-150 hover:bg-muted/25 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:hidden"
+        className="group block space-y-2 rounded-lg bg-card p-3 transition-[background-color,transform] duration-150 hover:bg-muted/25 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:hidden"
         params={{ oracleId: market.oracleId }}
         to="/markets/$oracleId"
       >
@@ -182,7 +182,7 @@ export function Row({ market }: RowProps) {
 
         <Sparkline className="h-7 opacity-90" points={market.priceHistory} />
 
-        <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-4 gap-y-3 text-xs sm:grid-cols-4">
           <Metric
             label="Volume"
             value={formatCompactUsd(market.volumeUsd)}

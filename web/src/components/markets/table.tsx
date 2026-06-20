@@ -21,7 +21,7 @@ const columns = [
 
 export function Table({ markets, onResetFilters }: TableProps) {
   return (
-    <div className="overflow-hidden rounded-md bg-transparent py-0 shadow-none ring-0 lg:bg-card">
+    <div className="overflow-hidden rounded-lg bg-transparent py-0 shadow-none ring-0 lg:bg-card">
       <div className="hidden border-b border-border/35 bg-muted/25 px-3 py-2 text-[10px] font-medium tracking-[0.08em] text-muted-foreground uppercase lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center">
         {columns.map((column, index) => (
           <div
@@ -39,7 +39,7 @@ export function Table({ markets, onResetFilters }: TableProps) {
         {markets.length > 0 ? (
           markets.map((market) => <MarketRow key={market.id} market={market} />)
         ) : (
-          <div className="flex flex-col items-center gap-3 rounded-md bg-card px-4 py-12 text-center lg:rounded-none lg:bg-transparent">
+          <div className="flex flex-col items-center gap-3 rounded-lg bg-card px-4 py-12 text-center lg:rounded-none lg:bg-transparent">
             <div className="text-sm font-medium text-foreground">
               No markets match these filters.
             </div>

@@ -10,13 +10,11 @@ export interface MetricProps {
 
 export function Metric({ className, label, value }: MetricProps) {
   return (
-    <div className="rounded-md border border-border/35 bg-muted/25 px-2.5 py-1.5">
-      <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
+    <div className="min-w-0">
+      <div className="text-xs text-muted-foreground">{label}</div>
       <div
         className={cn(
-          "mt-0.5 font-mono text-xs font-medium text-foreground tabular-nums",
+          "mt-1 truncate font-mono text-xs font-medium text-foreground tabular-nums",
           className
         )}
       >

@@ -44,7 +44,7 @@ export function Trades({ redemptions, trades }: TradesProps) {
   const tapeRows = getTapeRows(trades, redemptions)
 
   return (
-    <Card className="flex h-full w-full flex-col gap-4 rounded-md border-0 bg-card py-0 shadow-none ring-0">
+    <Card className="flex h-full w-full flex-col gap-4 rounded-lg border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-3 py-2.5 pb-0">
         <CardTitle className="text-sm font-medium">Trades</CardTitle>
       </CardHeader>
