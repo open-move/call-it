@@ -4,7 +4,7 @@ import { PanelRow } from "@/components/primitives/panel-row"
 import { formatDusdc, formatShares } from "@/lib/shield/format"
 import { getUserValue } from "@/lib/shield/helpers"
 import type { ShieldAction } from "@/lib/shield/helpers"
-import type { ShieldStrategyState, ShieldWalletState } from "@/services/shield-client"
+import type { HedgedPlpStrategyState, ShieldWalletState } from "@/services/shield-client"
 
 export function ShieldPositionPanel({
   onOpenAction,
@@ -15,7 +15,7 @@ export function ShieldPositionPanel({
 }: {
   onOpenAction: (action: ShieldAction) => void
   onSignIn: () => void
-  strategy?: ShieldStrategyState
+  strategy?: HedgedPlpStrategyState
   wallet?: ShieldWalletState
   walletAddress?: string
 }) {
@@ -45,8 +45,8 @@ export function ShieldPositionPanel({
                 value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "--"}
               />
               <PanelRow
-                label="cSHIELD balance"
-                value={wallet ? formatShares(wallet.shieldShareBalance) : "--"}
+                label="cHPLP balance"
+                value={wallet ? formatShares(wallet.hedgedPlpShareBalance) : "--"}
               />
             </div>
           </div>

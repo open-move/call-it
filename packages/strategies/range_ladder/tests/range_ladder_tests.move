@@ -12,7 +12,7 @@ use deepbook_predict::{
 };
 use range_ladder_strategy::{
     policy,
-    range_ladder_strategy::{Self, RANGE_LADDER_STRATEGY, RangeLadderStrategy},
+    range_ladder_strategy::{Self, RANGE_LADDER_STRATEGY, Strategy},
     test_quote::{Self, TEST_QUOTE},
 };
 use base_vault::base_vault::{Self as base_vault, BASE_VAULT, BaseVault};
@@ -69,7 +69,7 @@ fun create_strategy_sets_policy_cap_and_manager() {
         let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
         let base_vault_id = base.id();
         let treasury = coin::create_treasury_cap_for_testing<RANGE_LADDER_STRATEGY>(test.ctx());
-        let (strategy, cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
+        let (strategy, admin_cap, keeper_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
             treasury,
             &base,
             &manager,
@@ -87,11 +87,13 @@ fun create_strategy_sets_policy_cap_and_manager() {
         assert!(!strategy.has_active_round());
         assert!(!strategy.paused());
         assert_eq!(policy::premium_budget_bps(&strategy.policy()), PREMIUM_BUDGET_BPS);
-        assert_eq!(range_ladder_strategy::cap_strategy_id(&cap), strategy_id);
+        assert_eq!(range_ladder_strategy::admin_cap_strategy_id(&admin_cap), strategy_id);
+        assert_eq!(range_ladder_strategy::keeper_cap_strategy_id(&keeper_cap), strategy_id);
 
         range_ladder_strategy::share_strategy(strategy);
         base_vault::share_vault(base);
-        range_ladder_strategy::destroy_cap_for_testing(cap);
+        range_ladder_strategy::destroy_admin_cap_for_testing(admin_cap);
+        range_ladder_strategy::destroy_keeper_cap_for_testing(keeper_cap);
         base_vault::destroy_cap_for_testing(base_cap);
         return_shared(manager);
     };
@@ -108,7 +110,7 @@ fun deposit_mints_strategy_shares_into_base() {
 
     test.next_tx(USER);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let shares = test.take_from_sender<Coin<RANGE_LADDER_STRATEGY>>();
 
@@ -136,7 +138,7 @@ fun multiple_deposits_mint_proportional_shares() {
 
     test.next_tx(ADMIN);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         assert_eq!(strategy.cash_value(), 0);
         assert_eq!(strategy.base_shares_amount(), 30_000_000_000);
@@ -157,7 +159,7 @@ fun withdraw_burns_shares_and_returns_cash() {
 
     test.next_tx(USER);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let shares = test.take_from_sender<Coin<RANGE_LADDER_STRATEGY>>();
         let out = range_ladder_strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
@@ -184,7 +186,7 @@ fun start_round_mints_exact_ranges_and_refunds_budget() {
 
     test.next_tx(ADMIN);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let first_key = first_range_key(&oracle);
@@ -230,7 +232,7 @@ fun withdraw_aborts_while_round_active() {
 
     test.next_tx(USER);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let shares = test.take_from_sender<Coin<RANGE_LADDER_STRATEGY>>();
         let _out = range_ladder_strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
@@ -262,9 +264,9 @@ fun start_round_aborts_on_wrong_manager() {
 
     test.next_tx(ADMIN);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<range_ladder_strategy::StrategyCap>();
+        let cap = test.take_from_sender<range_ladder_strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(other_manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
@@ -331,7 +333,7 @@ fun settle_round_redeems_ranges_clears_round_and_unlocks_withdrawals() {
 
     test.next_tx(USER);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let shares = test.take_from_sender<Coin<RANGE_LADDER_STRATEGY>>();
 
@@ -435,7 +437,7 @@ fun settle_preserves_post_start_manager_deposit() {
 
     test.next_tx(ADMIN);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
 
         assert!(!strategy.has_active_round());
@@ -464,7 +466,7 @@ fun unwithdrawn_shares_can_enter_next_round() {
 
     test.next_tx(ADMIN);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         assert!(strategy.has_active_round());
         assert_eq!(strategy.share_supply(), DEPOSIT_AMOUNT);
         return_shared(strategy);
@@ -483,7 +485,7 @@ fun start_round_handles_large_nav_bps_math() {
 
     test.next_tx(ADMIN);
     {
-        let strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         assert!(strategy.has_active_round());
         assert!(strategy.cash_value() > 9_000_000_000_000_000);
         return_shared(strategy);
@@ -550,14 +552,14 @@ fun wrong_strategy_cap_cannot_set_policy() {
     let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
     let first_treasury = coin::create_treasury_cap_for_testing<RANGE_LADDER_STRATEGY>(test.ctx());
     let second_treasury = coin::create_treasury_cap_for_testing<RANGE_LADDER_STRATEGY>(test.ctx());
-    let (mut first_strategy, first_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
+    let (mut first_strategy, first_admin_cap, first_keeper_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
         first_treasury,
         &base,
         &manager,
         default_policy(),
         test.ctx(),
     );
-    let (_second_strategy, second_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
+    let (_second_strategy, second_admin_cap, second_keeper_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
         second_treasury,
         &base,
         &manager,
@@ -565,15 +567,17 @@ fun wrong_strategy_cap_cannot_set_policy() {
         test.ctx(),
     );
 
-    range_ladder_strategy::set_policy(&mut first_strategy, &second_cap, default_policy());
+    range_ladder_strategy::set_policy(&mut first_strategy, &second_admin_cap, default_policy());
 
-    range_ladder_strategy::destroy_cap_for_testing(first_cap);
-    range_ladder_strategy::destroy_cap_for_testing(second_cap);
+    range_ladder_strategy::destroy_admin_cap_for_testing(first_admin_cap);
+    range_ladder_strategy::destroy_keeper_cap_for_testing(first_keeper_cap);
+    range_ladder_strategy::destroy_admin_cap_for_testing(second_admin_cap);
+    range_ladder_strategy::destroy_keeper_cap_for_testing(second_keeper_cap);
     base_vault::destroy_cap_for_testing(base_cap);
     abort
 }
 
-fun default_rungs(): vector<policy::RangeRung> {
+fun default_rungs(): vector<policy::Rung> {
     vector[
         policy::new_rung(LOWER_STRIKE, MID_STRIKE, RUNG_QUANTITY),
         policy::new_rung(MID_STRIKE, HIGHER_STRIKE, RUNG_QUANTITY),
@@ -588,7 +592,7 @@ fun setup_strategy_inactive(test: &mut Scenario): Env {
     setup_strategy_with_policy(test, default_policy(), false)
 }
 
-fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::RangeLadderPolicy, activate: bool): Env {
+fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Policy, activate: bool): Env {
     setup_clock(test);
     let currency = test_quote::create_currency(test.ctx());
     registry::init_for_testing(test.ctx());
@@ -609,7 +613,7 @@ fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Ran
     let base_vault_id = base.id();
     let treasury = coin::create_treasury_cap_for_testing<RANGE_LADDER_STRATEGY>(test.ctx());
     let manager = test.take_shared_by_id<PredictManager>(manager_id);
-    let (strategy, cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
+    let (strategy, admin_cap, keeper_cap) = range_ladder_strategy::create_strategy<TEST_QUOTE>(
         treasury,
         &base,
         &manager,
@@ -620,18 +624,19 @@ fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Ran
     range_ladder_strategy::share_strategy(strategy);
     base_vault::share_vault(base);
     transfer::public_transfer(base_cap, ADMIN);
-    transfer::public_transfer(cap, ADMIN);
+    transfer::public_transfer(admin_cap, ADMIN);
+    transfer::public_transfer(keeper_cap, ADMIN);
     return_shared(manager);
 
     Env { base_vault_id, strategy_id, predict_id, manager_id, oracle_id }
 }
 
-fun start_round(test: &mut Scenario, env: &Env, rungs: vector<policy::RangeRung>) {
+fun start_round(test: &mut Scenario, env: &Env, rungs: vector<policy::Rung>) {
     test.next_tx(ADMIN);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<range_ladder_strategy::StrategyCap>();
+        let cap = test.take_from_sender<range_ladder_strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
@@ -652,9 +657,9 @@ fun start_round(test: &mut Scenario, env: &Env, rungs: vector<policy::RangeRung>
 fun settle_round(test: &mut Scenario, env: &Env) {
     test.next_tx(ADMIN);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<range_ladder_strategy::StrategyCap>();
+        let cap = test.take_from_sender<range_ladder_strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
@@ -675,7 +680,7 @@ fun settle_round(test: &mut Scenario, env: &Env) {
 fun tamper_round_predict_id(test: &mut Scenario, env: &Env) {
     test.next_tx(ADMIN);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         range_ladder_strategy::set_active_round_predict_id_for_testing(&mut strategy, env.manager_id);
         return_shared(strategy);
     }
@@ -853,7 +858,7 @@ fun seed_manager_balance(test: &mut Scenario, manager_id: ID, amount: u64) {
 fun deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) {
     test.next_tx(user);
     {
-        let mut strategy = test.take_shared_by_id<RangeLadderStrategy<TEST_QUOTE>>(env.strategy_id);
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let funds = coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx());
         let shares = range_ladder_strategy::deposit(&mut strategy, &mut base, funds, test.ctx());
@@ -872,6 +877,6 @@ fun second_range_key(oracle: &OracleSVI): range_key::RangeKey {
     range_key::new(oracle.id(), oracle.expiry(), MID_STRIKE, HIGHER_STRIKE)
 }
 
-fun default_policy(): policy::RangeLadderPolicy {
+fun default_policy(): policy::Policy {
     policy::new(PREMIUM_BUDGET_BPS, RESERVE_BPS, MAX_RANGE_ASK_BPS, MAX_RUNG_COUNT)
 }

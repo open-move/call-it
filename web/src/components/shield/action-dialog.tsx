@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { PanelRow } from "@/components/primitives/panel-row"
 import { formatDusdc, formatShares, sharePriceFormatter } from "@/lib/shield/format"
 import { cn } from "@/lib/utils"
-import type { ShieldStrategyState } from "@/services/shield-client"
+import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
 function ShieldMessage({
   children,
@@ -71,7 +71,7 @@ export function ShieldActionDialog({
   onSubmit: () => void
   open: boolean
   status: string
-  strategy?: ShieldStrategyState
+  strategy?: HedgedPlpStrategyState
   withdrawQuote?: bigint
 }) {
   const isDeposit = action === "deposit"

@@ -1,6 +1,6 @@
 import type { ShieldProduct } from "@/lib/types/shield"
 import type {
-  ShieldStrategyState,
+  HedgedPlpStrategyState,
   ShieldWalletState,
 } from "@/services/shield-client"
 
@@ -14,7 +14,7 @@ export const roundSteps = [
   { id: "realize", label: "Realize" },
 ] satisfies { id: RoundStepId; label: string }[]
 
-export function getVaultStatus(strategy?: ShieldStrategyState) {
+export function getVaultStatus(strategy?: HedgedPlpStrategyState) {
   if (!strategy) {
     return "Loading"
   }
@@ -34,7 +34,7 @@ export function getVaultStatus(strategy?: ShieldStrategyState) {
   return "Open"
 }
 
-export function getWithdrawQuote(amount: bigint | null, strategy?: ShieldStrategyState) {
+export function getWithdrawQuote(amount: bigint | null, strategy?: HedgedPlpStrategyState) {
   if (!amount || !strategy || strategy.shareSupply === 0n) {
     return undefined
   }
@@ -42,7 +42,7 @@ export function getWithdrawQuote(amount: bigint | null, strategy?: ShieldStrateg
   return (amount * strategy.nav) / strategy.shareSupply
 }
 
-export function getDepositQuote(amount: bigint | null, strategy?: ShieldStrategyState) {
+export function getDepositQuote(amount: bigint | null, strategy?: HedgedPlpStrategyState) {
   if (!amount || !strategy) {
     return undefined
   }
@@ -54,11 +54,11 @@ export function getDepositQuote(amount: bigint | null, strategy?: ShieldStrategy
   return (amount * strategy.shareSupply) / strategy.nav
 }
 
-export function getUserValue(wallet?: ShieldWalletState, strategy?: ShieldStrategyState) {
-  return getWithdrawQuote(wallet?.shieldShareBalance ?? null, strategy) ?? 0n
+export function getUserValue(wallet?: ShieldWalletState, strategy?: HedgedPlpStrategyState) {
+  return getWithdrawQuote(wallet?.hedgedPlpShareBalance ?? null, strategy) ?? 0n
 }
 
-export function getRoundStage(strategy?: ShieldStrategyState): RoundStepId {
+export function getRoundStage(strategy?: HedgedPlpStrategyState): RoundStepId {
   if (!strategy?.activeRound) {
     return "deposit"
   }
@@ -66,7 +66,7 @@ export function getRoundStage(strategy?: ShieldStrategyState): RoundStepId {
   return strategy.activeRound.settled ? "settle" : "start"
 }
 
-export function getRoundStateCopy(strategy?: ShieldStrategyState) {
+export function getRoundStateCopy(strategy?: HedgedPlpStrategyState) {
   if (!strategy) {
     return "Loading Shield round state."
   }
@@ -104,7 +104,7 @@ export function getStepState(step: RoundStepId, activeStep: RoundStepId) {
 }
 
 export function getRoundProduct(
-  strategy: ShieldStrategyState | undefined,
+  strategy: HedgedPlpStrategyState | undefined,
   products: ShieldProduct[]
 ) {
   const oracleId = strategy?.activeRound?.oracleId
@@ -132,7 +132,7 @@ export function getInvalidReason({
   isLoadingWallet: boolean
   parsedAmount: bigint | null
   status: string
-  strategy?: ShieldStrategyState
+  strategy?: HedgedPlpStrategyState
   walletAddress?: string
 }) {
   if (!walletAddress) {

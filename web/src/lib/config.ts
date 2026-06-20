@@ -30,14 +30,16 @@ export const ARENA_OBJECT_ID = ""
 
 export const BASE_VAULT_ID = ""
 
-export const SHIELD_PACKAGE_ID =
+export const HEDGED_PLP_PACKAGE_ID =
   "0x1105d7a9fee8a12073d8c9c5cd4253fb9a317d0e209a50df4c0d8c1e504f2f44"
 
+export const HEDGED_PLP_STRATEGY_ID = ""
+
+export const HEDGED_PLP_SHARE_ASSET = `${HEDGED_PLP_PACKAGE_ID}::hedged_plp_strategy::HEDGED_PLP_STRATEGY`
+
+export const SHIELD_PACKAGE_ID = ""
+
 export const SHIELD_ORIGINAL_PACKAGE_ID = SHIELD_PACKAGE_ID
-
-export const SHIELD_STRATEGY_ID = ""
-
-export const SHIELD_SHARE_ASSET = `${SHIELD_PACKAGE_ID}::shield_strategy::SHIELD_STRATEGY`
 
 export const PROTECT_PACKAGE_ID =
   "0x831382e100bfc9ad633d34c96ab9fb97283ddfdb6e6d5f1fc995801e6b1eda83"

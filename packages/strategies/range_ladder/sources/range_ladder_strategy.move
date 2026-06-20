@@ -19,12 +19,12 @@ use deepbook_predict::{
 };
 
 use base_vault::base_vault::{Self, BASE_VAULT, BaseVault};
-use range_ladder_strategy::policy::{Self, RangeLadderPolicy, RangePosition, RangeRung};
+use range_ladder_strategy::policy::{Self, Policy, Position, Rung};
 
 const BPS_DENOMINATOR: u64 = 10_000;
 
 const EPaused: u64 = 1;
-const EWrongStrategyCap: u64 = 2;
+const EWrongStrategyAdminCap: u64 = 2;
 const ERoundAlreadyActive: u64 = 3;
 const ENoActiveRound: u64 = 4;
 const EWrongManager: u64 = 5;
@@ -40,43 +40,50 @@ const EZeroDeposit: u64 = 14;
 const EZeroShares: u64 = 15;
 const ERangeAskAboveCeiling: u64 = 16;
 const EExceededPremiumBudget: u64 = 17;
-const ERangePositionChanged: u64 = 18;
+const EPositionChanged: u64 = 18;
 const EInvalidRangePayout: u64 = 19;
 const EWrongBaseVault: u64 = 20;
+const EWrongStrategyKeeperCap: u64 = 21;
 
 public struct RANGE_LADDER_STRATEGY has drop {}
 
-public struct RangeRound has copy, drop, store {
+public struct Round has copy, drop, store {
     predict_id: ID,
     oracle_id: ID,
-    positions: vector<RangePosition>,
+    positions: vector<Position>,
 }
 
-public struct RangeLadderStrategy<phantom Quote> has key {
+public struct Strategy<phantom Quote> has key {
     id: UID,
     treasury: TreasuryCap<RANGE_LADDER_STRATEGY>,
     base_vault_id: ID,
     base_shares: Balance<BASE_VAULT>,
     cash: Balance<Quote>,
     manager_id: ID,
-    active_round: Option<RangeRound>,
-    policy: RangeLadderPolicy,
+    active_round: Option<Round>,
+    policy: Policy,
     paused: bool,
 }
 
-public struct StrategyCap has key, store {
+public struct StrategyAdminCap has key, store {
     id: UID,
     strategy_id: ID,
 }
 
-public struct RangeLadderStrategyCreated has copy, drop {
+public struct StrategyKeeperCap has key, store {
+    id: UID,
+    strategy_id: ID,
+}
+
+public struct StrategyCreated has copy, drop {
     strategy_id: ID,
     base_vault_id: ID,
     manager_id: ID,
-    cap_id: ID,
+    admin_cap_id: ID,
+    keeper_cap_id: ID,
 }
 
-public struct RangeLadderDeposited has copy, drop {
+public struct StrategyDeposited has copy, drop {
     strategy_id: ID,
     depositor: address,
     amount: u64,
@@ -84,7 +91,7 @@ public struct RangeLadderDeposited has copy, drop {
     nav_before: u64,
 }
 
-public struct RangeLadderWithdrawn has copy, drop {
+public struct StrategyWithdrawn has copy, drop {
     strategy_id: ID,
     owner: address,
     shares_burned: u64,
@@ -92,7 +99,7 @@ public struct RangeLadderWithdrawn has copy, drop {
     nav_before: u64,
 }
 
-public struct RangeRoundStarted has copy, drop {
+public struct RoundStarted has copy, drop {
     strategy_id: ID,
     predict_id: ID,
     manager_id: ID,
@@ -104,7 +111,7 @@ public struct RangeRoundStarted has copy, drop {
     range_count: u64,
 }
 
-public struct RangeRoundSettled has copy, drop {
+public struct RoundSettled has copy, drop {
     strategy_id: ID,
     predict_id: ID,
     manager_id: ID,
@@ -132,13 +139,13 @@ public fun create_strategy<Quote>(
     treasury: TreasuryCap<RANGE_LADDER_STRATEGY>,
     base: &BaseVault<Quote>,
     manager: &PredictManager,
-    policy: RangeLadderPolicy,
+    policy: Policy,
     ctx: &mut TxContext,
-): (RangeLadderStrategy<Quote>, StrategyCap) {
+): (Strategy<Quote>, StrategyAdminCap, StrategyKeeperCap) {
     assert!(manager.owner() == ctx.sender(), ENotManagerOwner);
     let base_vault_id = base.id();
     let manager_id = object::id(manager);
-    let strategy = RangeLadderStrategy<Quote> {
+    let strategy = Strategy<Quote> {
         id: object::new(ctx),
         treasury,
         base_vault_id,
@@ -150,24 +157,26 @@ public fun create_strategy<Quote>(
         paused: false,
     };
     let strategy_id = strategy.id.to_inner();
-    let cap = StrategyCap { id: object::new(ctx), strategy_id };
+    let admin_cap = StrategyAdminCap { id: object::new(ctx), strategy_id };
+    let keeper_cap = StrategyKeeperCap { id: object::new(ctx), strategy_id };
 
-    event::emit(RangeLadderStrategyCreated {
+    event::emit(StrategyCreated {
         strategy_id,
         base_vault_id,
         manager_id,
-        cap_id: cap.id.to_inner(),
+        admin_cap_id: admin_cap.id.to_inner(),
+        keeper_cap_id: keeper_cap.id.to_inner(),
     });
 
-    (strategy, cap)
+    (strategy, admin_cap, keeper_cap)
 }
 
-public fun share_strategy<Quote>(strategy: RangeLadderStrategy<Quote>) {
+public fun share_strategy<Quote>(strategy: Strategy<Quote>) {
     transfer::share_object(strategy);
 }
 
 public fun deposit<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
     funds: Coin<Quote>,
     ctx: &mut TxContext,
@@ -188,7 +197,7 @@ public fun deposit<Quote>(
     strategy.base_shares.join(base_coin.into_balance());
     let minted = coin::mint(&mut strategy.treasury, shares, ctx);
 
-    event::emit(RangeLadderDeposited {
+    event::emit(StrategyDeposited {
         strategy_id: strategy.id.to_inner(),
         depositor: ctx.sender(),
         amount,
@@ -200,7 +209,7 @@ public fun deposit<Quote>(
 }
 
 public fun withdraw<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
     shares: Coin<RANGE_LADDER_STRATEGY>,
     ctx: &mut TxContext,
@@ -220,7 +229,7 @@ public fun withdraw<Quote>(
     let out = base_vault::withdraw(base, base_coin, ctx);
     let amount_out = out.value();
 
-    event::emit(RangeLadderWithdrawn {
+    event::emit(StrategyWithdrawn {
         strategy_id: strategy.id.to_inner(),
         owner: ctx.sender(),
         shares_burned: share_amount,
@@ -232,19 +241,19 @@ public fun withdraw<Quote>(
 }
 
 public fun start_round<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
-    cap: &StrategyCap,
+    cap: &StrategyKeeperCap,
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    rungs: vector<RangeRung>,
+    rungs: vector<Rung>,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
     assert!(!strategy.paused, EPaused);
     assert_base_vault(strategy, base);
-    assert_strategy_cap(strategy, cap);
+    assert_strategy_keeper_cap(strategy, cap);
     assert!(option::is_none(&strategy.active_round), ERoundAlreadyActive);
     assert!(object::id(manager) == strategy.manager_id, EWrongManager);
     assert!(manager.owner() == ctx.sender(), ENotManagerOwner);
@@ -277,13 +286,13 @@ public fun start_round<Quote>(
     };
 
     let range_count = positions.length();
-    strategy.active_round = option::some(RangeRound {
+    strategy.active_round = option::some(Round {
         predict_id: object::id(predict),
         oracle_id: oracle.id(),
         positions,
     });
 
-    event::emit(RangeRoundStarted {
+    event::emit(RoundStarted {
         strategy_id: strategy.id.to_inner(),
         predict_id: object::id(predict),
         manager_id: strategy.manager_id,
@@ -297,9 +306,9 @@ public fun start_round<Quote>(
 }
 
 public fun settle_round<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
-    cap: &StrategyCap,
+    cap: &StrategyKeeperCap,
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
@@ -307,7 +316,7 @@ public fun settle_round<Quote>(
     ctx: &mut TxContext,
 ) {
     assert_base_vault(strategy, base);
-    assert_strategy_cap(strategy, cap);
+    assert_strategy_keeper_cap(strategy, cap);
     assert!(option::is_some(&strategy.active_round), ENoActiveRound);
     assert!(object::id(manager) == strategy.manager_id, EWrongManager);
     assert!(manager.owner() == ctx.sender(), ENotManagerOwner);
@@ -334,7 +343,7 @@ public fun settle_round<Quote>(
 
     deposit_all_cash_to_base(strategy, base, ctx);
 
-    event::emit(RangeRoundSettled {
+    event::emit(RoundSettled {
         strategy_id: strategy.id.to_inner(),
         predict_id: round.predict_id,
         manager_id: strategy.manager_id,
@@ -344,13 +353,13 @@ public fun settle_round<Quote>(
     });
 }
 
-public fun set_paused<Quote>(strategy: &mut RangeLadderStrategy<Quote>, cap: &StrategyCap, paused: bool) {
-    assert_strategy_cap(strategy, cap);
+public fun set_paused<Quote>(strategy: &mut Strategy<Quote>, cap: &StrategyAdminCap, paused: bool) {
+    assert_strategy_admin_cap(strategy, cap);
     strategy.paused = paused;
 }
 
-public fun set_policy<Quote>(strategy: &mut RangeLadderStrategy<Quote>, cap: &StrategyCap, policy: RangeLadderPolicy) {
-    assert_strategy_cap(strategy, cap);
+public fun set_policy<Quote>(strategy: &mut Strategy<Quote>, cap: &StrategyAdminCap, policy: Policy) {
+    assert_strategy_admin_cap(strategy, cap);
     strategy.policy = policy;
 }
 
@@ -367,56 +376,64 @@ public fun amount_for_shares(nav_now: u64, supply: u64, shares: u64): u64 {
     ((shares as u128) * (nav_now as u128) / (supply as u128)) as u64
 }
 
-public fun id<Quote>(strategy: &RangeLadderStrategy<Quote>): ID { strategy.id.to_inner() }
+public fun id<Quote>(strategy: &Strategy<Quote>): ID { strategy.id.to_inner() }
 
-public fun manager_id<Quote>(strategy: &RangeLadderStrategy<Quote>): ID { strategy.manager_id }
+public fun manager_id<Quote>(strategy: &Strategy<Quote>): ID { strategy.manager_id }
 
-public fun paused<Quote>(strategy: &RangeLadderStrategy<Quote>): bool { strategy.paused }
+public fun paused<Quote>(strategy: &Strategy<Quote>): bool { strategy.paused }
 
-public fun has_active_round<Quote>(strategy: &RangeLadderStrategy<Quote>): bool { option::is_some(&strategy.active_round) }
+public fun has_active_round<Quote>(strategy: &Strategy<Quote>): bool { option::is_some(&strategy.active_round) }
 
-public fun active_round<Quote>(strategy: &RangeLadderStrategy<Quote>): Option<RangeRound> { strategy.active_round }
+public fun active_round<Quote>(strategy: &Strategy<Quote>): Option<Round> { strategy.active_round }
 
-public fun policy<Quote>(strategy: &RangeLadderStrategy<Quote>): RangeLadderPolicy { strategy.policy }
+public fun policy<Quote>(strategy: &Strategy<Quote>): Policy { strategy.policy }
 
-public fun nav<Quote>(strategy: &RangeLadderStrategy<Quote>, base: &BaseVault<Quote>): u64 {
+public fun nav<Quote>(strategy: &Strategy<Quote>, base: &BaseVault<Quote>): u64 {
     let base_share_amount = strategy.base_shares.value();
     let base_value = if (base_share_amount == 0) { 0 } else { base.value_for_shares(base_share_amount) };
     strategy.active_nav() + base_value
 }
 
-public fun active_nav<Quote>(strategy: &RangeLadderStrategy<Quote>): u64 { strategy.cash.value() }
+public fun active_nav<Quote>(strategy: &Strategy<Quote>): u64 { strategy.cash.value() }
 
-public fun share_supply<Quote>(strategy: &RangeLadderStrategy<Quote>): u64 { strategy.treasury.total_supply() }
+public fun share_supply<Quote>(strategy: &Strategy<Quote>): u64 { strategy.treasury.total_supply() }
 
-public fun cash_value<Quote>(strategy: &RangeLadderStrategy<Quote>): u64 { strategy.cash.value() }
+public fun cash_value<Quote>(strategy: &Strategy<Quote>): u64 { strategy.cash.value() }
 
-public fun base_vault_id<Quote>(strategy: &RangeLadderStrategy<Quote>): ID { strategy.base_vault_id }
+public fun base_vault_id<Quote>(strategy: &Strategy<Quote>): ID { strategy.base_vault_id }
 
-public fun base_shares_amount<Quote>(strategy: &RangeLadderStrategy<Quote>): u64 { strategy.base_shares.value() }
+public fun base_shares_amount<Quote>(strategy: &Strategy<Quote>): u64 { strategy.base_shares.value() }
 
-public fun cap_id(cap: &StrategyCap): ID { cap.id.to_inner() }
+public fun admin_cap_id(cap: &StrategyAdminCap): ID { cap.id.to_inner() }
 
-public fun cap_strategy_id(cap: &StrategyCap): ID { cap.strategy_id }
+public fun admin_cap_strategy_id(cap: &StrategyAdminCap): ID { cap.strategy_id }
 
-public fun round_predict_id(round: &RangeRound): ID { round.predict_id }
+public fun keeper_cap_id(cap: &StrategyKeeperCap): ID { cap.id.to_inner() }
 
-public fun round_oracle_id(round: &RangeRound): ID { round.oracle_id }
+public fun keeper_cap_strategy_id(cap: &StrategyKeeperCap): ID { cap.strategy_id }
 
-public fun round_positions(round: &RangeRound): vector<RangePosition> { round.positions }
+public fun round_predict_id(round: &Round): ID { round.predict_id }
 
-public fun round_position_count(round: &RangeRound): u64 { round.positions.length() }
+public fun round_oracle_id(round: &Round): ID { round.oracle_id }
 
-public(package) fun assert_strategy_cap<Quote>(strategy: &RangeLadderStrategy<Quote>, cap: &StrategyCap) {
-    assert!(cap.strategy_id == strategy.id.to_inner(), EWrongStrategyCap);
+public fun round_positions(round: &Round): vector<Position> { round.positions }
+
+public fun round_position_count(round: &Round): u64 { round.positions.length() }
+
+public(package) fun assert_strategy_admin_cap<Quote>(strategy: &Strategy<Quote>, cap: &StrategyAdminCap) {
+    assert!(cap.strategy_id == strategy.id.to_inner(), EWrongStrategyAdminCap);
 }
 
-fun assert_base_vault<Quote>(strategy: &RangeLadderStrategy<Quote>, base: &BaseVault<Quote>) {
+public(package) fun assert_strategy_keeper_cap<Quote>(strategy: &Strategy<Quote>, cap: &StrategyKeeperCap) {
+    assert!(cap.strategy_id == strategy.id.to_inner(), EWrongStrategyKeeperCap);
+}
+
+fun assert_base_vault<Quote>(strategy: &Strategy<Quote>, base: &BaseVault<Quote>) {
     assert!(base.id() == strategy.base_vault_id, EWrongBaseVault);
 }
 
 fun redeem_all_base_shares<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
     ctx: &mut TxContext,
 ) {
@@ -428,7 +445,7 @@ fun redeem_all_base_shares<Quote>(
 }
 
 fun deposit_all_cash_to_base<Quote>(
-    strategy: &mut RangeLadderStrategy<Quote>,
+    strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
     ctx: &mut TxContext,
 ) {
@@ -443,11 +460,11 @@ fun mint_ranges<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    rungs: vector<RangeRung>,
+    rungs: vector<Rung>,
     clock: &Clock,
     ctx: &mut TxContext,
-    strategy_policy: &RangeLadderPolicy,
-): vector<RangePosition> {
+    strategy_policy: &Policy,
+): vector<Position> {
     let mut minted = vector[];
     rungs.do!(|rung| {
         let key = range_key::new(oracle.id(), oracle.expiry(), rung.lower_strike(), rung.higher_strike());
@@ -467,10 +484,10 @@ fun mint_ranges<Quote>(
 }
 
 fun assert_range_position(manager: &PredictManager, key: RangeKey, expected_quantity: u64) {
-    assert!(manager.range_position(key) == expected_quantity, ERangePositionChanged);
+    assert!(manager.range_position(key) == expected_quantity, EPositionChanged);
 }
 
-fun assert_range_ask_within_ceiling(strategy_policy: &RangeLadderPolicy, ask_cost: u64, quantity: u64) {
+fun assert_range_ask_within_ceiling(strategy_policy: &Policy, ask_cost: u64, quantity: u64) {
     assert!((ask_cost as u128) * (BPS_DENOMINATOR as u128) <= (quantity as u128) * (policy::max_range_ask_bps(strategy_policy) as u128), ERangeAskAboveCeiling);
 }
 
@@ -479,13 +496,19 @@ fun bps_amount(amount: u64, bps: u16): u64 {
 }
 
 #[test_only]
-public fun set_active_round_predict_id_for_testing<Quote>(strategy: &mut RangeLadderStrategy<Quote>, predict_id: ID) {
+public fun set_active_round_predict_id_for_testing<Quote>(strategy: &mut Strategy<Quote>, predict_id: ID) {
     let round = option::borrow_mut(&mut strategy.active_round);
     round.predict_id = predict_id;
 }
 
 #[test_only]
-public fun destroy_cap_for_testing(cap: StrategyCap) {
-    let StrategyCap { id, strategy_id: _ } = cap;
+public fun destroy_admin_cap_for_testing(cap: StrategyAdminCap) {
+    let StrategyAdminCap { id, strategy_id: _ } = cap;
+    id.delete();
+}
+
+#[test_only]
+public fun destroy_keeper_cap_for_testing(cap: StrategyKeeperCap) {
+    let StrategyKeeperCap { id, strategy_id: _ } = cap;
     id.delete();
 }

@@ -11,10 +11,10 @@ export interface BaseVaultConfig {
   vaultId: string
 }
 
-export interface ShieldConfig {
-  capId: string
+export interface HedgedPlpConfig {
   enabled: boolean
   hedgeQuantityBpsOfNav: number
+  keeperCapId: string
   managerId: string
   packageId: string
   strikeSpotBps: number
@@ -22,8 +22,8 @@ export interface ShieldConfig {
 }
 
 export interface RangeLadderConfig {
-  capId: string
   enabled: boolean
+  keeperCapId: string
   managerId: string
   packageId: string
   quantityBpsOfNav: number
@@ -39,7 +39,7 @@ export interface OperatorConfig {
   pollSeconds: number
   predict: PredictConfig
   rangeLadder: RangeLadderConfig
-  shield: ShieldConfig
+  hedgedPlp: HedgedPlpConfig
   suiNetwork: "mainnet" | "testnet" | "devnet" | "localnet"
   suiRpcUrl: string
 }
@@ -144,8 +144,8 @@ export function loadConfig(): OperatorConfig {
       ),
     },
     rangeLadder: {
-      capId: readOptionalEnv("RANGE_LADDER_CAP_ID"),
       enabled: readBooleanEnv("RANGE_LADDER_ENABLED", true),
+      keeperCapId: readOptionalEnv("RANGE_LADDER_KEEPER_CAP_ID"),
       managerId: readOptionalEnv("RANGE_LADDER_MANAGER_ID"),
       packageId: readOptionalEnv("RANGE_LADDER_STRATEGY_PACKAGE_ID"),
       quantityBpsOfNav: readNumberEnv("RANGE_QUANTITY_BPS_OF_NAV", 250),
@@ -153,14 +153,14 @@ export function loadConfig(): OperatorConfig {
       rungWidthBps: readNumberEnv("RANGE_RUNG_WIDTH_BPS", 500),
       strategyId: readOptionalEnv("RANGE_LADDER_STRATEGY_ID"),
     },
-    shield: {
-      capId: readOptionalEnv("SHIELD_CAP_ID"),
-      enabled: readBooleanEnv("SHIELD_ENABLED", true),
-      hedgeQuantityBpsOfNav: readNumberEnv("SHIELD_HEDGE_QUANTITY_BPS_OF_NAV", 250),
-      managerId: readOptionalEnv("SHIELD_MANAGER_ID"),
-      packageId: readOptionalEnv("SHIELD_STRATEGY_PACKAGE_ID"),
-      strikeSpotBps: readNumberEnv("SHIELD_STRIKE_SPOT_BPS", 9_900),
-      strategyId: readOptionalEnv("SHIELD_STRATEGY_ID"),
+    hedgedPlp: {
+      enabled: readBooleanEnv("HEDGED_PLP_ENABLED", true),
+      hedgeQuantityBpsOfNav: readNumberEnv("HEDGED_PLP_HEDGE_QUANTITY_BPS_OF_NAV", 250),
+      keeperCapId: readOptionalEnv("HEDGED_PLP_KEEPER_CAP_ID"),
+      managerId: readOptionalEnv("HEDGED_PLP_MANAGER_ID"),
+      packageId: readOptionalEnv("HEDGED_PLP_STRATEGY_PACKAGE_ID"),
+      strikeSpotBps: readNumberEnv("HEDGED_PLP_STRIKE_SPOT_BPS", 9_900),
+      strategyId: readOptionalEnv("HEDGED_PLP_STRATEGY_ID"),
     },
     suiNetwork: readNetwork(),
     suiRpcUrl: readEnv("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443"),

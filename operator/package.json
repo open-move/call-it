@@ -7,7 +7,7 @@
     "start": "bun src/index.ts --watch --run-all",
     "once": "bun src/index.ts --once --run-all",
     "status": "bun src/index.ts --status --run-all",
-    "shield": "bun src/index.ts --once --run-shield",
+    "hedged-plp": "bun src/index.ts --once --run-hedged-plp",
     "range-ladder": "bun src/index.ts --once --run-range-ladder",
     "typecheck": "tsc --noEmit"
   },

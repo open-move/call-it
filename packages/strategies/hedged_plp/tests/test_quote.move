@@ -1,5 +1,5 @@
 #[test_only]
-module shield_strategy::test_quote;
+module hedged_plp_strategy::test_quote;
 
 use std::unit_test::destroy;
 use sui::coin_registry::{Self, Currency};

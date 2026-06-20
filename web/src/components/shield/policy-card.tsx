@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatBps } from "@/lib/shield/format"
-import type { ShieldStrategyState } from "@/services/shield-client"
+import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
 function PolicyRow({ label, value }: { label: string; value: string }) {
   return (
@@ -13,7 +13,7 @@ function PolicyRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ShieldPolicyCard({ strategy }: { strategy?: ShieldStrategyState }) {
+export function ShieldPolicyCard({ strategy }: { strategy?: HedgedPlpStrategyState }) {
   return (
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">

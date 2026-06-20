@@ -61,7 +61,7 @@ function rangeLadderPolicyTarget(functionName: string) {
 }
 
 function rangeRungType() {
-  return `${RANGE_LADDER_PACKAGE_ID}::policy::RangeRung`
+  return `${RANGE_LADDER_PACKAGE_ID}::policy::Rung`
 }
 
 function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {

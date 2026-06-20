@@ -1,4 +1,4 @@
-/// Cash-only shared liquidity warehouse for CallIt strategy vaults.
+/// Cash-only shared liquidity warehouse for CallIt strategies.
 module base_vault::base_vault;
 
 use std::option;
@@ -11,7 +11,7 @@ use sui::{
 };
 
 const EPaused: u64 = 1;
-const EWrongBaseCap: u64 = 2;
+const EWrongBaseVaultCap: u64 = 2;
 const EZeroDeposit: u64 = 3;
 const EZeroShares: u64 = 4;
 const ECashLow: u64 = 5;
@@ -25,7 +25,7 @@ public struct BaseVault<phantom Quote> has key {
     paused: bool,
 }
 
-public struct BaseCap has key, store {
+public struct BaseVaultCap has key, store {
     id: UID,
     vault_id: ID,
 }
@@ -74,7 +74,7 @@ fun init(witness: BASE_VAULT, ctx: &mut TxContext) {
 public fun create_vault<Quote>(
     treasury: TreasuryCap<BASE_VAULT>,
     ctx: &mut TxContext,
-): (BaseVault<Quote>, BaseCap) {
+): (BaseVault<Quote>, BaseVaultCap) {
     let vault = BaseVault<Quote> {
         id: object::new(ctx),
         treasury,
@@ -82,7 +82,7 @@ public fun create_vault<Quote>(
         paused: false,
     };
     let vault_id = vault.id.to_inner();
-    let cap = BaseCap { id: object::new(ctx), vault_id };
+    let cap = BaseVaultCap { id: object::new(ctx), vault_id };
 
     event::emit(BaseVaultCreated { vault_id, cap_id: cap.id.to_inner() });
 
@@ -148,8 +148,8 @@ public fun withdraw<Quote>(
     out
 }
 
-public fun set_paused<Quote>(vault: &mut BaseVault<Quote>, cap: &BaseCap, paused: bool) {
-    assert_base_cap(vault, cap);
+public fun set_paused<Quote>(vault: &mut BaseVault<Quote>, cap: &BaseVaultCap, paused: bool) {
+    assert_base_vault_cap(vault, cap);
     vault.paused = paused;
     event::emit(BasePaused { vault_id: vault.id.to_inner(), paused });
 }
@@ -181,16 +181,16 @@ public fun cash_value<Quote>(vault: &BaseVault<Quote>): u64 { vault.cash.value()
 
 public fun share_supply<Quote>(vault: &BaseVault<Quote>): u64 { vault.treasury.total_supply() }
 
-public fun cap_id(cap: &BaseCap): ID { cap.id.to_inner() }
+public fun cap_id(cap: &BaseVaultCap): ID { cap.id.to_inner() }
 
-public fun cap_vault_id(cap: &BaseCap): ID { cap.vault_id }
+public fun cap_vault_id(cap: &BaseVaultCap): ID { cap.vault_id }
 
 public(package) fun assert_base_vault<Quote>(vault: &BaseVault<Quote>, expected_id: ID) {
-    assert!(vault.id.to_inner() == expected_id, EWrongBaseCap);
+    assert!(vault.id.to_inner() == expected_id, EWrongBaseVaultCap);
 }
 
-fun assert_base_cap<Quote>(vault: &BaseVault<Quote>, cap: &BaseCap) {
-    assert!(cap.vault_id == vault.id.to_inner(), EWrongBaseCap);
+fun assert_base_vault_cap<Quote>(vault: &BaseVault<Quote>, cap: &BaseVaultCap) {
+    assert!(cap.vault_id == vault.id.to_inner(), EWrongBaseVaultCap);
 }
 
 #[test_only]
@@ -199,7 +199,7 @@ public fun add_cash_for_testing<Quote>(vault: &mut BaseVault<Quote>, funds: Coin
 }
 
 #[test_only]
-public fun destroy_cap_for_testing(cap: BaseCap) {
-    let BaseCap { id, vault_id: _ } = cap;
+public fun destroy_cap_for_testing(cap: BaseVaultCap) {
+    let BaseVaultCap { id, vault_id: _ } = cap;
     id.delete();
 }

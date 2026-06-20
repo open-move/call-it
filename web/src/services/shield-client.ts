@@ -3,10 +3,10 @@ import type { SuiClientTypes } from "@mysten/sui/client"
 
 import {
   BASE_VAULT_ID,
+  HEDGED_PLP_SHARE_ASSET,
+  HEDGED_PLP_STRATEGY_ID,
   PREDICT_QUOTE_ASSET,
   SHIELD_ORIGINAL_PACKAGE_ID,
-  SHIELD_SHARE_ASSET,
-  SHIELD_STRATEGY_ID,
 } from "@/lib/config"
 import {
   BalanceBcs,
@@ -36,7 +36,7 @@ const BaseVaultBcs = bcs.struct("BaseVault", {
   paused: bcs.Bool,
 })
 
-const ShieldStrategyPolicyBcs = bcs.struct("StrategyPolicy", {
+const HedgedPlpStrategyPolicyBcs = bcs.struct("Policy", {
   hedge_budget_bps: bcs.U16,
   strike_band_bps: bcs.U16,
   reserve_bps: bcs.U16,
@@ -44,7 +44,7 @@ const ShieldStrategyPolicyBcs = bcs.struct("StrategyPolicy", {
   max_hedge_ask_bps: bcs.U64,
 })
 
-const ShieldRoundBcs = bcs.struct("ShieldRound", {
+const HedgedPlpRoundBcs = bcs.struct("Round", {
   predict_id: SuiIdBcs,
   oracle_id: SuiIdBcs,
   strike: bcs.U64,
@@ -52,7 +52,7 @@ const ShieldRoundBcs = bcs.struct("ShieldRound", {
   settled: bcs.Bool,
 })
 
-const ShieldStrategyBcs = bcs.struct("ShieldStrategy", {
+const HedgedPlpStrategyBcs = bcs.struct("Strategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
   base_vault_id: SuiIdBcs,
@@ -61,12 +61,12 @@ const ShieldStrategyBcs = bcs.struct("ShieldStrategy", {
   plp: BalanceBcs,
   plp_cost_basis: bcs.U64,
   manager_id: SuiIdBcs,
-  active_round: bcs.option(ShieldRoundBcs),
-  policy: ShieldStrategyPolicyBcs,
+  active_round: bcs.option(HedgedPlpRoundBcs),
+  policy: HedgedPlpStrategyPolicyBcs,
   paused: bcs.Bool,
 })
 
-type ShieldStrategyBcsValue = ReturnType<typeof ShieldStrategyBcs.parse>
+type HedgedPlpStrategyBcsValue = ReturnType<typeof HedgedPlpStrategyBcs.parse>
 type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
 const ShieldPolicyBcs = bcs.struct("ShieldPolicy", {
@@ -94,7 +94,7 @@ export interface ShieldPositionRow {
   policyId: string
 }
 
-export interface ShieldStrategyState {
+export interface HedgedPlpStrategyState {
   activeRound: {
     hedgeQuantity: bigint
     oracleId: string
@@ -125,7 +125,7 @@ export interface ShieldStrategyState {
 
 export interface ShieldWalletState {
   dusdcBalance: bigint
-  shieldShareBalance: bigint
+  hedgedPlpShareBalance: bigint
 }
 
 function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
@@ -147,10 +147,10 @@ function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint)
   return (shares * nav) / supply
 }
 
-function normalizeShieldStrategy(
-  value: ShieldStrategyBcsValue,
+function normalizeHedgedPlpStrategy(
+  value: HedgedPlpStrategyBcsValue,
   base?: BaseVaultBcsValue
-): ShieldStrategyState {
+): HedgedPlpStrategyState {
   const cash = readBcsBigInt(value.cash.value)
   const baseShares = readBcsBigInt(value.base_shares.value)
   const plpCostBasis = readBcsBigInt(value.plp_cost_basis)
@@ -190,15 +190,15 @@ function normalizeShieldStrategy(
   }
 }
 
-export async function getShieldStrategyState() {
-  if (!SHIELD_STRATEGY_ID) {
+export async function getHedgedPlpStrategyState() {
+  if (!HEDGED_PLP_STRATEGY_ID) {
     return undefined
   }
 
   const [strategyObject, baseObject] = await Promise.all([
     getSuiGrpcClient().getObject({
       include: { content: true },
-      objectId: SHIELD_STRATEGY_ID,
+      objectId: HEDGED_PLP_STRATEGY_ID,
     }),
     BASE_VAULT_ID
       ? getSuiGrpcClient().getObject({
@@ -210,30 +210,30 @@ export async function getShieldStrategyState() {
   const content = strategyObject.object.content
 
   if (!content) {
-    throw new Error("Shield strategy object has no readable content")
+    throw new Error("Hedged PLP strategy object has no readable content")
   }
 
-  return normalizeShieldStrategy(
-    ShieldStrategyBcs.parse(content),
+  return normalizeHedgedPlpStrategy(
+    HedgedPlpStrategyBcs.parse(content),
     baseObject?.object.content ? BaseVaultBcs.parse(baseObject.object.content) : undefined
   )
 }
 
 export async function getShieldWalletState(owner: string) {
-  const [dusdcBalance, shieldShareBalance] = await Promise.all([
+  const [dusdcBalance, hedgedPlpShareBalance] = await Promise.all([
     getSuiGrpcClient().getBalance({
       coinType: PREDICT_QUOTE_ASSET,
       owner,
     }),
     getSuiGrpcClient().getBalance({
-      coinType: SHIELD_SHARE_ASSET,
+      coinType: HEDGED_PLP_SHARE_ASSET,
       owner,
     }),
   ])
 
   return {
     dusdcBalance: BigInt(dusdcBalance.balance.balance),
-    shieldShareBalance: BigInt(shieldShareBalance.balance.balance),
+    hedgedPlpShareBalance: BigInt(hedgedPlpShareBalance.balance.balance),
   } satisfies ShieldWalletState
 }
 

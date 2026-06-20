@@ -251,7 +251,7 @@ fun pause(test: &mut Scenario, vault_id: sui::object::ID, paused: bool) {
     test.next_tx(ADMIN);
     {
         let mut vault = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(vault_id);
-        let cap = test.take_from_sender<base_vault::BaseCap>();
+        let cap = test.take_from_sender<base_vault::BaseVaultCap>();
         base_vault::set_paused(&mut vault, &cap, paused);
         return_shared(vault);
         test.return_to_sender(cap);

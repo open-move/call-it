@@ -1,5 +1,5 @@
-/// Policy bounds for the CallIt Shield strategy.
-module shield_strategy::policy;
+/// Policy bounds for the CallIt Hedged PLP strategy.
+module hedged_plp_strategy::policy;
 
 const BPS_DENOMINATOR: u64 = 10_000;
 const MAX_HEDGE_BUDGET_BPS: u16 = 5_000;
@@ -9,7 +9,7 @@ const MAX_HEDGE_ASK_BPS: u64 = 10_000;
 
 const EInvalidPolicy: u64 = 1;
 
-public struct StrategyPolicy has copy, drop, store {
+public struct Policy has copy, drop, store {
     hedge_budget_bps: u16,
     strike_band_bps: u16,
     reserve_bps: u16,
@@ -23,28 +23,28 @@ public fun new(
     reserve_bps: u16,
     max_plp_allocation_bps: u16,
     max_hedge_ask_bps: u64,
-): StrategyPolicy {
+): Policy {
     assert_valid(hedge_budget_bps, strike_band_bps, reserve_bps, max_plp_allocation_bps, max_hedge_ask_bps);
-    StrategyPolicy { hedge_budget_bps, strike_band_bps, reserve_bps, max_plp_allocation_bps, max_hedge_ask_bps }
+    Policy { hedge_budget_bps, strike_band_bps, reserve_bps, max_plp_allocation_bps, max_hedge_ask_bps }
 }
 
-public fun hedge_budget_bps(policy: &StrategyPolicy): u16 {
+public fun hedge_budget_bps(policy: &Policy): u16 {
     policy.hedge_budget_bps
 }
 
-public fun strike_band_bps(policy: &StrategyPolicy): u16 {
+public fun strike_band_bps(policy: &Policy): u16 {
     policy.strike_band_bps
 }
 
-public fun reserve_bps(policy: &StrategyPolicy): u16 {
+public fun reserve_bps(policy: &Policy): u16 {
     policy.reserve_bps
 }
 
-public fun max_plp_allocation_bps(policy: &StrategyPolicy): u16 {
+public fun max_plp_allocation_bps(policy: &Policy): u16 {
     policy.max_plp_allocation_bps
 }
 
-public fun max_hedge_ask_bps(policy: &StrategyPolicy): u64 {
+public fun max_hedge_ask_bps(policy: &Policy): u64 {
     policy.max_hedge_ask_bps
 }
 

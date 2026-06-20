@@ -35,26 +35,26 @@ const BaseVaultBcs = bcs.struct("BaseVault", {
   paused: bcs.Bool,
 })
 
-const RangeLadderStrategyPolicyBcs = bcs.struct("RangeLadderPolicy", {
+const RangeLadderStrategyPolicyBcs = bcs.struct("Policy", {
   premium_budget_bps: bcs.U16,
   reserve_bps: bcs.U16,
   max_range_ask_bps: bcs.U64,
   max_rung_count: bcs.U64,
 })
 
-const RangePositionBcs = bcs.struct("RangePosition", {
+const RangePositionBcs = bcs.struct("Position", {
   key: RangeKeyBcs,
   quantity: bcs.U64,
   cost: bcs.U64,
 })
 
-const RangeRoundBcs = bcs.struct("RangeRound", {
+const RangeRoundBcs = bcs.struct("Round", {
   predict_id: SuiIdBcs,
   oracle_id: SuiIdBcs,
   positions: bcs.vector(RangePositionBcs),
 })
 
-const RangeLadderStrategyBcs = bcs.struct("RangeLadderStrategy", {
+const RangeLadderStrategyBcs = bcs.struct("Strategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
   base_vault_id: SuiIdBcs,

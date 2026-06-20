@@ -2,7 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import { formatBps, formatDusdc, formatShares, sharePriceFormatter } from "@/lib/shield/format"
-import type { ShieldStrategyState } from "@/services/shield-client"
+import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
 function VaultOverviewRow({ label, value }: { label: string; value: string }) {
   return (
@@ -30,7 +30,7 @@ function AllocationItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function CapitalStack({ strategy }: { strategy?: ShieldStrategyState }) {
+function CapitalStack({ strategy }: { strategy?: HedgedPlpStrategyState }) {
   const plpAllocation = strategy?.policy.maxPlpAllocationBps ?? 0
   const hedgeBudget = strategy?.policy.hedgeBudgetBps ?? 0
   const reserve = strategy?.policy.reserveBps ?? 0
@@ -84,7 +84,7 @@ export function ShieldOverviewCard({
 }: {
   isLoading: boolean
   status: string
-  strategy?: ShieldStrategyState
+  strategy?: HedgedPlpStrategyState
 }) {
   return (
     <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">

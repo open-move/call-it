@@ -12,7 +12,7 @@ import {
 } from "@/lib/shield/helpers"
 import type { ShieldProduct } from "@/lib/types/shield"
 import { cn } from "@/lib/utils"
-import type { ShieldStrategyState } from "@/services/shield-client"
+import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
 function RoundStep({
   label,
@@ -53,7 +53,7 @@ export function RoundProgressCard({
 }: {
   product?: ShieldProduct
   status: string
-  strategy?: ShieldStrategyState
+  strategy?: HedgedPlpStrategyState
 }) {
   const round = strategy?.activeRound
   const activeStep = getRoundStage(strategy)

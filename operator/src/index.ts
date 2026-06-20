@@ -1,9 +1,9 @@
 import { loadConfig } from "./config.ts"
+import { runHedgedPlpTick } from "./strategies/hedged-plp.ts"
 import { runRangeLadderTick } from "./strategies/range-ladder.ts"
-import { runShieldTick } from "./strategies/shield.ts"
 import { createSuiClient, loadKeeperKeypair } from "./sui.ts"
 
-type ProductSelection = "all" | "range_ladder" | "shield"
+type ProductSelection = "all" | "hedged_plp" | "range_ladder"
 type CliAction = "auto" | "realize" | "settle" | "start" | "status"
 
 interface CliOptions {
@@ -41,8 +41,8 @@ function parseProducts(): ProductSelection[] {
 
   const products: ProductSelection[] = []
 
-  if (hasArg("--run-shield")) {
-    products.push("shield")
+  if (hasArg("--run-hedged-plp")) {
+    products.push("hedged_plp")
   }
 
   if (hasArg("--run-range-ladder")) {
@@ -69,8 +69,8 @@ function parseCliOptions(): CliOptions {
   }
 }
 
-function shouldRunShield(products: ProductSelection[], shieldEnabled: boolean) {
-  return products.includes("shield") || (products.includes("all") && shieldEnabled)
+function shouldRunHedgedPlp(products: ProductSelection[], hedgedPlpEnabled: boolean) {
+  return products.includes("hedged_plp") || (products.includes("all") && hedgedPlpEnabled)
 }
 
 function shouldRunRangeLadder(
@@ -82,7 +82,7 @@ function shouldRunRangeLadder(
 
 function rangeLadderAction(action: CliAction) {
   if (action === "realize") {
-    throw new Error("--realize is only valid for Shield")
+    throw new Error("--realize is only valid for Hedged PLP")
   }
 
   return action
@@ -94,31 +94,31 @@ async function runTick(options: CliOptions) {
   const client = createSuiClient(config)
   const needsSigner = options.action !== "status"
   const keypair = needsSigner ? loadKeeperKeypair() : undefined
-  const runShield = shouldRunShield(options.products, config.shield.enabled)
+  const runHedgedPlp = shouldRunHedgedPlp(options.products, config.hedgedPlp.enabled)
   const runRangeLadder = shouldRunRangeLadder(
     options.products,
     config.rangeLadder.enabled
   )
 
-  if (!runShield && !runRangeLadder) {
+  if (!runHedgedPlp && !runRangeLadder) {
     console.log("[operator] no enabled strategies selected")
     return
   }
 
   const at = new Date().toISOString()
   console.log(
-    `[operator] tick at=${at} action=${options.action} dryRun=${dryRun} runShield=${runShield} runRangeLadder=${runRangeLadder}`
+    `[operator] tick at=${at} action=${options.action} dryRun=${dryRun} runHedgedPlp=${runHedgedPlp} runRangeLadder=${runRangeLadder}`
   )
 
-  if (runShield) {
+  if (runHedgedPlp) {
     try {
-      await runShieldTick(client, keypair, config, {
+      await runHedgedPlpTick(client, keypair, config, {
         action: options.action,
         dryRun,
       })
     } catch (error) {
       console.error(
-        `[shield] error: ${error instanceof Error ? error.message : String(error)}`
+        `[hedged_plp] error: ${error instanceof Error ? error.message : String(error)}`
       )
     }
   }

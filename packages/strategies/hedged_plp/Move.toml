@@ -1,5 +1,5 @@
 [package]
-name = "shield_strategy"
+name = "hedged_plp_strategy"
 edition = "2024"
 
 [dependencies]

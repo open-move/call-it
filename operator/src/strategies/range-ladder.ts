@@ -41,7 +41,7 @@ function policyTarget(config: OperatorConfig, functionName: string) {
 }
 
 function rangeRungType(config: OperatorConfig) {
-  return `${config.rangeLadder.packageId}::policy::RangeRung`
+  return `${config.rangeLadder.packageId}::policy::Rung`
 }
 
 function bpsAmount(amount: bigint, bps: number) {
@@ -134,7 +134,7 @@ function buildStartRoundTx(
     arguments: [
       tx.object(config.rangeLadder.strategyId),
       tx.object(config.baseVault.vaultId),
-      tx.object(config.rangeLadder.capId),
+      tx.object(config.rangeLadder.keeperCapId),
       tx.object(config.predict.sharedObjectId),
       tx.object(strategy.managerId),
       tx.object(oracle.oracleId),
@@ -160,7 +160,7 @@ function buildSettleRoundTx(
     arguments: [
       tx.object(config.rangeLadder.strategyId),
       tx.object(config.baseVault.vaultId),
-      tx.object(config.rangeLadder.capId),
+      tx.object(config.rangeLadder.keeperCapId),
       tx.object(config.predict.sharedObjectId),
       tx.object(strategy.managerId),
       tx.object(oracleId),
@@ -327,7 +327,7 @@ export async function runRangeLadderTick(
   assertConfigured("Range Ladder", {
     BASE_VAULT_ID: config.baseVault.vaultId,
     BASE_VAULT_PACKAGE_ID: config.baseVault.packageId,
-    RANGE_LADDER_CAP_ID: config.rangeLadder.capId,
+    RANGE_LADDER_KEEPER_CAP_ID: config.rangeLadder.keeperCapId,
     RANGE_LADDER_MANAGER_ID: config.rangeLadder.managerId,
     RANGE_LADDER_STRATEGY_PACKAGE_ID: config.rangeLadder.packageId,
     RANGE_LADDER_STRATEGY_ID: config.rangeLadder.strategyId,

@@ -12,16 +12,16 @@ import type { ShieldProduct } from "@/lib/types/shield"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import { executeSuiTransaction } from "@/services/predict-transactions"
 import {
-  getShieldStrategyState,
+  getHedgedPlpStrategyState,
   getShieldWalletState,
 } from "@/services/shield-client"
 import type {
-  ShieldStrategyState,
+  HedgedPlpStrategyState,
   ShieldWalletState,
 } from "@/services/shield-client"
 import {
-  buildShieldStrategyDepositTransaction,
-  buildShieldStrategyWithdrawTransaction,
+  buildHedgedPlpStrategyDepositTransaction,
+  buildHedgedPlpStrategyWithdrawTransaction,
 } from "@/services/shield-transactions"
 import {
   getDepositQuote,
@@ -37,7 +37,7 @@ export function useShieldAction(products: ShieldProduct[]) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const walletAddress = primaryWallet?.address
   const refreshRoute = useAppRouteRefresh()
-  const [strategy, setVault] = useState<ShieldStrategyState | undefined>()
+  const [strategy, setVault] = useState<HedgedPlpStrategyState | undefined>()
   const [wallet, setWallet] = useState<ShieldWalletState | undefined>()
   const [isLoadingVault, setIsLoadingVault] = useState(true)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
@@ -55,7 +55,7 @@ export function useShieldAction(products: ShieldProduct[]) {
   const canUseVault = !!strategy && !strategy.paused && !strategy.activeRound
   const activeStep = getRoundStage(strategy)
   const actionBalance =
-    action === "deposit" ? wallet?.dusdcBalance : wallet?.shieldShareBalance
+    action === "deposit" ? wallet?.dusdcBalance : wallet?.hedgedPlpShareBalance
   const canSubmit =
     !!walletAddress &&
     canUseVault &&
@@ -77,7 +77,7 @@ export function useShieldAction(products: ShieldProduct[]) {
     setIsLoadingVault(true)
 
     try {
-      const nextVault = await getShieldStrategyState()
+      const nextVault = await getHedgedPlpStrategyState()
 
       setVault(nextVault)
       setMessage(undefined)
@@ -133,7 +133,7 @@ export function useShieldAction(products: ShieldProduct[]) {
     const maxAmount =
       action === "deposit"
         ? (wallet?.dusdcBalance ?? 0n)
-        : (wallet?.shieldShareBalance ?? 0n)
+        : (wallet?.hedgedPlpShareBalance ?? 0n)
 
     setAmount(formatDecimalUnits(maxAmount, PREDICT_QUOTE_DECIMALS))
     setMessage(undefined)
@@ -188,11 +188,11 @@ export function useShieldAction(products: ShieldProduct[]) {
     try {
       const transaction =
         action === "deposit"
-          ? await buildShieldStrategyDepositTransaction({
+          ? await buildHedgedPlpStrategyDepositTransaction({
               amount: parsedAmount,
               walletAddress,
             })
-          : await buildShieldStrategyWithdrawTransaction({
+          : await buildHedgedPlpStrategyWithdrawTransaction({
               amount: parsedAmount,
               walletAddress,
             })

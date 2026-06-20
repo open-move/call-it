@@ -27,7 +27,7 @@ const TreasuryCapBcs = bcs.struct("TreasuryCap", {
   total_supply: SupplyBcs,
 })
 
-const ShieldPolicyBcs = bcs.struct("StrategyPolicy", {
+const HedgedPlpPolicyBcs = bcs.struct("Policy", {
   hedge_budget_bps: bcs.U16,
   strike_band_bps: bcs.U16,
   reserve_bps: bcs.U16,
@@ -35,7 +35,7 @@ const ShieldPolicyBcs = bcs.struct("StrategyPolicy", {
   max_hedge_ask_bps: bcs.U64,
 })
 
-const ShieldRoundBcs = bcs.struct("ShieldRound", {
+const HedgedPlpRoundBcs = bcs.struct("Round", {
   predict_id: SuiIdBcs,
   oracle_id: SuiIdBcs,
   strike: bcs.U64,
@@ -43,7 +43,7 @@ const ShieldRoundBcs = bcs.struct("ShieldRound", {
   settled: bcs.Bool,
 })
 
-const ShieldStrategyBcs = bcs.struct("ShieldStrategy", {
+const HedgedPlpStrategyBcs = bcs.struct("Strategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
   base_vault_id: SuiIdBcs,
@@ -52,12 +52,12 @@ const ShieldStrategyBcs = bcs.struct("ShieldStrategy", {
   plp: BalanceBcs,
   plp_cost_basis: bcs.U64,
   manager_id: SuiIdBcs,
-  active_round: bcs.option(ShieldRoundBcs),
-  policy: ShieldPolicyBcs,
+  active_round: bcs.option(HedgedPlpRoundBcs),
+  policy: HedgedPlpPolicyBcs,
   paused: bcs.Bool,
 })
 
-const RangeLadderPolicyBcs = bcs.struct("RangeLadderPolicy", {
+const RangeLadderPolicyBcs = bcs.struct("Policy", {
   premium_budget_bps: bcs.U16,
   reserve_bps: bcs.U16,
   max_range_ask_bps: bcs.U64,
@@ -71,19 +71,19 @@ const RangeKeyBcs = bcs.struct("RangeKey", {
   higher_strike: bcs.U64,
 })
 
-const RangePositionBcs = bcs.struct("RangePosition", {
+const RangePositionBcs = bcs.struct("Position", {
   key: RangeKeyBcs,
   quantity: bcs.U64,
   cost: bcs.U64,
 })
 
-const RangeRoundBcs = bcs.struct("RangeRound", {
+const RangeRoundBcs = bcs.struct("Round", {
   predict_id: SuiIdBcs,
   oracle_id: SuiIdBcs,
   positions: bcs.vector(RangePositionBcs),
 })
 
-const RangeLadderStrategyBcs = bcs.struct("RangeLadderStrategy", {
+const RangeLadderStrategyBcs = bcs.struct("Strategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
   base_vault_id: SuiIdBcs,
@@ -102,11 +102,11 @@ const BaseVaultBcs = bcs.struct("BaseVault", {
   paused: bcs.Bool,
 })
 
-type ShieldStrategyBcsValue = ReturnType<typeof ShieldStrategyBcs.parse>
+type HedgedPlpStrategyBcsValue = ReturnType<typeof HedgedPlpStrategyBcs.parse>
 type RangeLadderStrategyBcsValue = ReturnType<typeof RangeLadderStrategyBcs.parse>
 type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
-export interface ShieldStrategyState {
+export interface HedgedPlpStrategyState {
   activeRound: {
     hedgeQuantity: bigint
     oracleId: string
@@ -177,10 +177,10 @@ async function readBcsObject(client: SuiClient, objectId: string) {
   return content
 }
 
-function normalizeShield(
-  value: ShieldStrategyBcsValue,
+function normalizeHedgedPlp(
+  value: HedgedPlpStrategyBcsValue,
   base?: BaseVaultBcsValue
-): ShieldStrategyState {
+): HedgedPlpStrategyState {
   const cash = readBigInt(value.cash.value)
   const baseShares = readBigInt(value.base_shares.value)
   const plpCostBasis = readBigInt(value.plp_cost_basis)
@@ -234,18 +234,18 @@ function normalizeRangeLadder(
   }
 }
 
-export async function readShieldStrategy(
+export async function readHedgedPlpStrategy(
   client: SuiClient,
   objectId: string,
   baseVaultId?: string
-): Promise<ShieldStrategyState> {
+): Promise<HedgedPlpStrategyState> {
   const [strategyObject, baseObject] = await Promise.all([
     readBcsObject(client, objectId),
     baseVaultId ? readBcsObject(client, baseVaultId) : undefined,
   ])
 
-  return normalizeShield(
-    ShieldStrategyBcs.parse(strategyObject),
+  return normalizeHedgedPlp(
+    HedgedPlpStrategyBcs.parse(strategyObject),
     baseObject ? BaseVaultBcs.parse(baseObject) : undefined
   )
 }
