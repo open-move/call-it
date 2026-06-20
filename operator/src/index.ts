@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.ts"
-import { runRangeLadderTick } from "./range-ladder.ts"
-import { runShieldTick } from "./shield.ts"
+import { runRangeLadderTick } from "./strategies/range-ladder.ts"
+import { runShieldTick } from "./strategies/shield.ts"
 import { createSuiClient, loadKeeperKeypair } from "./sui.ts"
 
 type ProductSelection = "all" | "range_ladder" | "shield"
@@ -101,7 +101,7 @@ async function runTick(options: CliOptions) {
   )
 
   if (!runShield && !runRangeLadder) {
-    console.log("[operator] no enabled vaults selected")
+    console.log("[operator] no enabled strategies selected")
     return
   }
 

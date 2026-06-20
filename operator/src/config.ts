@@ -6,6 +6,11 @@ export interface PredictConfig {
   sharedObjectId: string
 }
 
+export interface BaseVaultConfig {
+  packageId: string
+  vaultId: string
+}
+
 export interface ShieldConfig {
   capId: string
   enabled: boolean
@@ -13,7 +18,7 @@ export interface ShieldConfig {
   managerId: string
   packageId: string
   strikeSpotBps: number
-  vaultId: string
+  strategyId: string
 }
 
 export interface RangeLadderConfig {
@@ -24,10 +29,11 @@ export interface RangeLadderConfig {
   quantityBpsOfNav: number
   rungCount: number
   rungWidthBps: number
-  vaultId: string
+  strategyId: string
 }
 
 export interface OperatorConfig {
+  baseVault: BaseVaultConfig
   dryRun: boolean
   minHorizonMs: number
   pollSeconds: number
@@ -111,6 +117,10 @@ function readNetwork(): OperatorConfig["suiNetwork"] {
 
 export function loadConfig(): OperatorConfig {
   return {
+    baseVault: {
+      packageId: readOptionalEnv("BASE_VAULT_PACKAGE_ID"),
+      vaultId: readOptionalEnv("BASE_VAULT_ID"),
+    },
     dryRun: readBooleanEnv("DRY_RUN", false),
     minHorizonMs: readNumberEnv("MIN_HORIZON_MS", 75 * 60_000),
     pollSeconds: readNumberEnv("POLL_SECONDS", 60),
@@ -137,20 +147,20 @@ export function loadConfig(): OperatorConfig {
       capId: readOptionalEnv("RANGE_LADDER_CAP_ID"),
       enabled: readBooleanEnv("RANGE_LADDER_ENABLED", true),
       managerId: readOptionalEnv("RANGE_LADDER_MANAGER_ID"),
-      packageId: readOptionalEnv("RANGE_LADDER_PACKAGE_ID"),
+      packageId: readOptionalEnv("RANGE_LADDER_STRATEGY_PACKAGE_ID"),
       quantityBpsOfNav: readNumberEnv("RANGE_QUANTITY_BPS_OF_NAV", 250),
       rungCount: readNumberEnv("RANGE_RUNG_COUNT", 3),
       rungWidthBps: readNumberEnv("RANGE_RUNG_WIDTH_BPS", 500),
-      vaultId: readOptionalEnv("RANGE_LADDER_VAULT_ID"),
+      strategyId: readOptionalEnv("RANGE_LADDER_STRATEGY_ID"),
     },
     shield: {
       capId: readOptionalEnv("SHIELD_CAP_ID"),
       enabled: readBooleanEnv("SHIELD_ENABLED", true),
       hedgeQuantityBpsOfNav: readNumberEnv("SHIELD_HEDGE_QUANTITY_BPS_OF_NAV", 250),
       managerId: readOptionalEnv("SHIELD_MANAGER_ID"),
-      packageId: readOptionalEnv("CALLIT_VAULTS_PACKAGE_ID"),
+      packageId: readOptionalEnv("SHIELD_STRATEGY_PACKAGE_ID"),
       strikeSpotBps: readNumberEnv("SHIELD_STRIKE_SPOT_BPS", 9_900),
-      vaultId: readOptionalEnv("SHIELD_VAULT_ID"),
+      strategyId: readOptionalEnv("SHIELD_STRATEGY_ID"),
     },
     suiNetwork: readNetwork(),
     suiRpcUrl: readEnv("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443"),
