@@ -1,10 +1,4 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import {
-  ArrowDownIcon,
-  ArrowUpDownIcon,
-  ArrowUpIcon,
-  MoveHorizontalIcon,
-} from "lucide-react"
 import { useEffect, useState } from "react"
 
 import {
@@ -15,21 +9,13 @@ import {
 } from "@/components/shared/ticket/ticket"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { formatUsd } from "@/lib/format"
-import {
-  formatDecimalUnits,
-  formatUnitPrice,
-  parseDecimalUnits,
-} from "@/lib/amounts"
-import type { MarketSnapshot } from "@/lib/types/market"
-import type { PositionTradeIntent } from "@/lib/types/trade"
+import { Tabs, TabsList } from "@/components/ui/tabs"
+import { formatUnitPrice, parseDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   executeSuiTransaction,
   preparePredictMintTransaction,
 } from "@/services/predict-transactions"
-import type { PredictTradeParams } from "@/services/predict-transactions"
 import {
   formatPredictTradeError,
   formatPredictQuoteMessage,
@@ -42,12 +28,36 @@ import {
 } from "@/lib/dynamic/sui-wallet"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
-import { cn } from "@/lib/utils"
 import { getShieldPositions } from "@/services/shield-client"
 import type { ShieldPositionRow } from "@/services/shield-client"
+import type { MarketSnapshot } from "@/lib/types/market"
+import type { PositionTradeIntent } from "@/lib/types/trade"
+import { cn } from "@/lib/utils"
 
-type TicketMode = "binary" | "range"
-type ContractSide = "above" | "below"
+import { RangeSelector } from "./range-selector"
+import { StrikeInput } from "./strike-input"
+import { TicketModeTab } from "./ticket-mode-tab"
+import {
+  formatDusdc,
+  formatStrikeInput,
+  formatStrikeValue,
+  getMarketUnavailableMessage,
+  getRangeStrikeDefaults,
+  getSideIcon,
+  getSideLabel,
+  getTradeParams,
+  getTradeReserveAmount,
+  isSameShieldKey,
+  isTicketMode,
+  normalizeStrikePrice,
+  parseStrikeInput,
+  pinStrikeSearchParam,
+} from "@/lib/market-detail/helpers"
+import type {
+  ContractSide,
+  RangeStrikeState,
+  TicketMode,
+} from "@/lib/market-detail/types"
 
 export interface OrderTicketProps {
   initialHigherStrikePriceUsd?: number
@@ -58,172 +68,6 @@ export interface OrderTicketProps {
   onStrikeChange?: (strikePriceUsd: number) => void
   selectedStrikePriceUsd: number
   tradeIntent?: PositionTradeIntent
-}
-
-interface RangeStrikeState {
-  higher: number
-  lower: number
-}
-
-function getModeLabel(mode: TicketMode) {
-  return mode === "binary" ? "Up/Down" : "Range"
-}
-
-function getModeIcon(mode: TicketMode) {
-  return mode === "binary" ? ArrowUpDownIcon : MoveHorizontalIcon
-}
-
-function isTicketMode(value: unknown): value is TicketMode {
-  return value === "binary" || value === "range"
-}
-
-function getSideLabel(side: ContractSide) {
-  return side === "above" ? "Up" : "Down"
-}
-
-function getSideIcon(side: ContractSide) {
-  return side === "above" ? ArrowUpIcon : ArrowDownIcon
-}
-
-function formatStrikeValue(value: number, tickSizeUsd: number) {
-  return formatUsd(value, tickSizeUsd < 1 ? 2 : 0)
-}
-
-function formatStrikeInput(value: number) {
-  return Number.isInteger(value) ? value.toString() : value.toFixed(2)
-}
-
-function parseStrikeInput(value: string) {
-  const normalizedValue = value.replaceAll(",", "").replace("$", "").trim()
-
-  if (!normalizedValue) {
-    return undefined
-  }
-
-  const parsedValue = Number(normalizedValue)
-
-  return Number.isFinite(parsedValue) && parsedValue > 0
-    ? parsedValue
-    : undefined
-}
-
-function normalizeStrikePrice(value: number, market: MarketSnapshot) {
-  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
-  const minStrikeUsd = Math.max(market.minStrikeUsd, tickSizeUsd)
-  const roundedValue = Math.round(value / tickSizeUsd) * tickSizeUsd
-  const normalizedValue = Math.max(roundedValue, minStrikeUsd)
-
-  return Number(normalizedValue.toFixed(8))
-}
-
-function getRangeStrikeDefaults(
-  market: MarketSnapshot,
-  selectedStrikePriceUsd: number
-) {
-  const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
-  const rangeWidthUsd = tickSizeUsd * 5
-
-  return {
-    higher: normalizeStrikePrice(
-      selectedStrikePriceUsd + rangeWidthUsd,
-      market
-    ),
-    lower: normalizeStrikePrice(selectedStrikePriceUsd - rangeWidthUsd, market),
-  }
-}
-
-function formatStrikeSearchParam(strikePriceUsd: number) {
-  return strikePriceUsd.toString()
-}
-
-function pinStrikeSearchParam(strikePriceUsd: number) {
-  const url = new URL(window.location.href)
-  const strikeParam = formatStrikeSearchParam(strikePriceUsd)
-
-  if (url.searchParams.get("strike") === strikeParam) {
-    return
-  }
-
-  url.searchParams.set("strike", strikeParam)
-  window.history.replaceState(window.history.state, "", url)
-}
-
-function formatDusdc(value: bigint) {
-  return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
-}
-
-function getTradeReserveAmount(value: bigint) {
-  return (value * 11_000n + 9_999n) / 10_000n
-}
-
-function getMarketUnavailableMessage(market: MarketSnapshot, nowMs: number) {
-  if (nowMs >= market.expiryMs) {
-    return "This market has expired and is waiting for settlement. Choose a later expiry."
-  }
-
-  if (market.status !== "active") {
-    return "This market is not active. Choose an active expiry."
-  }
-
-  return undefined
-}
-
-function isSameShieldKey({
-  contractSide,
-  market,
-  position,
-  strikePriceUsd,
-}: {
-  contractSide: ContractSide
-  market: MarketSnapshot
-  position: ShieldPositionRow
-  strikePriceUsd: number
-}) {
-  return (
-    position.oracleId === market.oracleId &&
-    position.hedgeExpiryMs === market.expiryMs &&
-    position.isUp === (contractSide === "above") &&
-    Math.abs(position.hedgeStrikeUsd - strikePriceUsd) < 0.000001
-  )
-}
-
-function getTradeParams({
-  contractSide,
-  market,
-  quantity,
-  rangeStrikes,
-  selectedStrikePriceUsd,
-  ticketMode,
-  walletAddress,
-}: {
-  contractSide: ContractSide
-  market: MarketSnapshot
-  quantity: bigint
-  rangeStrikes: RangeStrikeState
-  selectedStrikePriceUsd: number
-  ticketMode: TicketMode
-  walletAddress: string
-}): PredictTradeParams {
-  if (ticketMode === "range") {
-    return {
-      expiryMs: market.expiryMs,
-      higherStrikePriceUsd: rangeStrikes.higher,
-      kind: "range",
-      lowerStrikePriceUsd: rangeStrikes.lower,
-      oracleId: market.oracleId,
-      quantity,
-      walletAddress,
-    }
-  }
-
-  return {
-    expiryMs: market.expiryMs,
-    isUp: contractSide === "above",
-    oracleId: market.oracleId,
-    quantity,
-    strikePriceUsd: selectedStrikePriceUsd,
-    walletAddress,
-  }
 }
 
 export function OrderTicket(props: OrderTicketProps) {
@@ -812,140 +656,6 @@ function OrderTicketClient({
           {actionButtonLabel}
         </Button>
       </TicketCard>
-    </div>
-  )
-}
-
-function TicketModeTab({ mode }: { mode: TicketMode }) {
-  const ModeIcon = getModeIcon(mode)
-
-  return (
-    <TabsTrigger
-      className="rounded-none border-0 !border-transparent text-sm font-medium text-muted-foreground shadow-none ring-0 transition-[background-color,color] duration-150 outline-none after:hidden hover:bg-muted/25 hover:text-foreground focus-visible:!border-transparent focus-visible:!ring-2 focus-visible:!ring-primary/30 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/8 data-active:!text-primary dark:data-active:!border-transparent"
-      value={mode}
-    >
-      <ModeIcon className="size-3.5" />
-      {getModeLabel(mode)}
-    </TabsTrigger>
-  )
-}
-
-function StrikeInput({
-  customStrike,
-  onCommitStrike,
-  onCustomStrikeChange,
-  selectedStrikePriceUsd,
-}: {
-  customStrike: string
-  onCommitStrike: () => void
-  onCustomStrikeChange: (value: string) => void
-  selectedStrikePriceUsd: number
-}) {
-  return (
-    <label className="block space-y-2">
-      <span className="text-xs font-medium text-muted-foreground">
-        Strike (USD)
-      </span>
-      <Input
-        className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-        inputMode="decimal"
-        onBlur={onCommitStrike}
-        onChange={(event) => onCustomStrikeChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.currentTarget.blur()
-          }
-        }}
-        placeholder={formatStrikeInput(selectedStrikePriceUsd)}
-        value={customStrike}
-      />
-    </label>
-  )
-}
-
-function RangeSelector({
-  higherStrike,
-  lowerStrike,
-  market,
-  onHigherStrikeChange,
-  onLowerStrikeChange,
-}: {
-  higherStrike: number
-  lowerStrike: number
-  market: MarketSnapshot
-  onHigherStrikeChange: (strikePriceUsd: number) => void
-  onLowerStrikeChange: (strikePriceUsd: number) => void
-}) {
-  const [lowerInput, setLowerInput] = useState(() =>
-    formatStrikeInput(lowerStrike)
-  )
-  const [higherInput, setHigherInput] = useState(() =>
-    formatStrikeInput(higherStrike)
-  )
-
-  useEffect(() => {
-    setLowerInput(formatStrikeInput(lowerStrike))
-    setHigherInput(formatStrikeInput(higherStrike))
-  }, [higherStrike, lowerStrike])
-
-  function commitLowerStrike() {
-    const parsedStrike = parseStrikeInput(lowerInput)
-
-    if (!parsedStrike) {
-      setLowerInput(formatStrikeInput(lowerStrike))
-      return
-    }
-
-    onLowerStrikeChange(normalizeStrikePrice(parsedStrike, market))
-  }
-
-  function commitHigherStrike() {
-    const parsedStrike = parseStrikeInput(higherInput)
-
-    if (!parsedStrike) {
-      setHigherInput(formatStrikeInput(higherStrike))
-      return
-    }
-
-    onHigherStrikeChange(normalizeStrikePrice(parsedStrike, market))
-  }
-
-  return (
-    <div className="grid grid-cols-2 gap-2">
-      <label className="space-y-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          Lower Strike (USD)
-        </span>
-        <Input
-          className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-          inputMode="decimal"
-          onBlur={commitLowerStrike}
-          onChange={(event) => setLowerInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.currentTarget.blur()
-            }
-          }}
-          value={lowerInput}
-        />
-      </label>
-      <label className="space-y-2">
-        <span className="text-xs font-medium text-muted-foreground">
-          Upper Strike (USD)
-        </span>
-        <Input
-          className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-          inputMode="decimal"
-          onBlur={commitHigherStrike}
-          onChange={(event) => setHigherInput(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.currentTarget.blur()
-            }
-          }}
-          value={higherInput}
-        />
-      </label>
     </div>
   )
 }
