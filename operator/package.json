@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "operator": "bun src/index.ts",
+    "deploy": "bun src/deploy.ts",
     "start": "bun src/index.ts --watch --run-all",
     "once": "bun src/index.ts --once --run-all",
     "status": "bun src/index.ts --status --run-all",

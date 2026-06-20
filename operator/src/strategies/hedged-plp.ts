@@ -5,7 +5,7 @@ import { assertConfigured, type OperatorConfig } from "../config.ts"
 import {
   findOracle,
   getOracleState,
-  soonestEligibleOracle,
+  selectRoundOracle,
   type OracleInfo,
 } from "../predict.ts"
 import {
@@ -20,6 +20,12 @@ import {
 } from "../strategy-state.ts"
 
 type HedgedPlpAction = "auto" | "realize" | "settle" | "start" | "status"
+
+interface StartRoundCandidate {
+  simulation: Awaited<ReturnType<typeof simulateTransaction>>
+  strike: bigint
+  transaction: Transaction
+}
 
 interface HedgedPlpTickOptions {
   action: HedgedPlpAction
@@ -67,6 +73,29 @@ function chooseDownsideStrike(
   }
 
   return strike
+}
+
+function hedgeStrikeBpsCandidates(strikeSpotBps: number) {
+  const start = Math.min(Math.max(Math.trunc(strikeSpotBps), 1), 9_999)
+  const out: number[] = []
+
+  for (let bps = start; bps <= 9_990; bps += 10) {
+    out.push(bps)
+  }
+
+  for (let bps = Math.max(start, 9_991); bps <= 9_999; bps += 1) {
+    out.push(bps)
+  }
+
+  return out
+}
+
+function isMintableAskOutOfBounds(error: string | undefined) {
+  return (
+    error !== undefined &&
+    error.includes("assert_mintable_ask") &&
+    error.includes("abort code: 7")
+  )
 }
 
 function buildStartRoundTx(
@@ -201,6 +230,53 @@ async function maybeExecute(
   }
 }
 
+async function selectStartRoundCandidate(
+  client: SuiClient,
+  keypair: Ed25519Keypair,
+  config: OperatorConfig,
+  strategy: HedgedPlpStrategyState,
+  oracle: OracleInfo,
+  spot: bigint,
+  quantity: bigint
+): Promise<StartRoundCandidate | undefined> {
+  const triedStrikes = new Set<string>()
+
+  for (const strikeBps of hedgeStrikeBpsCandidates(config.hedgedPlp.strikeSpotBps)) {
+    const strike = chooseDownsideStrike(oracle, spot, strikeBps)
+    const strikeKey = strike.toString()
+
+    if (triedStrikes.has(strikeKey)) {
+      continue
+    }
+
+    triedStrikes.add(strikeKey)
+
+    const transaction = buildStartRoundTx(
+      config,
+      strategy,
+      oracle,
+      strike,
+      quantity,
+      keypair.toSuiAddress()
+    )
+    const simulation = await simulateTransaction(client, transaction)
+
+    if (simulation.ok) {
+      return { simulation, strike, transaction }
+    }
+
+    if (!isMintableAskOutOfBounds(simulation.error)) {
+      return { simulation, strike, transaction }
+    }
+
+    console.log(
+      `[hedged_plp] start candidate skipped: strike=${strike} bps=${strikeBps} ask outside Predict mintable bounds`
+    )
+  }
+
+  return undefined
+}
+
 async function startHedgedPlpRound(
   client: SuiClient,
   keypair: Ed25519Keypair,
@@ -218,10 +294,10 @@ async function startHedgedPlpRound(
     return
   }
 
-  const oracle = await soonestEligibleOracle(config.predict, config.minHorizonMs)
+  const oracle = await selectRoundOracle(config.predict)
 
   if (!oracle) {
-    console.log("[hedged_plp] start skipped: no eligible active oracle")
+    console.log("[hedged_plp] start skipped: no eligible round oracle")
     return
   }
 
@@ -233,7 +309,6 @@ async function startHedgedPlpRound(
     return
   }
 
-  const strike = chooseDownsideStrike(oracle, spot, config.hedgedPlp.strikeSpotBps)
   const quantity = bpsAmount(strategy.nav, config.hedgedPlp.hedgeQuantityBpsOfNav)
 
   if (quantity <= 0n) {
@@ -241,23 +316,42 @@ async function startHedgedPlpRound(
     return
   }
 
-  console.log(
-    `[hedged_plp] start candidate oracle=${oracle.oracleId} expiry=${oracle.expiryMs} spot=${spot} strike=${strike} quantity=${quantity}`
-  )
-  await maybeExecute(
+  const candidate = await selectStartRoundCandidate(
     client,
     keypair,
-    buildStartRoundTx(
-      config,
-      strategy,
-      oracle,
-      strike,
-      quantity,
-      keypair.toSuiAddress()
-    ),
-    "start_round",
-    dryRun
+    config,
+    strategy,
+    oracle,
+    spot,
+    quantity
   )
+
+  if (!candidate) {
+    console.log("[hedged_plp] start skipped: no mintable downside strike found")
+    return
+  }
+
+  console.log(
+    `[hedged_plp] start candidate oracle=${oracle.oracleId} expiry=${oracle.expiryMs} spot=${spot} strike=${candidate.strike} quantity=${quantity}`
+  )
+
+  if (!candidate.simulation.ok) {
+    console.log(`[hedged_plp] start_round simulation failed: ${candidate.simulation.error}`)
+    return
+  }
+
+  if (dryRun) {
+    console.log("[hedged_plp] start_round dry-run ok")
+    return
+  }
+
+  const executed = await executeTransaction(client, keypair, candidate.transaction)
+  console.log(`[hedged_plp] start_round executed digest=${executed.digest}`)
+  const events = summarizeEvents(executed.events.map(eventJson))
+
+  if (events.length > 0) {
+    console.log(`[hedged_plp] start_round events=${JSON.stringify(events)}`)
+  }
 }
 
 async function settleHedgedPlpRound(

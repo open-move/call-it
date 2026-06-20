@@ -2,6 +2,11 @@ export interface PredictConfig {
   clockObjectId: string
   packageId: string
   quoteAsset: string
+  roundEntryMaxMsToExpiry: number
+  roundEntryMinMsToExpiry: number
+  roundIntervalMs: number
+  roundIntervalToleranceMs: number
+  roundUnderlyingAsset: string
   serverUrl: string
   sharedObjectId: string
 }
@@ -35,7 +40,6 @@ export interface RangeLadderConfig {
 export interface OperatorConfig {
   baseVault: BaseVaultConfig
   dryRun: boolean
-  minHorizonMs: number
   pollSeconds: number
   predict: PredictConfig
   rangeLadder: RangeLadderConfig
@@ -116,13 +120,12 @@ function readNetwork(): OperatorConfig["suiNetwork"] {
 }
 
 export function loadConfig(): OperatorConfig {
-  return {
+  const config: OperatorConfig = {
     baseVault: {
       packageId: readOptionalEnv("BASE_VAULT_PACKAGE_ID"),
       vaultId: readOptionalEnv("BASE_VAULT_ID"),
     },
     dryRun: readBooleanEnv("DRY_RUN", false),
-    minHorizonMs: readNumberEnv("MIN_HORIZON_MS", 75 * 60_000),
     pollSeconds: readNumberEnv("POLL_SECONDS", 60),
     predict: {
       clockObjectId: readEnv("CLOCK_OBJECT_ID", "0x6"),
@@ -134,6 +137,11 @@ export function loadConfig(): OperatorConfig {
         "PREDICT_QUOTE_ASSET",
         "0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC"
       ),
+      roundEntryMaxMsToExpiry: readNumberEnv("PREDICT_ROUND_ENTRY_MAX_MS_TO_EXPIRY", 90 * 60_000),
+      roundEntryMinMsToExpiry: readNumberEnv("PREDICT_ROUND_ENTRY_MIN_MS_TO_EXPIRY", 75 * 60_000),
+      roundIntervalMs: readNumberEnv("PREDICT_ROUND_INTERVAL_MS", 2 * 60 * 60_000),
+      roundIntervalToleranceMs: readNumberEnv("PREDICT_ROUND_INTERVAL_TOLERANCE_MS", 5 * 60_000),
+      roundUnderlyingAsset: readEnv("PREDICT_ROUND_UNDERLYING_ASSET", "BTC"),
       serverUrl: readEnv(
         "PREDICT_SERVER_URL",
         "https://predict-server.testnet.mystenlabs.com"
@@ -149,8 +157,8 @@ export function loadConfig(): OperatorConfig {
       managerId: readOptionalEnv("RANGE_LADDER_MANAGER_ID"),
       packageId: readOptionalEnv("RANGE_LADDER_STRATEGY_PACKAGE_ID"),
       quantityBpsOfNav: readNumberEnv("RANGE_QUANTITY_BPS_OF_NAV", 250),
-      rungCount: readNumberEnv("RANGE_RUNG_COUNT", 3),
-      rungWidthBps: readNumberEnv("RANGE_RUNG_WIDTH_BPS", 500),
+      rungCount: readNumberEnv("RANGE_RUNG_COUNT", 2),
+      rungWidthBps: readNumberEnv("RANGE_RUNG_WIDTH_BPS", 25),
       strategyId: readOptionalEnv("RANGE_LADDER_STRATEGY_ID"),
     },
     hedgedPlp: {
@@ -165,6 +173,26 @@ export function loadConfig(): OperatorConfig {
     suiNetwork: readNetwork(),
     suiRpcUrl: readEnv("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443"),
   }
+
+  if (config.predict.roundIntervalMs <= 0) {
+    throw new Error("PREDICT_ROUND_INTERVAL_MS must be positive")
+  }
+
+  if (config.predict.roundIntervalToleranceMs < 0) {
+    throw new Error("PREDICT_ROUND_INTERVAL_TOLERANCE_MS must be non-negative")
+  }
+
+  if (config.predict.roundEntryMinMsToExpiry < 0) {
+    throw new Error("PREDICT_ROUND_ENTRY_MIN_MS_TO_EXPIRY must be non-negative")
+  }
+
+  if (config.predict.roundEntryMaxMsToExpiry < config.predict.roundEntryMinMsToExpiry) {
+    throw new Error(
+      "PREDICT_ROUND_ENTRY_MAX_MS_TO_EXPIRY must be >= PREDICT_ROUND_ENTRY_MIN_MS_TO_EXPIRY"
+    )
+  }
+
+  return config
 }
 
 export function assertConfigured(label: string, fields: Record<string, string>) {

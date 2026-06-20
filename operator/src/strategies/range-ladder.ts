@@ -5,7 +5,7 @@ import { assertConfigured, type OperatorConfig } from "../config.ts"
 import {
   findOracle,
   getOracleState,
-  soonestEligibleOracle,
+  selectRoundOracle,
   type OracleInfo,
 } from "../predict.ts"
 import {
@@ -20,6 +20,12 @@ import {
 } from "../strategy-state.ts"
 
 type RangeLadderAction = "auto" | "settle" | "start" | "status"
+
+interface StartRoundCandidate {
+  rungs: RungPlan[]
+  simulation: Awaited<ReturnType<typeof simulateTransaction>>
+  transaction: Transaction
+}
 
 interface RangeLadderTickOptions {
   action: RangeLadderAction
@@ -70,9 +76,10 @@ function planRungs(
   oracle: OracleInfo,
   spot: bigint,
   nav: bigint,
-  config: OperatorConfig
+  config: OperatorConfig,
+  overrides?: { rungCount?: number; rungWidthBps?: number }
 ): RungPlan[] {
-  const rungCount = Math.trunc(config.rangeLadder.rungCount)
+  const rungCount = Math.trunc(overrides?.rungCount ?? config.rangeLadder.rungCount)
 
   if (rungCount <= 0) {
     throw new Error("RANGE_RUNG_COUNT must be positive")
@@ -88,7 +95,7 @@ function planRungs(
   const rungs: RungPlan[] = []
 
   for (let index = 1; index <= rungCount; index += 1) {
-    const widthBps = BigInt(Math.trunc(config.rangeLadder.rungWidthBps * index))
+    const widthBps = BigInt(Math.trunc((overrides?.rungWidthBps ?? config.rangeLadder.rungWidthBps) * index))
     const lowerTarget = spot - (spot * widthBps) / 10_000n
     const higherTarget = spot + (spot * widthBps) / 10_000n
     const lowerStrike = floorToGrid(lowerTarget, oracle.minStrike, oracle.tickSize)
@@ -102,6 +109,48 @@ function planRungs(
   }
 
   return rungs
+}
+
+function uniqueDescending(values: number[]) {
+  return [...new Set(values.map((value) => Math.trunc(value)).filter((value) => value > 0))]
+    .sort((left, right) => right - left)
+}
+
+function rungCountCandidates(config: OperatorConfig) {
+  const configured = Math.trunc(config.rangeLadder.rungCount)
+  const out: number[] = []
+
+  for (let count = configured; count >= 1; count -= 1) {
+    out.push(count)
+  }
+
+  return out
+}
+
+function rungWidthCandidates(config: OperatorConfig) {
+  return uniqueDescending([
+    config.rangeLadder.rungWidthBps,
+    500,
+    400,
+    300,
+    250,
+    200,
+    150,
+    100,
+    50,
+    25,
+    20,
+    10,
+  ])
+}
+
+function isRangeQuoteUnavailable(error: string | undefined) {
+  return (
+    error !== undefined &&
+    ((error.includes("pricing_config::quote_spread_from_fair_price") &&
+      error.includes("abort code: 1")) ||
+      (error.includes("assert_mintable_ask") && error.includes("abort code: 7")))
+  )
 }
 
 function buildStartRoundTx(
@@ -223,6 +272,56 @@ async function maybeExecute(
   }
 }
 
+async function selectStartRoundCandidate(
+  client: SuiClient,
+  keypair: Ed25519Keypair,
+  config: OperatorConfig,
+  strategy: RangeLadderStrategyState,
+  oracle: OracleInfo,
+  spot: bigint
+): Promise<StartRoundCandidate | undefined> {
+  for (const rungCount of rungCountCandidates(config)) {
+    for (const rungWidthBps of rungWidthCandidates(config)) {
+      let rungs: RungPlan[]
+
+      try {
+        rungs = planRungs(oracle, spot, strategy.nav, config, {
+          rungCount,
+          rungWidthBps,
+        })
+      } catch (error) {
+        console.log(
+          `[range_ladder] start candidate skipped: ${error instanceof Error ? error.message : String(error)}`
+        )
+        continue
+      }
+
+      const transaction = buildStartRoundTx(
+        config,
+        strategy,
+        oracle,
+        rungs,
+        keypair.toSuiAddress()
+      )
+      const simulation = await simulateTransaction(client, transaction)
+
+      if (simulation.ok) {
+        return { rungs, simulation, transaction }
+      }
+
+      if (!isRangeQuoteUnavailable(simulation.error)) {
+        return { rungs, simulation, transaction }
+      }
+
+      console.log(
+        `[range_ladder] start candidate skipped: rungCount=${rungCount} rungWidthBps=${rungWidthBps} quote unavailable`
+      )
+    }
+  }
+
+  return undefined
+}
+
 async function startRangeLadderRound(
   client: SuiClient,
   keypair: Ed25519Keypair,
@@ -240,10 +339,10 @@ async function startRangeLadderRound(
     return
   }
 
-  const oracle = await soonestEligibleOracle(config.predict, config.minHorizonMs)
+  const oracle = await selectRoundOracle(config.predict)
 
   if (!oracle) {
-    console.log("[range_ladder] start skipped: no eligible active oracle")
+    console.log("[range_ladder] start skipped: no eligible round oracle")
     return
   }
 
@@ -257,33 +356,47 @@ async function startRangeLadderRound(
     return
   }
 
-  let rungs: RungPlan[]
+  const candidate = await selectStartRoundCandidate(
+    client,
+    keypair,
+    config,
+    strategy,
+    oracle,
+    spot
+  )
 
-  try {
-    rungs = planRungs(oracle, spot, strategy.nav, config)
-  } catch (error) {
-    console.log(
-      `[range_ladder] start skipped: ${error instanceof Error ? error.message : String(error)}`
-    )
+  if (!candidate) {
+    console.log("[range_ladder] start skipped: no executable rung plan found")
     return
   }
 
   console.log(
     `[range_ladder] start candidate oracle=${oracle.oracleId} expiry=${oracle.expiryMs} spot=${spot} rungs=${JSON.stringify(
-      rungs.map((rung) => ({
+      candidate.rungs.map((rung) => ({
         higherStrike: rung.higherStrike.toString(),
         lowerStrike: rung.lowerStrike.toString(),
         quantity: rung.quantity.toString(),
       }))
     )}`
   )
-  await maybeExecute(
-    client,
-    keypair,
-    buildStartRoundTx(config, strategy, oracle, rungs, keypair.toSuiAddress()),
-    "start_round",
-    dryRun
-  )
+
+  if (!candidate.simulation.ok) {
+    console.log(`[range_ladder] start_round simulation failed: ${candidate.simulation.error}`)
+    return
+  }
+
+  if (dryRun) {
+    console.log("[range_ladder] start_round dry-run ok")
+    return
+  }
+
+  const executed = await executeTransaction(client, keypair, candidate.transaction)
+  console.log(`[range_ladder] start_round executed digest=${executed.digest}`)
+  const events = summarizeEvents(executed.events.map(eventJson))
+
+  if (events.length > 0) {
+    console.log(`[range_ladder] start_round events=${JSON.stringify(events)}`)
+  }
 }
 
 async function settleRangeLadderRound(

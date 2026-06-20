@@ -1,6 +1,6 @@
 import type { PredictConfig } from "./config.ts"
 
-export type OracleStatus = "active" | "pending" | "settled" | "inactive"
+export type OracleStatus = "active" | "pending" | "settled" | "inactive" | "created"
 
 export interface OracleInfo {
   activatedAt: number | null
@@ -89,6 +89,7 @@ function normalizeStatus(value: string): OracleStatus {
 
   if (
     normalized === "active" ||
+    normalized === "created" ||
     normalized === "pending" ||
     normalized === "settled" ||
     normalized === "inactive"
@@ -173,17 +174,68 @@ export async function findOracle(config: PredictConfig, oracleId: string) {
   return oracles.find((oracle) => oracle.oracleId === oracleId)
 }
 
-export async function soonestEligibleOracle(
-  config: PredictConfig,
-  minHorizonMs: number
-) {
-  const floor = BigInt(Date.now() + minHorizonMs)
+export async function selectRoundOracle(config: PredictConfig) {
+  const now = Date.now()
+  const entryMidpoint =
+    (config.roundEntryMinMsToExpiry + config.roundEntryMaxMsToExpiry) / 2
   const oracles = await listOracles(config)
-  const eligible = oracles
-    .filter(
-      (oracle) => oracle.status === "active" && oracle.expiryMs >= floor
-    )
-    .sort((left, right) => (left.expiryMs < right.expiryMs ? -1 : 1))
+  const byEntryMidpoint = (left: OracleInfo, right: OracleInfo) => {
+    const leftDistance = Math.abs(Number(left.expiryMs) - now - entryMidpoint)
+    const rightDistance = Math.abs(Number(right.expiryMs) - now - entryMidpoint)
 
-  return eligible[0]
+    if (leftDistance !== rightDistance) {
+      return leftDistance - rightDistance
+    }
+
+    return left.expiryMs < right.expiryMs ? -1 : 1
+  }
+  const isBaseCandidate = (oracle: OracleInfo) => {
+    if (oracle.status !== "active") {
+      return false
+    }
+
+    if (oracle.underlyingAsset !== config.roundUnderlyingAsset) {
+      return false
+    }
+
+    const msToExpiry = Number(oracle.expiryMs) - now
+
+    return (
+      msToExpiry >= config.roundEntryMinMsToExpiry &&
+      msToExpiry <= config.roundEntryMaxMsToExpiry
+    )
+  }
+  const isStrictRoundCandidate = (oracle: OracleInfo) => {
+    if (!isBaseCandidate(oracle) || oracle.activatedAt === null) {
+      return false
+    }
+
+    const roundIntervalMs = Number(oracle.expiryMs) - oracle.activatedAt
+
+    return (
+      Math.abs(roundIntervalMs - config.roundIntervalMs) <=
+      config.roundIntervalToleranceMs
+    )
+  }
+  const strict = oracles.filter(isStrictRoundCandidate).sort(byEntryMidpoint)
+
+  if (strict[0]) {
+    return strict[0]
+  }
+
+  const fallback = oracles.filter(isBaseCandidate).sort(byEntryMidpoint)
+
+  if (fallback[0]) {
+    const intervalMs =
+      fallback[0].activatedAt === null
+        ? "unknown"
+        : String(Number(fallback[0].expiryMs) - fallback[0].activatedAt)
+    const msToExpiry = Number(fallback[0].expiryMs) - now
+
+    console.log(
+      `[predict] round oracle fallback selected oracle=${fallback[0].oracleId} intervalMs=${intervalMs} msToExpiry=${msToExpiry}`
+    )
+  }
+
+  return fallback[0]
 }
