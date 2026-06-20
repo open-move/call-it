@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import type { TradeMarket } from "@/lib/types/trade"
 import { cn } from "@/lib/utils"
 
-import { Row } from "./row"
+import { MarketRow } from "./market-row"
 
 export interface TableProps {
   markets: TradeMarket[]
@@ -37,7 +37,7 @@ export function Table({ markets, onResetFilters }: TableProps) {
       </div>
       <div className="space-y-3 lg:space-y-0">
         {markets.length > 0 ? (
-          markets.map((market) => <Row key={market.id} market={market} />)
+          markets.map((market) => <MarketRow key={market.id} market={market} />)
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-md bg-card px-4 py-12 text-center lg:rounded-none lg:bg-transparent">
             <div className="text-sm font-medium text-foreground">

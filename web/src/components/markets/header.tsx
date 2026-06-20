@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import type { MarketSort } from "@/lib/markets/helpers"
 import { cn } from "@/lib/utils"
 
 export interface ToolbarOption {
@@ -30,10 +31,10 @@ export interface ToolbarProps {
 export interface MarketSearchControlsProps {
   onResetFilters: () => void
   onSearchChange: (search: string) => void
-  onSortChange: (sort: "expiry" | "move" | "volume") => void
+  onSortChange: (sort: MarketSort) => void
   onWithTradesOnlyChange: (withTradesOnly: boolean) => void
   searchQuery: string
-  selectedSort: "expiry" | "move" | "volume"
+  selectedSort: MarketSort
   withTradesOnly: boolean
   expiryOptions: ToolbarOption[]
   onExpiryChange: (expiry?: string) => void
@@ -108,9 +109,9 @@ function FilterMenu({
   withTradesOnly,
 }: {
   onResetFilters: () => void
-  onSortChange: (sort: "expiry" | "move" | "volume") => void
+  onSortChange: (sort: MarketSort) => void
   onWithTradesOnlyChange: (withTradesOnly: boolean) => void
-  selectedSort: "expiry" | "move" | "volume"
+  selectedSort: MarketSort
   withTradesOnly: boolean
 }) {
   return (

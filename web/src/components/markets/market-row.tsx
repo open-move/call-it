@@ -12,23 +12,15 @@ import {
   formatSignedUsd,
   formatUsd,
 } from "@/lib/format"
+import { getDistance } from "@/lib/markets/helpers"
 import type { TradeMarket } from "@/lib/types/trade"
 import { cn } from "@/lib/utils"
 
+import { Metric } from "./metric"
 import { Sparkline } from "./sparkline"
 
 export interface RowProps {
   market: TradeMarket
-}
-
-function getDistance(market: TradeMarket) {
-  const distanceUsd = market.currentPriceUsd - market.strikePriceUsd
-  const distancePercent =
-    market.strikePriceUsd === 0
-      ? 0
-      : (distanceUsd / market.strikePriceUsd) * 100
-
-  return { distancePercent, distanceUsd }
 }
 
 export function Row({ market }: RowProps) {
@@ -191,20 +183,20 @@ export function Row({ market }: RowProps) {
         <Sparkline className="h-7 opacity-90" points={market.priceHistory} />
 
         <div className="grid grid-cols-2 gap-1.5 text-xs sm:grid-cols-4">
-          <MobileMetric
+          <Metric
             label="Volume"
             value={formatCompactUsd(market.volumeUsd)}
           />
-          <MobileMetric
+          <Metric
             className={isAboveStrike ? "text-outcome-up" : "text-outcome-down"}
             label="Distance"
             value={formatSignedUsd(distance.distanceUsd)}
           />
-          <MobileMetric
+          <Metric
             label="Expires"
             value={formatExpiryDistance(market.expiryMs)}
           />
-          <MobileMetric
+          <Metric
             label="Updated"
             value={formatRelativeTime(market.priceUpdatedMs)}
           />
@@ -218,28 +210,4 @@ export function Row({ market }: RowProps) {
   )
 }
 
-function MobileMetric({
-  className,
-  label,
-  value,
-}: {
-  className?: string
-  label: string
-  value: string
-}) {
-  return (
-    <div className="rounded-md border border-border/35 bg-muted/25 px-2.5 py-1.5">
-      <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div
-        className={cn(
-          "mt-0.5 font-mono text-xs font-medium text-foreground tabular-nums",
-          className
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  )
-}
+
