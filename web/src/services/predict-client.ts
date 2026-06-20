@@ -1,8 +1,25 @@
-import {
-  PREDICT_OBJECT_ID,
-  PREDICT_SERVER_URL,
-} from "@/lib/config"
-import type {DirectionalPositionMintEvent, DirectionalPositionRedeemEvent, LpSupplyEvent, LpWithdrawalEvent, ManagerBalance, ManagerPositionSummary, ManagerRangeActivityResponse, ManagerSummary, OracleInfo, OraclePriceUpdate, OracleStateResponse, OracleSviUpdate, PredictManagerCreatedEvent, RangeMintEvent, RangeRedeemEvent, VaultPerformancePoint, VaultPerformanceResponse, VaultSummary} from "@/lib/types/predict";
+import { PREDICT_OBJECT_ID, PREDICT_SERVER_URL } from "@/lib/config"
+import type {
+  DirectionalPositionMintEvent,
+  DirectionalPositionRedeemEvent,
+  LpSupplyEvent,
+  LpWithdrawalEvent,
+  ManagerBalance,
+  ManagerPositionActivityResponse,
+  ManagerPositionSummary,
+  ManagerRangeActivityResponse,
+  ManagerSummary,
+  OracleInfo,
+  OraclePriceUpdate,
+  OracleStateResponse,
+  OracleSviUpdate,
+  PredictManagerCreatedEvent,
+  RangeMintEvent,
+  RangeRedeemEvent,
+  VaultPerformancePoint,
+  VaultPerformanceResponse,
+  VaultSummary,
+} from "@/lib/types/predict"
 
 export class PredictServerError extends Error {
   constructor(message: string) {
@@ -626,6 +643,21 @@ function parseManagerPositionSummaryArray(
   return value.map(parseManagerPositionSummary)
 }
 
+function parseManagerPositionActivityResponse(
+  value: unknown
+): ManagerPositionActivityResponse {
+  if (!isRecord(value)) {
+    throw new PredictServerError(
+      "Invalid Predict response: expected manager position activity"
+    )
+  }
+
+  return {
+    minted: parseDirectionalPositionMintEventArray(value.minted),
+    redeemed: parseDirectionalPositionRedeemEventArray(value.redeemed),
+  }
+}
+
 function parseManagerRangeActivityResponse(
   value: unknown
 ): ManagerRangeActivityResponse {
@@ -670,8 +702,10 @@ async function readPredictJson<T>(
   })
 
   if (!response.ok) {
+    const body = await response.text().catch(() => "")
+
     throw new PredictServerError(
-      `Predict server request failed: ${response.status} ${response.statusText}`
+      `Predict server request failed: ${response.status} ${response.statusText}${body ? `: ${body}` : ""}`
     )
   }
 
@@ -808,6 +842,13 @@ export function getManagerPositionSummaries(managerId: string) {
   return readPredictJson(
     `/managers/${encodeURIComponent(managerId)}/positions/summary`,
     parseManagerPositionSummaryArray
+  )
+}
+
+export function getManagerPositions(managerId: string) {
+  return readPredictJson(
+    `/managers/${encodeURIComponent(managerId)}/positions`,
+    parseManagerPositionActivityResponse
   )
 }
 

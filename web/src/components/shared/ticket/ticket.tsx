@@ -20,11 +20,13 @@ export function TicketSection({
   title,
 }: {
   children: ReactNode
-  title: string
+  title?: string
 }) {
   return (
     <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5 text-sm">
-      <div className="text-xs font-medium text-muted-foreground">{title}</div>
+      {title ? (
+        <div className="text-xs font-medium text-muted-foreground">{title}</div>
+      ) : null}
       <div className="space-y-2">{children}</div>
     </div>
   )

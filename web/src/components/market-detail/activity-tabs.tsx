@@ -21,7 +21,10 @@ import {
   getPositionRows,
   getRangePositionsFromActivity,
 } from "@/lib/trade-activity"
-import { filterPositions } from "@/lib/trade-positions"
+import {
+  filterPositions,
+  getPositionSummariesFromActivity,
+} from "@/lib/trade-positions"
 import type {
   PositionRow,
   PositionTradeIntent,
@@ -30,6 +33,7 @@ import type {
 } from "@/lib/types/trade"
 import {
   getManagerRanges,
+  getManagerPositions,
   getManagerPositionSummaries,
 } from "@/services/predict-client"
 import {
@@ -38,6 +42,7 @@ import {
   simulatePredictRedeemTransaction,
 } from "@/services/predict-transactions"
 import type { PredictRedeemParams } from "@/services/predict-transactions"
+import { formatPredictLifecycleError } from "@/services/predict-quotes"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -218,6 +223,28 @@ function getPositionTextClass(position: PositionRow) {
   return getContractTextClass(position)
 }
 
+function getMarketOracleInfo(market: MarketSnapshot) {
+  return new Map([
+    [
+      market.oracleId,
+      {
+        activated_at: null,
+        created_checkpoint: 0,
+        expiry: market.expiryMs,
+        min_strike: 0,
+        oracle_cap_id: "",
+        oracle_id: market.oracleId,
+        predict_id: "",
+        settled_at: market.settledAtMs,
+        settlement_price: market.settlementPrice,
+        status: market.status,
+        tick_size: 0,
+        underlying_asset: market.assetSymbol,
+      },
+    ],
+  ])
+}
+
 function getPositionLifecycleActionLabel(position: PositionRow) {
   const status = position.status.toLowerCase()
 
@@ -313,10 +340,19 @@ async function loadWalletMarketPositions({
     return { positions: [] }
   }
 
-  const [summaries, rangeActivity] = await Promise.all([
-    getManagerPositionSummaries(managerId),
-    getManagerRanges(managerId),
+  const [summaryResult, rangeActivity] = await Promise.all([
+    getManagerPositionSummaries(managerId).catch(() => undefined),
+    getManagerRanges(managerId).catch(() => ({ minted: [], redeemed: [] })),
   ])
+  const summaries =
+    summaryResult ??
+    getPositionSummariesFromActivity(
+      await getManagerPositions(managerId).catch(() => ({
+        minted: [],
+        redeemed: [],
+      })),
+      getMarketOracleInfo(market)
+    )
   const directionalPositions = filterPositions(summaries, {
     expiryMs: market.expiryMs,
     oracleId: market.oracleId,
@@ -327,7 +363,8 @@ async function loadWalletMarketPositions({
     {
       expiryMs: market.expiryMs,
       oracleId: market.oracleId,
-    }
+    },
+    getMarketOracleInfo(market)
   )
 
   return {
@@ -585,8 +622,10 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
       setPreviewState({
-        errorMessage:
-          error instanceof Error ? error.message : `${actionLabel} failed.`,
+        errorMessage: formatPredictLifecycleError(
+          error,
+          `${actionLabel} failed.`
+        ),
         isExecuting: false,
         isLoading: false,
         positionId: position.id,
@@ -663,9 +702,10 @@ function ActivityTabsClient(props: ActivityTabsProps) {
       )
     : []
   const positionsTab = {
-    count: walletAddress && !positionState.isLoading
-      ? visiblePositions.length
-      : undefined,
+    count:
+      walletAddress && !positionState.isLoading
+        ? visiblePositions.length
+        : undefined,
     label: "Positions",
   }
   const tradesTab = {
@@ -774,7 +814,7 @@ function ActivityTabTrigger({
 }) {
   return (
     <TabsTrigger
-      className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 hover:text-foreground data-active:text-foreground after:bg-primary"
+      className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
       value={value}
     >
       <span>{tab.label}</span>
@@ -918,9 +958,17 @@ interface PositionHeaderColumn {
   label: string
 }
 
+const positionTableGrid =
+  "grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem]"
+
 function PositionHeaderRow({ columns }: { columns: PositionHeaderColumn[] }) {
   return (
-    <div className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+    <div
+      className={cn(
+        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
+        positionTableGrid
+      )}
+    >
       {columns.map((column, index) => (
         <span
           className={cn("truncate", column.align === "right" && "text-right")}
@@ -957,23 +1005,32 @@ function PositionsTable({
   onRequestLifecycle: (position: PositionRow) => void
   positions: PositionRow[]
 }) {
+  const hasUnavailableValues = positions.some(
+    (position) => position.openQuantity > 0 && position.markValueUsd === null
+  )
+
   return (
     <div className="min-h-0 flex-1 overflow-auto">
       <div className="min-w-[52rem]">
+        {hasUnavailableValues ? (
+          <div className="border-b border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            Live exit values are unavailable. Entry and premium are shown from
+            trade history.
+          </div>
+        ) : null}
         <PositionHeaderRow
           columns={[
             { label: "Contract" },
-            { label: "Contracts" },
-            { label: "Entry" },
-            { label: "Mark" },
-            { label: "Premium" },
+            { align: "right", label: "Contracts" },
+            { align: "right", label: "Avg entry" },
+            { align: "right", label: "Premium" },
             { align: "right", label: "PnL" },
             { align: "right", label: "" },
           ]}
         />
         {positions.map((position) => {
           const pnl =
-            position.kind === "directional"
+            position.unrealizedPnlUsd !== null
               ? position.unrealizedPnlUsd + position.realizedPnlUsd
               : null
           const pnlClassName =
@@ -987,31 +1044,33 @@ function PositionsTable({
 
           return (
             <div
-              className="grid grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 border-b border-border/35 px-3 py-2 text-xs"
+              className={cn(
+                "grid gap-4 border-b border-border/35 px-3 py-2 text-xs",
+                positionTableGrid
+              )}
               key={position.id}
             >
               <div className="min-w-0">
-                <div className="flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 items-start gap-2">
                   <PositionKindTag position={position} />
-                  <span className="truncate font-medium text-foreground">
-                    {getPositionContract(position, assetSymbol)}
-                  </span>
-                </div>
-                <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
-                  {position.status} ·{" "}
-                  {formatRelativeTime(position.lastActivityAt)}
+                  <div className="min-w-0">
+                    <div className="truncate font-medium text-foreground">
+                      {getPositionContract(position, assetSymbol)}
+                    </div>
+                    <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
+                      {position.status} ·{" "}
+                      {formatRelativeTime(position.lastActivityAt)}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <span className="font-mono text-muted-foreground tabular-nums">
+              <span className="text-right font-mono text-muted-foreground tabular-nums">
                 {formatPositionQuantity(position.openQuantity)}
               </span>
-              <span className="font-mono tabular-nums">
+              <span className="text-right font-mono tabular-nums">
                 {formatNullablePriceCents(position.averageEntryPrice)}
               </span>
-              <span className="font-mono tabular-nums">
-                {formatNullablePriceCents(position.markPrice)}
-              </span>
-              <span className="font-mono tabular-nums">
+              <span className="text-right font-mono tabular-nums">
                 {formatCompactDusdc(position.openCostBasisUsd)}
               </span>
               <span
@@ -1187,14 +1246,7 @@ function TradesTable({
       <div className="min-w-[54rem]">
         <ActivityHeaderRow
           className="grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem]"
-          columns={[
-            "Contract",
-            "Price",
-            "Contracts",
-            "Premium",
-            "Tx",
-            "Time",
-          ]}
+          columns={["Contract", "Price", "Contracts", "Premium", "Tx", "Time"]}
         />
         {trades.map((trade) => (
           <div
@@ -1239,14 +1291,7 @@ function RedemptionsTable({
       <div className="min-w-[54rem]">
         <ActivityHeaderRow
           className="grid-cols-[minmax(13rem,1.9fr)_5.25rem_6rem_6.5rem_5rem_5.5rem]"
-          columns={[
-            "Contract",
-            "Price",
-            "Contracts",
-            "Payout",
-            "Tx",
-            "Time",
-          ]}
+          columns={["Contract", "Price", "Contracts", "Payout", "Tx", "Time"]}
         />
         {redemptions.map((redemption) => (
           <div
@@ -1283,7 +1328,7 @@ function TransactionLink({ transactionDigest }: { transactionDigest: string }) {
   return (
     <a
       aria-label="Open transaction in explorer"
-      className="inline-flex min-w-0 items-center gap-1 truncate font-mono text-muted-foreground tabular-nums transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+      className="inline-flex min-w-0 items-center gap-1 truncate font-mono text-muted-foreground tabular-nums transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none active:scale-[0.98]"
       href={getTransactionUrl(transactionDigest)}
       rel="noreferrer"
       target="_blank"

@@ -26,11 +26,14 @@ type PredictAccountStatus = "idle" | "loading" | "ready" | "error"
 interface PredictAccountState {
   errorMessage?: string
   isCreatingManager: boolean
+  managerDusdcBalance?: bigint
   managerId?: string
   managerSummary?: ManagerSummary
   status: PredictAccountStatus
   walletAddress?: string
+  walletDusdcAddressBalance?: bigint
   walletDusdcBalance?: bigint
+  walletDusdcCoinBalance?: bigint
   walletPlpBalance?: bigint
 }
 
@@ -76,6 +79,53 @@ function writeCachedManagerId(walletAddress: string, managerId: string) {
   window.localStorage.setItem(getManagerCacheKey(walletAddress), managerId)
 }
 
+function readBalanceAmount(value: unknown) {
+  if (typeof value === "bigint") {
+    return value
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return BigInt(Math.floor(value))
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return BigInt(value)
+  }
+
+  return 0n
+}
+
+function readGrpcBalance(value: unknown) {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return {
+      addressBalance: 0n,
+      coinBalance: 0n,
+      totalBalance: 0n,
+    }
+  }
+
+  const balance = value as Record<string, unknown>
+  const totalBalance = readBalanceAmount(balance.balance)
+  const coinBalance = readBalanceAmount(balance.coinBalance)
+  const addressBalance = readBalanceAmount(balance.addressBalance)
+
+  return {
+    addressBalance,
+    coinBalance: coinBalance || totalBalance - addressBalance,
+    totalBalance,
+  }
+}
+
+function getManagerQuoteBalance(summary: ManagerSummary | undefined) {
+  return BigInt(
+    Math.floor(
+      summary?.balances.find(
+        (balance) => balance.quote_asset === PREDICT_QUOTE_ASSET
+      )?.balance ?? 0
+    )
+  )
+}
+
 async function loadAccountState(
   walletAddress: string,
   preferredManagerId?: string
@@ -104,17 +154,23 @@ async function loadAccountState(
     writeCachedManagerId(walletAddress, managerId)
   }
 
+  const dusdcBalance =
+    dusdcResult.status === "fulfilled"
+      ? readGrpcBalance(dusdcResult.value.balance)
+      : undefined
+  const plpBalance =
+    plpResult.status === "fulfilled"
+      ? readGrpcBalance(plpResult.value.balance)
+      : undefined
+
   return {
     managerId,
+    managerDusdcBalance: getManagerQuoteBalance(managerSummary),
     managerSummary,
-    walletDusdcBalance:
-      dusdcResult.status === "fulfilled"
-        ? BigInt(dusdcResult.value.balance.balance)
-        : undefined,
-    walletPlpBalance:
-      plpResult.status === "fulfilled"
-        ? BigInt(plpResult.value.balance.balance)
-        : undefined,
+    walletDusdcAddressBalance: dusdcBalance?.addressBalance,
+    walletDusdcBalance: dusdcBalance?.totalBalance,
+    walletDusdcCoinBalance: dusdcBalance?.coinBalance,
+    walletPlpBalance: plpBalance?.totalBalance,
   }
 }
 

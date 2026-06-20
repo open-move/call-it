@@ -1,4 +1,4 @@
-import type {OracleSviUpdate} from "@/lib/types/predict";
+import type { OracleSviUpdate } from "@/lib/types/predict"
 
 export interface MarketPricePoint {
   timestampMs: number
@@ -50,6 +50,8 @@ export interface MarketSnapshot {
   priceHistory: MarketPricePoint[]
   priceUpdatedMs: number
   recentTrades: MarketTradeEvent[]
+  settledAtMs: number | null
+  settlementPrice: number | null
   status: string
   strikePriceUsd: number
   tickSizeUsd: number

@@ -1,6 +1,9 @@
 import { PREDICT_PRICE_SCALE as PRICE_SCALE } from "@/lib/config"
-import type {MarketPricePoint, MarketSnapshot} from "@/lib/types/market";
-import type {OraclePriceUpdate, OracleStateResponse} from "@/lib/types/predict";
+import type { MarketPricePoint, MarketSnapshot } from "@/lib/types/market"
+import type {
+  OraclePriceUpdate,
+  OracleStateResponse,
+} from "@/lib/types/predict"
 
 import { computeFairUpProbability } from "./market-svi"
 
@@ -110,6 +113,8 @@ export function mapOracleStateToMarketSnapshot(
     priceHistory,
     priceUpdatedMs: state.latest_price.checkpoint_timestamp_ms,
     recentTrades: [],
+    settledAtMs: state.oracle.settled_at,
+    settlementPrice: state.oracle.settlement_price,
     status: state.oracle.status,
     strikePriceUsd: toUsdPrice(strike),
     tickSizeUsd: toUsdPrice(state.oracle.tick_size),

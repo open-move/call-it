@@ -1,18 +1,14 @@
 import { bcs } from "@mysten/sui/bcs"
-import type {SuiClientTypes} from "@mysten/sui/client";
+import type { SuiClientTypes } from "@mysten/sui/client"
 
-import type {PredictTradeQuote,PredictTradeParams} from "./predict-transactions";
-import { getPredictMoveAbortMessage } from "./predict-errors"
-import {
-  buildPredictQuoteTransaction
-  
+import type {
+  PredictTradeQuote,
+  PredictTradeParams,
 } from "./predict-transactions"
-import {
-  getSuiFailureMessage,
-  parseSuiFailure
-  
-} from "./sui-errors"
-import type {SuiFailure} from "./sui-errors";
+import { getPredictMoveAbortMessage } from "./predict-errors"
+import { buildPredictQuoteTransaction } from "./predict-transactions"
+import { getSuiFailureMessage, parseSuiFailure } from "./sui-errors"
+import type { SuiFailure } from "./sui-errors"
 import { simulateSuiTransaction } from "./sui-simulate"
 
 const MIN_EXECUTABLE_MINT_COST = 10_000n
@@ -116,6 +112,22 @@ export function formatPredictTradeError(error: unknown, fallback: string) {
     normalizedMessage.includes("no account found")
   ) {
     return "Reconnect wallet to approve Sui transactions."
+  }
+
+  return message
+}
+
+export function formatPredictLifecycleError(error: unknown, fallback: string) {
+  const message = formatPredictTradeError(error, fallback)
+  const normalizedMessage = message.toLowerCase()
+
+  if (
+    normalizedMessage.includes("missing mark quote results") ||
+    normalizedMessage.includes("quote simulation did not return") ||
+    normalizedMessage.includes("current exit quote") ||
+    normalizedMessage.includes("no quote")
+  ) {
+    return "Current exit quote unavailable. Try again shortly."
   }
 
   return message

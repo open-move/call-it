@@ -74,7 +74,7 @@ export interface Position {
   openCostBasisUsd: number
   markValueUsd: number | null
   realizedPnlUsd: number
-  unrealizedPnlUsd: number
+  unrealizedPnlUsd: number | null
   status: string
   lastActivityAt: number
 }
@@ -85,11 +85,11 @@ export interface RangePosition {
   higherStrikePriceUsd: number
   openQuantity: number
   averageEntryPrice: number | null
-  markPrice: null
+  markPrice: number | null
   openCostBasisUsd: number
-  markValueUsd: null
+  markValueUsd: number | null
   realizedPnlUsd: number
-  unrealizedPnlUsd: null
+  unrealizedPnlUsd: number | null
   status: string
   lastActivityAt: number
 }

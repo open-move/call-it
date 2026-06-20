@@ -1,6 +1,7 @@
 import { QUOTE_SCALE, PREDICT_PRICE_SCALE as PRICE_SCALE } from "@/lib/config"
 import type {
   DirectionalPositionRedeemEvent,
+  OracleInfo,
   RangeMintEvent,
   RangeRedeemEvent,
 } from "@/lib/types/predict"
@@ -168,10 +169,59 @@ function getRangePositionKey(event: RangeMintEvent | RangeRedeemEvent) {
   return `${event.manager_id}:${event.oracle_id}:${event.expiry}:${event.lower_strike}:${event.higher_strike}`
 }
 
+export function getSettledRangeMarkValue({
+  higherStrike,
+  lowerStrike,
+  openQuantity,
+  oracle,
+}: {
+  higherStrike: number
+  lowerStrike: number
+  openQuantity: number
+  oracle?: OracleInfo
+}) {
+  if (oracle?.status !== "settled" || oracle.settlement_price === null) {
+    return null
+  }
+
+  const isInRange =
+    oracle.settlement_price > lowerStrike &&
+    oracle.settlement_price <= higherStrike
+
+  return isInRange ? openQuantity : 0
+}
+
+export function getRangePositionStatus({
+  markValue,
+  openQuantity,
+  oracle,
+  expiry,
+}: {
+  expiry: number
+  markValue: number | null
+  openQuantity: number
+  oracle?: OracleInfo
+}) {
+  if (openQuantity <= 0) {
+    return "redeemed"
+  }
+
+  if (oracle?.status === "settled") {
+    return (markValue ?? 0) > 0 ? "redeemable" : "lost"
+  }
+
+  if (Date.now() >= expiry) {
+    return "awaiting_settlement"
+  }
+
+  return "active"
+}
+
 export function getRangePositionsFromActivity(
   mintedEvents: RangeMintEvent[],
   redeemedEvents: RangeRedeemEvent[],
-  { expiryMs, oracleId }: FilterActivityOptions
+  { expiryMs, oracleId }: FilterActivityOptions,
+  oracleById = new Map<string, OracleInfo>()
 ): RangePosition[] {
   const positions = new Map<string, RangePositionAccumulator>()
 
@@ -239,6 +289,25 @@ export function getRangePositionsFromActivity(
             : null
         const redeemedCostBasis =
           averageEntryPrice === null ? 0 : averageEntryPrice * redeemedQuantity
+        const oracle = oracleById.get(oracleId)
+        const rawOpenQuantity = Math.max(
+          position.mintedQuantity - position.redeemedQuantity,
+          0
+        )
+        const markValue = getSettledRangeMarkValue({
+          higherStrike: position.higherStrike,
+          lowerStrike: position.lowerStrike,
+          openQuantity: rawOpenQuantity,
+          oracle,
+        })
+        const markValueUsd =
+          markValue === null ? null : toQuoteAmount(markValue)
+        const markPrice =
+          markValueUsd === null || openQuantity <= 0
+            ? null
+            : markValueUsd / openQuantity
+        const openCostBasisUsd =
+          averageEntryPrice === null ? 0 : averageEntryPrice * openQuantity
 
         return {
           averageEntryPrice,
@@ -246,15 +315,20 @@ export function getRangePositionsFromActivity(
           id,
           lastActivityAt: position.lastActivityAt,
           lowerStrikePriceUsd: toUsdPrice(position.lowerStrike),
-          markPrice: null,
-          markValueUsd: null,
-          openCostBasisUsd:
-            averageEntryPrice === null ? 0 : averageEntryPrice * openQuantity,
+          markPrice,
+          markValueUsd,
+          openCostBasisUsd,
           openQuantity,
           realizedPnlUsd:
             toQuoteAmount(position.totalPayout) - redeemedCostBasis,
-          status: "open",
-          unrealizedPnlUsd: null,
+          status: getRangePositionStatus({
+            expiry: expiryMs,
+            markValue,
+            openQuantity: rawOpenQuantity,
+            oracle,
+          }),
+          unrealizedPnlUsd:
+            markValueUsd === null ? null : markValueUsd - openCostBasisUsd,
         }
       })
       .filter((position) => position.openQuantity > 0)

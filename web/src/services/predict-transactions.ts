@@ -1,10 +1,6 @@
 import { bcs } from "@mysten/sui/bcs"
-import type {SuiClientTypes} from "@mysten/sui/client";
-import {
-  Transaction
-  
-} from "@mysten/sui/transactions"
-import type {TransactionObjectArgument} from "@mysten/sui/transactions";
+import type { SuiClientTypes } from "@mysten/sui/client"
+import { coinWithBalance, Transaction } from "@mysten/sui/transactions"
 import { fromBase64 } from "@mysten/sui/utils"
 
 import {
@@ -82,6 +78,7 @@ export interface LiquidityTransactionParams {
 
 export interface PreparedPredictMintTransaction {
   actualCost: bigint
+  depositAmount: bigint
   reserveAmount: bigint
   transaction: Transaction
 }
@@ -211,78 +208,26 @@ function findMintCost(events: SuiClientTypes.Event[]) {
   return undefined
 }
 
-function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {
-  const selectedCoins: SuiClientTypes.Coin[] = []
-  let selectedBalance = 0n
-
-  for (const coin of coins) {
-    selectedCoins.push(coin)
-    selectedBalance += BigInt(coin.balance)
-
-    if (selectedBalance >= amount) {
-      return { selectedBalance, selectedCoins }
-    }
-  }
-
-  return { selectedBalance, selectedCoins }
+function buildCoin(tx: Transaction, amount: bigint, coinType: string) {
+  return tx.add(coinWithBalance({ balance: amount, type: coinType }))
 }
 
-async function buildCoin(
+export function buildQuoteCoin(
   tx: Transaction,
-  owner: string,
-  amount: bigint,
-  coinType: string,
-  insufficientBalanceMessage: string
-): Promise<TransactionObjectArgument> {
-  const { objects } = await getSuiGrpcClient().listCoins({
-    coinType,
-    limit: 50,
-    owner,
-  })
-  const { selectedBalance, selectedCoins } = selectCoins(objects, amount)
-  const [primaryCoin, ...sourceCoins] = selectedCoins
+  amountOrOwner: bigint | string,
+  maybeAmount?: bigint
+) {
+  const amount = typeof amountOrOwner === "bigint" ? amountOrOwner : maybeAmount
 
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  if (!primaryCoin || selectedBalance < amount) {
-    throw new Error(insufficientBalanceMessage)
+  if (amount === undefined) {
+    throw new Error("Missing DUSDC amount")
   }
 
-  const paymentCoin = tx.object(primaryCoin.objectId)
-
-  if (sourceCoins.length > 0) {
-    tx.mergeCoins(
-      paymentCoin,
-      sourceCoins.map((coin) => tx.object(coin.objectId))
-    )
-  }
-
-  if (selectedBalance === amount) {
-    return paymentCoin
-  }
-
-  const [depositCoin] = tx.splitCoins(paymentCoin, [tx.pure.u64(amount)])
-
-  return depositCoin
+  return buildCoin(tx, amount, PREDICT_QUOTE_ASSET)
 }
 
-export function buildQuoteCoin(tx: Transaction, owner: string, amount: bigint) {
-  return buildCoin(
-    tx,
-    owner,
-    amount,
-    PREDICT_QUOTE_ASSET,
-    "Insufficient DUSDC balance"
-  )
-}
-
-function buildLpCoin(tx: Transaction, owner: string, amount: bigint) {
-  return buildCoin(
-    tx,
-    owner,
-    amount,
-    PREDICT_LP_ASSET,
-    "Insufficient PLP balance"
-  )
+function buildLpCoin(tx: Transaction, amount: bigint) {
+  return buildCoin(tx, amount, PREDICT_LP_ASSET)
 }
 
 export function buildCreateManagerTransaction(walletAddress: string) {
@@ -293,7 +238,7 @@ export function buildCreateManagerTransaction(walletAddress: string) {
   return tx
 }
 
-export async function buildManagerDepositTransaction({
+export function buildManagerDepositTransaction({
   amount,
   managerId,
   walletAddress,
@@ -304,7 +249,7 @@ export async function buildManagerDepositTransaction({
 }) {
   const tx = new Transaction()
   tx.setSender(walletAddress)
-  const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
+  const paymentCoin = buildQuoteCoin(tx, amount)
 
   tx.moveCall({
     target: target("predict_manager", "deposit"),
@@ -330,10 +275,7 @@ export function buildManagerWithdrawTransaction({
   const quoteCoin = tx.moveCall({
     target: target("predict_manager", "withdraw"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [
-      tx.object(managerId),
-      tx.pure.u64(amount),
-    ],
+    arguments: [tx.object(managerId), tx.pure.u64(amount)],
   })
 
   tx.transferObjects([quoteCoin], walletAddress)
@@ -378,24 +320,27 @@ export function buildPredictQuoteTransaction(params: PredictTradeParams) {
   return tx
 }
 
-export async function buildPredictMintTransaction({
+export function buildPredictMintTransaction({
+  depositAmount,
   managerId,
-  maxCost,
   params,
 }: {
+  depositAmount: bigint
   managerId: string
-  maxCost: bigint
   params: PredictTradeParams
 }) {
   const tx = new Transaction()
   tx.setSender(params.walletAddress)
-  const paymentCoin = await buildQuoteCoin(tx, params.walletAddress, maxCost)
 
-  tx.moveCall({
-    target: target("predict_manager", "deposit"),
-    typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(managerId), paymentCoin],
-  })
+  if (depositAmount > 0n) {
+    const paymentCoin = buildQuoteCoin(tx, depositAmount)
+
+    tx.moveCall({
+      target: target("predict_manager", "deposit"),
+      typeArguments: [PREDICT_QUOTE_ASSET],
+      arguments: [tx.object(managerId), paymentCoin],
+    })
+  }
 
   if (isRangeTradeParams(params)) {
     const key = buildRangeKey(tx, params)
@@ -479,13 +424,13 @@ export function buildPredictRedeemTransaction({
   return tx
 }
 
-export async function buildSupplyLiquidityTransaction({
+export function buildSupplyLiquidityTransaction({
   amount,
   walletAddress,
 }: LiquidityTransactionParams) {
   const tx = new Transaction()
   tx.setSender(walletAddress)
-  const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
+  const paymentCoin = buildQuoteCoin(tx, amount)
 
   const lpCoin = tx.moveCall({
     target: target("predict", "supply"),
@@ -502,13 +447,13 @@ export async function buildSupplyLiquidityTransaction({
   return tx
 }
 
-export async function buildWithdrawLiquidityTransaction({
+export function buildWithdrawLiquidityTransaction({
   amount,
   walletAddress,
 }: LiquidityTransactionParams) {
   const tx = new Transaction()
   tx.setSender(walletAddress)
-  const lpCoin = await buildLpCoin(tx, walletAddress, amount)
+  const lpCoin = buildLpCoin(tx, amount)
 
   const quoteCoin = tx.moveCall({
     target: target("predict", "withdraw"),
@@ -554,21 +499,28 @@ export async function quotePredictTrade(params: PredictTradeParams) {
 }
 
 export async function preparePredictMintTransaction({
+  managerBalance,
   managerId,
   params,
   quotedCost,
 }: {
+  managerBalance: bigint
   managerId: string
   params: PredictTradeParams
   quotedCost: bigint
 }): Promise<PreparedPredictMintTransaction> {
   let reserveAmount = addBasisPoints(quotedCost, 1_000n)
+  let effectiveManagerBalance = managerBalance
   let lastError: string | undefined
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const transaction = await buildPredictMintTransaction({
+    const depositAmount =
+      reserveAmount > effectiveManagerBalance
+        ? reserveAmount - effectiveManagerBalance
+        : 0n
+    const transaction = buildPredictMintTransaction({
+      depositAmount,
       managerId,
-      maxCost: reserveAmount,
       params,
     })
     const result = await getSuiGrpcClient().simulateTransaction({
@@ -587,12 +539,17 @@ export async function preparePredictMintTransaction({
       const bufferedCost = addBasisPoints(actualCost, 100n)
 
       if (bufferedCost <= reserveAmount) {
-        return { actualCost, reserveAmount, transaction }
+        return { actualCost, depositAmount, reserveAmount, transaction }
       }
 
       reserveAmount = bufferedCost
     } else {
       lastError = result.FailedTransaction.status.error?.message
+
+      if (effectiveManagerBalance > 0n && depositAmount < reserveAmount) {
+        effectiveManagerBalance = 0n
+        continue
+      }
 
       if (
         lastError &&

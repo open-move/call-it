@@ -43,9 +43,7 @@ import {
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
-import {
-  getShieldPositions,
-} from "@/services/shield-client"
+import { getShieldPositions } from "@/services/shield-client"
 import type { ShieldPositionRow } from "@/services/shield-client"
 
 type TicketMode = "binary" | "range"
@@ -149,6 +147,10 @@ function pinStrikeSearchParam(strikePriceUsd: number) {
 
 function formatDusdc(value: bigint) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)} DUSDC`
+}
+
+function getTradeReserveAmount(value: bigint) {
+  return (value * 11_000n + 9_999n) / 10_000n
 }
 
 function getMarketUnavailableMessage(market: MarketSnapshot, nowMs: number) {
@@ -273,15 +275,28 @@ function OrderTicketClient({
   const [statusMessage, setStatusMessage] = useState<string>()
   const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
   const [errorMessage, setErrorMessage] = useState<string>()
-  const [shieldPositions, setShieldPositions] = useState<ShieldPositionRow[]>([])
+  const [shieldPositions, setShieldPositions] = useState<ShieldPositionRow[]>(
+    []
+  )
   const [nowMs, setNowMs] = useState(() => Date.now())
   const walletAddress = primaryWallet?.address
   const selectedQuantity = parseDecimalUnits(size, PREDICT_QUOTE_DECIMALS)
   const isAbove = contractSide === "above"
   const isRangeValid = rangeStrikes.lower < rangeStrikes.higher
   const quotedQuote = quote?.status === "quoted" ? quote : undefined
+  const managerDusdcBalance = predictAccount.managerDusdcBalance ?? 0n
+  const availableDusdcBalance =
+    (predictAccount.walletDusdcBalance ?? 0n) + managerDusdcBalance
+  const reserveAmount = quotedQuote
+    ? getTradeReserveAmount(quotedQuote.mintCost)
+    : undefined
+  const balanceErrorMessage =
+    reserveAmount !== undefined && availableDusdcBalance < reserveAmount
+      ? "Available DUSDC is below the estimated trade reserve."
+      : undefined
   const marketUnavailableMessage = getMarketUnavailableMessage(market, nowMs)
-  const panelErrorMessage = marketUnavailableMessage ?? errorMessage
+  const panelErrorMessage =
+    marketUnavailableMessage ?? balanceErrorMessage ?? errorMessage
   const matchingShieldPosition =
     ticketMode === "binary"
       ? shieldPositions.find((position) =>
@@ -297,20 +312,26 @@ function OrderTicketClient({
     market.fairUpProbability === undefined
       ? "--"
       : `${Math.round((isAbove ? market.fairUpProbability : 1 - market.fairUpProbability) * 100)}%`
-  const quotePriceValue = !isRangeValid && ticketMode === "range"
-    ? "Invalid range"
-    : quotedQuote && selectedQuantity
-      ? `${formatUnitPrice(quotedQuote.mintCost, selectedQuantity)} DUSDC`
-      : quote?.status === "no_quote"
-        ? "No quote"
-        : isQuoting
-          ? "Quoting"
-          : "--"
+  const quotePriceValue =
+    !isRangeValid && ticketMode === "range"
+      ? "Invalid range"
+      : quotedQuote && selectedQuantity
+        ? `${formatUnitPrice(quotedQuote.mintCost, selectedQuantity)} DUSDC`
+        : quote?.status === "no_quote"
+          ? "No quote"
+          : isQuoting
+            ? "Quoting"
+            : "--"
   const premiumValue = quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"
   const maxLossValue = premiumValue
-  const potentialPayoutValue = quotedQuote
-    ? formatDusdc(quotedQuote.redeemPayout)
-    : "--"
+  const potentialProfitValue =
+    quotedQuote && selectedQuantity
+      ? formatDusdc(
+          selectedQuantity > quotedQuote.mintCost
+            ? selectedQuantity - quotedQuote.mintCost
+            : 0n
+        )
+      : "--"
   const isTradeDisabled =
     isSubmitting ||
     predictAccount.status === "loading" ||
@@ -319,6 +340,7 @@ function OrderTicketClient({
     !!marketUnavailableMessage ||
     !selectedQuantity ||
     !quotedQuote ||
+    !!balanceErrorMessage ||
     (ticketMode === "range" && !isRangeValid)
   const actionButtonLabel = marketUnavailableMessage
     ? "Market closed"
@@ -326,9 +348,11 @@ function OrderTicketClient({
       ? "Sign in to trade"
       : isSubmitting
         ? "Submitting"
-        : ticketMode === "range"
-          ? "Open Range"
-          : "Open Position"
+        : balanceErrorMessage
+          ? "Insufficient DUSDC"
+          : ticketMode === "range"
+            ? "Open Range"
+            : "Open Position"
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 1_000)
@@ -526,6 +550,13 @@ function OrderTicketClient({
       return
     }
 
+    const estimatedReserveAmount = getTradeReserveAmount(quotedQuote.mintCost)
+
+    if (availableDusdcBalance < estimatedReserveAmount) {
+      setErrorMessage("Available DUSDC is below the estimated trade reserve.")
+      return
+    }
+
     setIsSubmitting(true)
     setStatusKind("neutral")
     setErrorMessage(undefined)
@@ -551,13 +582,16 @@ function OrderTicketClient({
       setStatusMessage("Preparing funding and buy")
 
       const preparedMint = await preparePredictMintTransaction({
+        managerBalance: managerDusdcBalance,
         managerId,
         params,
         quotedCost: quotedQuote.mintCost,
       })
 
       setStatusMessage(
-        `Funding ${formatDusdc(preparedMint.reserveAmount)} and buying`
+        preparedMint.depositAmount > 0n
+          ? `Depositing ${formatDusdc(preparedMint.depositAmount)} and buying`
+          : "Using trading balance and buying"
       )
       await executeSuiTransaction(signer, preparedMint.transaction)
 
@@ -608,7 +642,7 @@ function OrderTicketClient({
                   <Button
                     aria-pressed={isSelected}
                     className={cn(
-                      "border border-border/35 bg-muted/25 text-sm font-medium text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color,transform] duration-150 hover:border-border/50 hover:bg-muted/35 hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-primary/30",
+                      "border border-border/35 bg-muted/25 text-sm font-medium text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color,transform] duration-150 hover:border-border/50 hover:bg-muted/35 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 active:scale-[0.96]",
                       isSelected &&
                         (side === "above"
                           ? "border-outcome-up/30 bg-outcome-up/10 text-outcome-up hover:bg-outcome-up/15"
@@ -678,19 +712,16 @@ function OrderTicketClient({
           </div>
         </label>
 
-        <TicketSection title="Preview">
+        <TicketSection>
           {ticketMode === "binary" ? (
             <>
               <TicketRow label="Price" value={quotePriceValue} />
               <TicketRow label="Chance" value={chance} />
               <TicketRow label="Premium" value={premiumValue} />
+              <TicketRow label="Max loss" value={maxLossValue} />
               <TicketRow
-                label="Max loss"
-                value={maxLossValue}
-              />
-              <TicketRow
-                label="Potential payout"
-                value={potentialPayoutValue}
+                label="Potential profit"
+                value={potentialProfitValue}
               />
             </>
           ) : (
@@ -702,18 +733,12 @@ function OrderTicketClient({
                   market.tickSizeUsd
                 )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
               />
-              <TicketRow
-                label="Price"
-                value={quotePriceValue}
-              />
+              <TicketRow label="Price" value={quotePriceValue} />
               <TicketRow label="Premium" value={premiumValue} />
+              <TicketRow label="Max loss" value={maxLossValue} />
               <TicketRow
-                label="Max loss"
-                value={maxLossValue}
-              />
-              <TicketRow
-                label="Potential payout"
-                value={potentialPayoutValue}
+                label="Potential profit"
+                value={potentialProfitValue}
               />
             </>
           )}
@@ -760,7 +785,7 @@ function TicketModeTab({ mode }: { mode: TicketMode }) {
 
   return (
     <TabsTrigger
-      className="rounded-none border-0 !border-transparent text-sm font-medium text-muted-foreground shadow-none ring-0 outline-none transition-[background-color,color] duration-150 after:hidden hover:bg-muted/25 hover:text-foreground focus-visible:!border-transparent focus-visible:!ring-2 focus-visible:!ring-primary/30 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/8 data-active:!text-primary dark:data-active:!border-transparent"
+      className="rounded-none border-0 !border-transparent text-sm font-medium text-muted-foreground shadow-none ring-0 transition-[background-color,color] duration-150 outline-none after:hidden hover:bg-muted/25 hover:text-foreground focus-visible:!border-transparent focus-visible:!ring-2 focus-visible:!ring-primary/30 focus-visible:!outline-none data-active:!border-transparent data-active:!bg-primary/8 data-active:!text-primary dark:data-active:!border-transparent"
       value={mode}
     >
       <ModeIcon className="size-3.5" />

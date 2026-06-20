@@ -182,6 +182,11 @@ export interface ManagerRangeActivityResponse {
   redeemed: RangeRedeemEvent[]
 }
 
+export interface ManagerPositionActivityResponse {
+  minted: DirectionalPositionMintEvent[]
+  redeemed: DirectionalPositionRedeemEvent[]
+}
+
 export interface LpSupplyEvent {
   event_digest: string
   digest: string

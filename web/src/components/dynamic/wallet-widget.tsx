@@ -71,7 +71,9 @@ function formatCompactDecimalUnits(value: bigint | undefined) {
     return "--"
   }
 
-  const decimalValue = Number(formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4))
+  const decimalValue = Number(
+    formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)
+  )
 
   if (!Number.isFinite(decimalValue)) {
     return formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 2)
@@ -89,10 +91,6 @@ function formatFullDecimalUnits(value: bigint | undefined) {
     : formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)
 }
 
-function toQuoteAmount(value: number) {
-  return value / 10 ** PREDICT_QUOTE_DECIMALS
-}
-
 function AccountValue({
   isLoading,
   value,
@@ -101,7 +99,7 @@ function AccountValue({
   value: string
 }) {
   return (
-    <div className="mt-1 min-w-0 break-all font-mono text-base text-foreground tabular-nums sm:text-lg">
+    <div className="mt-1 min-w-0 font-mono text-base break-all text-foreground tabular-nums sm:text-lg">
       {isLoading ? "--" : value}
     </div>
   )
@@ -139,7 +137,9 @@ function AccountSection({
         </div>
         {secondaryLabel && secondaryValue ? (
           <div className="min-w-0">
-            <div className="text-xs text-muted-foreground">{secondaryLabel}</div>
+            <div className="text-xs text-muted-foreground">
+              {secondaryLabel}
+            </div>
             <AccountValue isLoading={isLoading} value={secondaryValue} />
           </div>
         ) : null}
@@ -171,25 +171,22 @@ function AccountHubDialog({
     }
   }, [address, open])
 
-  const walletDusdcLabel =
-    predictAccount.walletDusdcBalance === undefined
-      ? "--"
-      : `${formatDecimalUnits(predictAccount.walletDusdcBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+  const walletDusdcBalance = predictAccount.walletDusdcBalance
+  const managerDusdcBalance = predictAccount.managerDusdcBalance
+  const availableDusdcBalance =
+    walletDusdcBalance === undefined && managerDusdcBalance === undefined
+      ? undefined
+      : (walletDusdcBalance ?? 0n) + (managerDusdcBalance ?? 0n)
+  const walletDusdcLabel = formatFullDecimalUnits(walletDusdcBalance)
+  const availableDusdcLabel = formatFullDecimalUnits(availableDusdcBalance)
+  const walletAddressBalanceLabel = formatFullDecimalUnits(
+    predictAccount.walletDusdcAddressBalance
+  )
   const walletPlpLabel =
     predictAccount.walletPlpBalance === undefined
       ? "--"
       : `${formatDecimalUnits(predictAccount.walletPlpBalance, PREDICT_QUOTE_DECIMALS, 4)}`
-  const managerBalanceLabel = predictAccount.managerSummary
-    ? `${toQuoteAmount(predictAccount.managerSummary.trading_balance).toLocaleString("en-US", {
-        maximumFractionDigits: 4,
-      })}`
-    : "--"
-  const realizedPnlLabel = predictAccount.managerSummary
-    ? `${toQuoteAmount(predictAccount.managerSummary.realized_pnl).toLocaleString("en-US", {
-        maximumFractionDigits: 4,
-      })}`
-    : "--"
-  const vaultValueLabel = walletPlpLabel
+  const managerBalanceLabel = formatFullDecimalUnits(managerDusdcBalance)
   const isLoadingAccount = predictAccount.status === "loading"
 
   return (
@@ -204,7 +201,7 @@ function AccountHubDialog({
 
         <div className="grid gap-4 overflow-hidden">
           <div className="min-w-0 rounded-lg border border-border/60 bg-muted/20 p-4">
-            <div className="break-all text-sm text-foreground">
+            <div className="text-sm break-all text-foreground">
               {address ? formatAddress(address) : "No wallet connected"}
             </div>
             <div className="mt-1 text-xs text-muted-foreground">
@@ -217,31 +214,34 @@ function AccountHubDialog({
               icon={WalletCardsIcon}
               isLoading={isLoadingAccount}
               label="Wallet"
-              primaryLabel="DUSDC"
+              primaryLabel="Wallet DUSDC"
               primaryValue={walletDusdcLabel}
-              secondaryLabel="PLP"
-              secondaryValue={walletPlpLabel}
+              secondaryLabel="Address balance"
+              secondaryValue={walletAddressBalanceLabel}
             />
             <AccountSection
               icon={DatabaseZapIcon}
               isLoading={isLoadingAccount}
               label="Trading Account"
-              primaryLabel="Manager Balance"
-              primaryValue={managerBalanceLabel}
-              secondaryLabel="Realized PnL"
-              secondaryValue={realizedPnlLabel}
+              primaryLabel="Available DUSDC"
+              primaryValue={availableDusdcLabel}
+              secondaryLabel="Trading DUSDC"
+              secondaryValue={managerBalanceLabel}
             />
             <AccountSection
               icon={PiggyBankIcon}
               isLoading={isLoadingAccount}
               label="Vault"
-              primaryLabel="Vault Value"
-              primaryValue={vaultValueLabel}
+              primaryLabel="PLP"
+              primaryValue={walletPlpLabel}
             />
           </div>
         </div>
 
-        <DialogFooter className="flex-wrap gap-2 sm:justify-end" showCloseButton>
+        <DialogFooter
+          className="flex-wrap gap-2 sm:justify-end"
+          showCloseButton
+        >
           <Button
             className="w-full sm:w-auto"
             render={<Link to="/earn" />}
@@ -310,13 +310,18 @@ function AccountDropdown({
   const predictAccount = usePredictAccount()
   const formattedAddress = formatAddress(address)
   const secondaryLabel = email || "--"
-  const walletDusdcLabel = formatFullDecimalUnits(
-    predictAccount.walletDusdcBalance
-  )
+  const availableDusdcBalance =
+    predictAccount.walletDusdcBalance === undefined &&
+    predictAccount.managerDusdcBalance === undefined
+      ? undefined
+      : (predictAccount.walletDusdcBalance ?? 0n) +
+        (predictAccount.managerDusdcBalance ?? 0n)
+  const availableDusdcLabel = formatFullDecimalUnits(availableDusdcBalance)
   const walletPlpLabel = formatFullDecimalUnits(predictAccount.walletPlpBalance)
-  const compactDusdcLabel = predictAccount.status === "loading"
-    ? "--"
-    : formatCompactDecimalUnits(predictAccount.walletDusdcBalance)
+  const compactDusdcLabel =
+    predictAccount.status === "loading"
+      ? "--"
+      : formatCompactDecimalUnits(availableDusdcBalance)
 
   async function copyAddress() {
     try {
@@ -391,7 +396,7 @@ function AccountDropdown({
             </Button>
           </div>
           <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
-            <AccountMenuMetric label="DUSDC" value={walletDusdcLabel} />
+            <AccountMenuMetric label="Available" value={availableDusdcLabel} />
             <AccountMenuMetric label="PLP" value={walletPlpLabel} />
           </div>
           <DropdownMenuSeparator />
