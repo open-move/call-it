@@ -34,7 +34,10 @@ export function getVaultStatus(strategy?: HedgedPlpStrategyState) {
   return "Open"
 }
 
-export function getWithdrawQuote(amount: bigint | null, strategy?: HedgedPlpStrategyState) {
+export function getWithdrawQuote(
+  amount: bigint | null,
+  strategy?: HedgedPlpStrategyState
+) {
   if (!amount || !strategy || strategy.shareSupply === 0n) {
     return undefined
   }
@@ -42,7 +45,10 @@ export function getWithdrawQuote(amount: bigint | null, strategy?: HedgedPlpStra
   return (amount * strategy.nav) / strategy.shareSupply
 }
 
-export function getDepositQuote(amount: bigint | null, strategy?: HedgedPlpStrategyState) {
+export function getDepositQuote(
+  amount: bigint | null,
+  strategy?: HedgedPlpStrategyState
+) {
   if (!amount || !strategy) {
     return undefined
   }
@@ -54,7 +60,10 @@ export function getDepositQuote(amount: bigint | null, strategy?: HedgedPlpStrat
   return (amount * strategy.shareSupply) / strategy.nav
 }
 
-export function getUserValue(wallet?: ShieldWalletState, strategy?: HedgedPlpStrategyState) {
+export function getUserValue(
+  wallet?: ShieldWalletState,
+  strategy?: HedgedPlpStrategyState
+) {
   return getWithdrawQuote(wallet?.hedgedPlpShareBalance ?? null, strategy) ?? 0n
 }
 
@@ -68,7 +77,7 @@ export function getRoundStage(strategy?: HedgedPlpStrategyState): RoundStepId {
 
 export function getRoundStateCopy(strategy?: HedgedPlpStrategyState) {
   if (!strategy) {
-    return "Loading Shield round state."
+    return "Loading Tail Hedge PLP round state."
   }
 
   if (strategy.paused) {
@@ -136,17 +145,17 @@ export function getInvalidReason({
   walletAddress?: string
 }) {
   if (!walletAddress) {
-    return "Connect wallet to use Shield."
+    return "Connect wallet to use Tail Hedge PLP."
   }
 
   if (!strategy) {
-    return "Shield strategy is still loading."
+    return "Tail Hedge PLP strategy is still loading."
   }
 
   if (!canUseVault) {
     return status === "Oracle settled"
-      ? "This Shield round is settled. New actions require realization."
-      : "Deposits and withdrawals are closed while a Shield round is active."
+      ? "This Tail Hedge PLP round is settled. New actions require realization."
+      : "Deposits and withdrawals are closed while a Tail Hedge PLP round is active."
   }
 
   if (isLoadingWallet) {
@@ -160,7 +169,7 @@ export function getInvalidReason({
   if (actionBalance !== undefined && parsedAmount > actionBalance) {
     return action === "deposit"
       ? "Deposit exceeds DUSDC balance."
-      : "Withdrawal exceeds cSHIELD balance."
+      : "Withdrawal exceeds hPLP balance."
   }
 
   return undefined

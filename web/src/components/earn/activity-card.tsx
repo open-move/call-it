@@ -24,7 +24,7 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-3 py-2.5 [.border-b]:pb-2.5">
         <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Vault Activity
+          Strategy Activity
         </CardTitle>
       </CardHeader>
       <CardContent className="px-0 py-0">
@@ -85,7 +85,7 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
             ))
           ) : (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              No vault activity yet.
+              No strategy activity yet.
             </div>
           )}
         </div>

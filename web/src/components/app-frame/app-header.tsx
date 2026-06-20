@@ -12,20 +12,13 @@ import {
 } from "@/components/ui/collapsible"
 import {
   NavigationMenu,
-  NavigationMenuContent,
   NavigationMenuItem,
   NavigationMenuLink,
   NavigationMenuList,
-  NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu"
 import { cn } from "@/lib/utils"
 
-import {
-  AppNavStatus,
-  appNavItems,
-  vaultNavItems,
-} from "./app-nav"
-import type { VaultNavItem } from "./app-nav"
+import { AppNavStatus, appNavItems } from "./app-nav"
 import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
@@ -50,41 +43,6 @@ function isHrefActive(pathname: string, href: string) {
     : pathname === href || pathname.startsWith(`${href}/`)
 }
 
-function isVaultPath(pathname: string) {
-  return (
-    isHrefActive(pathname, "/shield") ||
-    isHrefActive(pathname, "/range-ladder") ||
-    isHrefActive(pathname, "/protection")
-  )
-}
-
-function getVaultTriggerClassName(isActive: boolean) {
-  return cn(
-    "flex h-auto items-center gap-1 rounded-md bg-transparent px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 outline-none hover:bg-muted/25 hover:text-foreground focus:bg-muted/25 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none data-popup-open:bg-muted/25 data-popup-open:text-foreground",
-    isActive && "bg-primary/8 text-primary"
-  )
-}
-
-function VaultDropdownLink({
-  isActive,
-  item,
-}: {
-  isActive: boolean
-  item: VaultNavItem
-}) {
-  return (
-    <NavigationMenuLink
-      className={cn(
-        "group w-44 rounded-md px-2.5 py-2 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/35 hover:text-foreground focus:bg-muted/35",
-        isActive && "bg-primary/8 text-primary"
-      )}
-      render={<Link to={item.href} />}
-    >
-      {item.label}
-    </NavigationMenuLink>
-  )
-}
-
 export function AppHeader() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const { pathname } = useLocation()
@@ -98,8 +56,6 @@ export function AppHeader() {
 
     return isActive ? AppNavStatus.Active : AppNavStatus.Available
   }
-
-  const isVaultActive = isVaultPath(pathname)
 
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
@@ -120,51 +76,27 @@ export function AppHeader() {
             <NavigationMenu className="hidden flex-none md:flex">
               <NavigationMenuList className="gap-0.5">
                 {appNavItems.map((item) => (
-                  <Fragment key={item.href}>
-                    <NavigationMenuItem>
-                      <NavigationMenuLink
-                        aria-current={
-                          getItemStatus(item) === AppNavStatus.Active
-                            ? "page"
-                            : undefined
-                        }
-                        className={getNavLinkClassName(getItemStatus(item))}
-                        render={<Link to={item.href} />}
-                      >
-                        <span>{item.label}</span>
-                        {item.status === AppNavStatus.Soon && (
-                          <Badge
-                            className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
-                            tone={BadgeTone.Simulated}
-                          >
-                            Soon
-                          </Badge>
-                        )}
-                      </NavigationMenuLink>
-                    </NavigationMenuItem>
-
-                    {item.href === "/earn" ? (
-                      <NavigationMenuItem>
-                        <NavigationMenuTrigger
-                          aria-current={isVaultActive ? "page" : undefined}
-                          className={getVaultTriggerClassName(isVaultActive)}
+                  <NavigationMenuItem key={item.href}>
+                    <NavigationMenuLink
+                      aria-current={
+                        getItemStatus(item) === AppNavStatus.Active
+                          ? "page"
+                          : undefined
+                      }
+                      className={getNavLinkClassName(getItemStatus(item))}
+                      render={<Link to={item.href} />}
+                    >
+                      <span>{item.label}</span>
+                      {item.status === AppNavStatus.Soon && (
+                        <Badge
+                          className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
+                          tone={BadgeTone.Simulated}
                         >
-                          Vaults
-                        </NavigationMenuTrigger>
-                        <NavigationMenuContent className="border border-border/40 bg-popover text-popover-foreground shadow-xl">
-                          <div className="grid gap-1 p-1.5">
-                            {vaultNavItems.map((vaultItem) => (
-                              <VaultDropdownLink
-                                isActive={isHrefActive(pathname, vaultItem.href)}
-                                item={vaultItem}
-                                key={vaultItem.href}
-                              />
-                            ))}
-                          </div>
-                        </NavigationMenuContent>
-                      </NavigationMenuItem>
-                    ) : null}
-                  </Fragment>
+                          Soon
+                        </Badge>
+                      )}
+                    </NavigationMenuLink>
+                  </NavigationMenuItem>
                 ))}
               </NavigationMenuList>
             </NavigationMenu>
@@ -212,33 +144,6 @@ export function AppHeader() {
                     </Badge>
                   )}
                 </Link>
-
-                {item.href === "/earn" ? (
-                  <div className="mt-1 rounded-md bg-muted/15 px-2 py-2">
-                    <div
-                      className={cn(
-                        "px-1 pb-1 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase",
-                        isVaultActive && "text-primary"
-                      )}
-                    >
-                      Vaults
-                    </div>
-                    {vaultNavItems.map((vaultItem) => (
-                      <Link
-                        className={cn(
-                          "block rounded-md px-2 py-2 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
-                          isHrefActive(pathname, vaultItem.href) &&
-                            "bg-primary/8 text-primary"
-                        )}
-                        key={vaultItem.href}
-                        onClick={() => setIsMobileNavOpen(false)}
-                        to={vaultItem.href}
-                      >
-                        {vaultItem.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
               </Fragment>
             ))}
             <div className="mt-3 sm:hidden">

@@ -4,7 +4,10 @@ import { PanelRow } from "@/components/primitives/panel-row"
 import { formatDusdc, formatShares } from "@/lib/shield/format"
 import { getUserValue } from "@/lib/shield/helpers"
 import type { ShieldAction } from "@/lib/shield/helpers"
-import type { HedgedPlpStrategyState, ShieldWalletState } from "@/services/shield-client"
+import type {
+  HedgedPlpStrategyState,
+  ShieldWalletState,
+} from "@/services/shield-client"
 
 export function ShieldPositionPanel({
   onOpenAction,
@@ -33,7 +36,7 @@ export function ShieldPositionPanel({
           <div className="space-y-3 pt-1">
             <div>
               <div className="text-xs font-medium text-muted-foreground">
-                Shield value
+                Tail Hedge PLP value
               </div>
               <div className="mt-1 font-mono text-xl leading-tight font-medium tracking-tight text-foreground tabular-nums">
                 {formatDusdc(walletValue)}
@@ -45,18 +48,20 @@ export function ShieldPositionPanel({
                 value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "--"}
               />
               <PanelRow
-                label="cHPLP balance"
-                value={wallet ? formatShares(wallet.hedgedPlpShareBalance) : "--"}
+                label="hPLP balance"
+                value={
+                  wallet ? formatShares(wallet.hedgedPlpShareBalance) : "--"
+                }
               />
             </div>
           </div>
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
             <p className="text-center text-xs text-muted-foreground">
-              Connect wallet to view your Shield position.
+              Connect wallet to view your Tail Hedge PLP position.
             </p>
             <Button className="w-full" onClick={onSignIn} type="button">
-              Sign in to manage Shield
+              Sign in to manage Tail Hedge PLP
             </Button>
           </div>
         )}

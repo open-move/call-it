@@ -83,7 +83,7 @@ export function useShieldAction(products: ShieldProduct[]) {
       setMessage(undefined)
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Failed to load Shield"
+        error instanceof Error ? error.message : "Failed to load Tail Hedge PLP"
       )
       setMessageTone("error")
     } finally {
@@ -210,7 +210,9 @@ export function useShieldAction(products: ShieldProduct[]) {
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
-      setMessage(formatPredictTradeError(error, "Shield transaction failed"))
+      setMessage(
+        formatPredictTradeError(error, "Tail Hedge PLP transaction failed")
+      )
       setMessageTone("error")
     } finally {
       setIsSubmitting(false)

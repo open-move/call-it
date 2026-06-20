@@ -72,7 +72,7 @@ export function ScenarioReadout({
           value={formatDusdc(selectedScenario.estimatedLiability)}
         />
         <ReadoutRow
-          label="Vault value"
+          label="Strategy value"
           value={formatDusdc(selectedScenario.estimatedVaultValue)}
         />
         <ReadoutRow

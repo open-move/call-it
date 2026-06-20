@@ -195,7 +195,7 @@ function AccountHubDialog({
         <DialogHeader>
           <DialogTitle>Account</DialogTitle>
           <DialogDescription>
-            Wallet, trading account, and vault balances in one place.
+            Wallet, trading account, and strategy balances in one place.
           </DialogDescription>
         </DialogHeader>
 
@@ -231,7 +231,7 @@ function AccountHubDialog({
             <AccountSection
               icon={PiggyBankIcon}
               isLoading={isLoadingAccount}
-              label="Vault"
+              label="Strategy Shares"
               primaryLabel="PLP"
               primaryValue={walletPlpLabel}
             />

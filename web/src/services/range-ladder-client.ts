@@ -76,7 +76,9 @@ const RangeLadderTicketPolicyBcs = bcs.struct("RangeLadderPolicy", {
   created_at_ms: bcs.U64,
 })
 
-type RangeLadderStrategyBcsValue = ReturnType<typeof RangeLadderStrategyBcs.parse>
+type RangeLadderStrategyBcsValue = ReturnType<
+  typeof RangeLadderStrategyBcs.parse
+>
 type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
 type ObjectWithContent = SuiClientTypes.Object<{ content: true }>
@@ -150,7 +152,10 @@ function normalizeRangePosition(
   } satisfies RangeLadderPositionRow
 }
 
-function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
+function baseValueForShares(
+  base: BaseVaultBcsValue | undefined,
+  shares: bigint
+) {
   if (shares <= 0n) {
     return 0n
   }
@@ -219,31 +224,32 @@ function normalizeRangeLadderStrategy(
 }
 
 export async function getRangeLadderStrategyState() {
-  if (!RANGE_LADDER_STRATEGY_ID) {
+  const strategyId: string = RANGE_LADDER_STRATEGY_ID
+  const baseVaultId: string = BASE_VAULT_ID
+
+  if (!strategyId) {
     return undefined
   }
 
   const [strategyObject, baseObject] = await Promise.all([
     getSuiGrpcClient().getObject({
       include: { content: true },
-      objectId: RANGE_LADDER_STRATEGY_ID,
+      objectId: strategyId,
     }),
-    BASE_VAULT_ID
+    baseVaultId
       ? getSuiGrpcClient().getObject({
           include: { content: true },
-          objectId: BASE_VAULT_ID,
+          objectId: baseVaultId,
         })
       : undefined,
   ])
   const content = strategyObject.object.content
 
-  if (!content) {
-    throw new Error("Range Ladder strategy object has no readable content")
-  }
-
   return normalizeRangeLadderStrategy(
     RangeLadderStrategyBcs.parse(content),
-    baseObject?.object.content ? BaseVaultBcs.parse(baseObject.object.content) : undefined
+    baseObject?.object.content
+      ? BaseVaultBcs.parse(baseObject.object.content)
+      : undefined
   )
 }
 

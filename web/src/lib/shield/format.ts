@@ -24,7 +24,7 @@ export function formatShares(value: bigint, maximumFractionDigits = 4) {
     value,
     PREDICT_QUOTE_DECIMALS,
     maximumFractionDigits
-  )} cSHIELD`
+  )} hPLP`
 }
 
 export function formatBps(value: number | bigint) {

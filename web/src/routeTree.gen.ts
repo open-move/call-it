@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StrategiesRouteRouteImport } from './routes/strategies/route'
 import { Route as ShieldRouteRouteImport } from './routes/shield/route'
 import { Route as RiskRouteRouteImport } from './routes/risk/route'
 import { Route as RangeLadderRouteRouteImport } from './routes/range-ladder/route'
@@ -23,6 +24,11 @@ import { Route as RangeLadderIndexRouteImport } from './routes/range-ladder/inde
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
 import { Route as MarketsOracleIdRouteRouteImport } from './routes/markets/$oracleId/route'
 
+const StrategiesRouteRoute = StrategiesRouteRouteImport.update({
+  id: '/strategies',
+  path: '/strategies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShieldRouteRoute = ShieldRouteRouteImport.update({
   id: '/shield',
   path: '/shield',
@@ -99,6 +105,7 @@ export interface FileRoutesByFullPath {
   '/range-ladder': typeof RangeLadderRouteRouteWithChildren
   '/risk': typeof RiskRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
+  '/strategies': typeof StrategiesRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/markets/': typeof MarketsIndexRoute
   '/range-ladder/': typeof RangeLadderIndexRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof LeaderboardRouteRoute
   '/portfolio': typeof PortfolioRouteRoute
   '/risk': typeof RiskRouteRoute
+  '/strategies': typeof StrategiesRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/markets': typeof MarketsIndexRoute
   '/range-ladder': typeof RangeLadderIndexRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/range-ladder': typeof RangeLadderRouteRouteWithChildren
   '/risk': typeof RiskRouteRoute
   '/shield': typeof ShieldRouteRouteWithChildren
+  '/strategies': typeof StrategiesRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
   '/markets/': typeof MarketsIndexRoute
   '/range-ladder/': typeof RangeLadderIndexRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/range-ladder'
     | '/risk'
     | '/shield'
+    | '/strategies'
     | '/markets/$oracleId'
     | '/markets/'
     | '/range-ladder/'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/portfolio'
     | '/risk'
+    | '/strategies'
     | '/markets/$oracleId'
     | '/markets'
     | '/range-ladder'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/range-ladder'
     | '/risk'
     | '/shield'
+    | '/strategies'
     | '/markets/$oracleId'
     | '/markets/'
     | '/range-ladder/'
@@ -187,10 +199,18 @@ export interface RootRouteChildren {
   RangeLadderRouteRoute: typeof RangeLadderRouteRouteWithChildren
   RiskRouteRoute: typeof RiskRouteRoute
   ShieldRouteRoute: typeof ShieldRouteRouteWithChildren
+  StrategiesRouteRoute: typeof StrategiesRouteRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/strategies': {
+      id: '/strategies'
+      path: '/strategies'
+      fullPath: '/strategies'
+      preLoaderRoute: typeof StrategiesRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shield': {
       id: '/shield'
       path: '/shield'
@@ -332,6 +352,7 @@ const rootRouteChildren: RootRouteChildren = {
   RangeLadderRouteRoute: RangeLadderRouteRouteWithChildren,
   RiskRouteRoute: RiskRouteRoute,
   ShieldRouteRoute: ShieldRouteRouteWithChildren,
+  StrategiesRouteRoute: StrategiesRouteRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

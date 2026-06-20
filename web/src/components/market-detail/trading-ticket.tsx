@@ -644,8 +644,9 @@ function TradingTicketClient({
 
         {matchingShieldPosition ? (
           <TicketMessage kind="neutral">
-            This key is reserved by an active Shield policy. Manual same-key
-            trades can change the manager position and make Shield claim abort.
+            This key is reserved by an active Tail Hedge PLP policy. Manual
+            same-key trades can change the manager position and make claim
+            abort.
           </TicketMessage>
         ) : null}
 

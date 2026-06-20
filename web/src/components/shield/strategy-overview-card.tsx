@@ -1,7 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
-import { formatBps, formatDusdc, formatShares, sharePriceFormatter } from "@/lib/shield/format"
+import {
+  formatBps,
+  formatDusdc,
+  formatShares,
+  sharePriceFormatter,
+} from "@/lib/shield/format"
 import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
 function VaultOverviewRow({ label, value }: { label: string; value: string }) {
@@ -62,7 +67,9 @@ function CapitalStack({ strategy }: { strategy?: HedgedPlpStrategyState }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <AllocationItem
           label="PLP cap"
-          value={strategy ? formatBps(strategy.policy.maxPlpAllocationBps) : "--"}
+          value={
+            strategy ? formatBps(strategy.policy.maxPlpAllocationBps) : "--"
+          }
         />
         <AllocationItem
           label="Hedge budget"
@@ -97,7 +104,9 @@ export function ShieldOverviewCard({
         <div className="space-y-2.5">
           <VaultOverviewRow
             label="Strategy NAV"
-            value={strategy ? formatDusdc(strategy.nav) : isLoading ? "--" : "Setup"}
+            value={
+              strategy ? formatDusdc(strategy.nav) : isLoading ? "--" : "Setup"
+            }
           />
           <VaultOverviewRow
             label="Cash reserve"
@@ -111,21 +120,25 @@ export function ShieldOverviewCard({
             label="PLP balance"
             value={
               strategy
-                ? formatDecimalUnits(strategy.plpAmount, PREDICT_QUOTE_DECIMALS, 4)
+                ? formatDecimalUnits(
+                    strategy.plpAmount,
+                    PREDICT_QUOTE_DECIMALS,
+                    4
+                  )
                 : "--"
             }
           />
           <VaultOverviewRow
-            label="cSHIELD Supply"
+            label="hPLP Supply"
             value={strategy ? formatShares(strategy.shareSupply) : "--"}
           />
           <VaultOverviewRow
-            label="cSHIELD Price"
-              value={
-                strategy
-                  ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
-                  : "--"
-              }
+            label="hPLP Price"
+            value={
+              strategy
+                ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
+                : "--"
+            }
           />
           <VaultOverviewRow label="Status" value={status} />
         </div>

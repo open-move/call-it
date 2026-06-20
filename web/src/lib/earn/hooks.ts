@@ -146,7 +146,7 @@ export function useEarnAction(summary: VaultSummary) {
         estimatedWithdrawAmount >
           BigInt(Math.floor(summary.available_withdrawal))
       ) {
-        setErrorMessage("Withdrawal exceeds vault withdrawable DUSDC.")
+        setErrorMessage("Withdrawal exceeds strategy withdrawable DUSDC.")
         return
       }
     }

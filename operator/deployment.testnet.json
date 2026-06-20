@@ -1,0 +1,24 @@
+{
+  "baseVault": {
+    "capId": "0xfba0e597ed3d0c110cd76c0918c1b1362d91fabe8c1ec70c290613c78139379a",
+    "packageId": "0xa90a078564d244eaf9b6563630eafaf1e023e8d6ab8da0b6a9f695d0e8fa4d0f",
+    "vaultId": "0xdbe679688a9cd9d3a5f0c1e5be147956f0ddbaa8ab01731e8fded01584807122"
+  },
+  "deployer": "0xceb3702c184db31f6df4dd5dee93125c0f06836ce2dda74931884b8f2f8624e7",
+  "hedgedPlp": {
+    "adminCapId": "0xfebd92c3641a0a8579c8f1db5bc4d5b3cc8f521de367b7bf2786f546f407eb42",
+    "keeperCapId": "0xdb41abb17f5ac59229a7913033a0a0fa87b34db3854309f58adc518360c2abdf",
+    "managerId": "0xf8dc6c782004183256c6d78432e661c327cd0375822a856fd3ab1b1ab60700ab",
+    "packageId": "0x0908bdb483f870637ac1480e7c5c3784606b512256d3da8c040d3a1b4718f16a",
+    "strategyId": "0x5b1dd50256f591723acc61c429024f758e339e6ac82683a7f83ee0d6c896182b"
+  },
+  "network": "testnet",
+  "operator": "0xdfd6aaf71711d6d50496428f29c9e025186faef6c40f3c724781aa4848c2c642",
+  "rangeLadder": {
+    "adminCapId": "0xdf54baa66c8ce74202e89b9ae4b6a6766942181b72999c9e8ed6845bce1b1330",
+    "keeperCapId": "0x0c7b981a5c12d45930a7d45b701e5583bdf7f60bad868bd1e2878454b74ce97e",
+    "managerId": "0x2665eb0f270da2ec18db74b0e678a7dc274354dc4fffc838cb624b8a87bc6215",
+    "packageId": "0xe3b3a7f7c5a5c8b925b42787130ba72ac86fa28c577cd2f7f8307f2e8de72e05",
+    "strategyId": "0x129f82f05b18181555019a726548e67302fbe3db8bc3b53e67c4c790d1f2be2b"
+  }
+}

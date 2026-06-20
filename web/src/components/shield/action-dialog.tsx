@@ -8,7 +8,11 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { PanelRow } from "@/components/primitives/panel-row"
-import { formatDusdc, formatShares, sharePriceFormatter } from "@/lib/shield/format"
+import {
+  formatDusdc,
+  formatShares,
+  sharePriceFormatter,
+} from "@/lib/shield/format"
 import { cn } from "@/lib/utils"
 import type { HedgedPlpStrategyState } from "@/services/shield-client"
 
@@ -81,14 +85,14 @@ export function ShieldActionDialog({
       : "Withdrawing"
     : isDeposit
       ? "Deposit DUSDC"
-      : "Withdraw cSHIELD"
+      : "Withdraw hPLP"
 
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
       <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
         <DialogHeader className="gap-1">
           <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-            {isDeposit ? "Deposit DUSDC" : "Withdraw cSHIELD"}
+            {isDeposit ? "Deposit DUSDC" : "Withdraw hPLP"}
           </DialogTitle>
         </DialogHeader>
 
@@ -115,7 +119,7 @@ export function ShieldActionDialog({
               >
                 MAX
               </Button>
-              <span>{isDeposit ? "DUSDC" : "cSHIELD"}</span>
+              <span>{isDeposit ? "DUSDC" : "hPLP"}</span>
             </div>
           </div>
         </label>
@@ -135,7 +139,7 @@ export function ShieldActionDialog({
             }
           />
           <PanelRow
-            label={isDeposit ? "Est. cSHIELD" : "Est. DUSDC"}
+            label={isDeposit ? "Est. hPLP" : "Est. DUSDC"}
             value={
               isDeposit
                 ? depositQuote
@@ -147,7 +151,7 @@ export function ShieldActionDialog({
             }
           />
           <PanelRow
-            label="cSHIELD price"
+            label="hPLP price"
             value={
               strategy
                 ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`

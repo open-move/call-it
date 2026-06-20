@@ -127,7 +127,9 @@ function getShockSummary(scenario: RiskScenarioDefinition) {
   }
 
   return entries
-    .map(([assetSymbol, shock]) => `${assetSymbol} ${(shock * 100).toFixed(0)}%`)
+    .map(
+      ([assetSymbol, shock]) => `${assetSymbol} ${(shock * 100).toFixed(0)}%`
+    )
     .join(" / ")
 }
 
@@ -613,7 +615,7 @@ export function buildRiskModel(input: RiskInput): RiskModel {
       "Scenario presets use asset-scoped shocks around the latest public oracle spot.",
       "Exposure is reconstructed from recent mint, redeem, and range events; event limits can omit older activity.",
       "When event reconstruction is incomplete, total max payout is used as a conservative stress anchor.",
-      "Current withdrawable liquidity reflects the latest public vault summary and is not a future-outcome commitment.",
+      "Current withdrawable liquidity reflects the latest public strategy summary and is not a future-outcome commitment.",
     ],
     availableWithdrawalPct:
       input.summary.vault_value > 0

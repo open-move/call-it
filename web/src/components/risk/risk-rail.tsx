@@ -1,8 +1,5 @@
 import { formatPercent } from "@/lib/format"
-import {
-  formatQuoteAmount,
-  getDrawdownClassName,
-} from "@/lib/risk/helpers"
+import { formatQuoteAmount, getDrawdownClassName } from "@/lib/risk/helpers"
 import type { RiskModel, RiskScenarioRow } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
 
@@ -48,7 +45,7 @@ export function RiskRail({
   return (
     <div className="grid border-b border-border/45 bg-muted/10 md:grid-cols-4">
       <RailCell
-        label="Vault value"
+        label="Strategy value"
         meta="Current PLP NAV"
         value={formatQuoteAmount(model.summary.vault_value)}
       />

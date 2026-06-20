@@ -270,7 +270,7 @@ export function getPortfolioPositionFromRow({
       oracleId: position.oracleId,
       realizedPnlUsd: position.realizedPnlUsd,
       reservationLabel: reservedPositionIds.has(position.id)
-        ? "Shield reserved"
+        ? "Tail Hedge PLP reserved"
         : undefined,
       size: position.openQuantity,
       status: position.status,

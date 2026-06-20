@@ -1,15 +1,15 @@
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  formatQuoteAmount,
-  formatSharePrice,
-} from "@/lib/risk/helpers"
+import { formatQuoteAmount, formatSharePrice } from "@/lib/risk/helpers"
 import type { RiskModel } from "@/lib/risk/types"
 import { ReadoutRow } from "./scenario-readout"
 
 export function AuditTape({ model }: { model: RiskModel }) {
   const summary = model.summary
   const accountingRows = [
-    { label: "Vault Balance", value: formatQuoteAmount(summary.vault_balance) },
+    {
+      label: "Strategy Balance",
+      value: formatQuoteAmount(summary.vault_balance),
+    },
     { label: "Total MTM", value: formatQuoteAmount(summary.total_mtm) },
     {
       label: "Available Liquidity",
@@ -39,7 +39,7 @@ export function AuditTape({ model }: { model: RiskModel }) {
             Audit Tape
           </div>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
-            Raw vault accounting and model assumptions used by this console.
+            Raw strategy accounting and model assumptions used by this console.
           </p>
         </div>
 

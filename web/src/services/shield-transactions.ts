@@ -111,7 +111,10 @@ async function buildCoin(
 }
 
 function assertHedgedPlpStrategyConfigured() {
-  if (!HEDGED_PLP_STRATEGY_ID || !BASE_VAULT_ID) {
+  const strategyId: string = HEDGED_PLP_STRATEGY_ID
+  const baseVaultId: string = BASE_VAULT_ID
+
+  if (!strategyId || !baseVaultId) {
     throw new Error("Hedged PLP strategy is not initialized yet")
   }
 }
@@ -122,7 +125,7 @@ function formatShieldError(message: string) {
   }
 
   if (message.includes("EExceededHedgeBudget")) {
-    return "Protection cost exceeds the Shield budget."
+    return "Protection cost exceeds the Tail Hedge PLP budget."
   }
 
   if (message.includes("EHedgePositionChanged")) {
@@ -130,11 +133,11 @@ function formatShieldError(message: string) {
   }
 
   if (message.includes("EOracleNotSettled")) {
-    return "This Shield can only be claimed after the Predict market settles."
+    return "This Tail Hedge PLP policy can only be claimed after the Predict market settles."
   }
 
   if (message.includes("ENotManagerOwner")) {
-    return "Only the trading account owner can claim the full Shield payout."
+    return "Only the trading account owner can claim the full Tail Hedge PLP payout."
   }
 
   return message
@@ -185,7 +188,7 @@ async function getInitialHedgeQuantity({
     throw new Error(
       quote.status === "unavailable"
         ? quote.message
-        : quote.message ?? "No executable protection quote"
+        : (quote.message ?? "No executable protection quote")
     )
   }
 
@@ -215,11 +218,7 @@ async function buildShieldOpenTransaction({
 }) {
   const tx = new Transaction()
   tx.setSender(walletAddress)
-  const paymentCoin = await buildQuoteCoin(
-    tx,
-    walletAddress,
-    depositAmount
-  )
+  const paymentCoin = await buildQuoteCoin(tx, walletAddress, depositAmount)
   const [policy, refundCoin] = tx.moveCall({
     target: shieldTarget("open"),
     typeArguments: [PREDICT_QUOTE_ASSET],
@@ -255,7 +254,7 @@ export async function prepareShieldOpenTransaction(
   let lastError: string | undefined
 
   if (hedgeBudgetAmount <= 0n || hedgeQuantity <= 0n) {
-    throw new Error("Deposit is too small to open Shield protection")
+    throw new Error("Deposit is too small to open Tail Hedge PLP protection")
   }
 
   for (let attempt = 0; attempt < MAX_PREPARE_ATTEMPTS; attempt += 1) {
@@ -277,7 +276,9 @@ export async function prepareShieldOpenTransaction(
     lastError = result.FailedTransaction.status.error?.message
 
     if (!lastError?.includes("EExceededHedgeBudget")) {
-      throw new Error(formatShieldError(lastError ?? "Could not prepare Shield"))
+      throw new Error(
+        formatShieldError(lastError ?? "Could not prepare Tail Hedge PLP")
+      )
     }
 
     hedgeQuantity = (hedgeQuantity * 8n) / 10n
@@ -287,7 +288,9 @@ export async function prepareShieldOpenTransaction(
     }
   }
 
-  throw new Error(formatShieldError(lastError ?? "Could not prepare Shield"))
+  throw new Error(
+    formatShieldError(lastError ?? "Could not prepare Tail Hedge PLP")
+  )
 }
 
 function buildShieldClaimTransaction({
@@ -321,7 +324,7 @@ export async function prepareShieldClaimTransaction(params: ShieldClaimParams) {
 
   await assertShieldTransactionReady(
     transaction,
-    "Could not prepare Shield claim"
+    "Could not prepare Tail Hedge PLP claim"
   )
 
   return transaction
@@ -339,7 +342,11 @@ export async function buildHedgedPlpStrategyDepositTransaction({
   const shareCoin = tx.moveCall({
     target: hedgedPlpStrategyTarget("deposit"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(HEDGED_PLP_STRATEGY_ID), tx.object(BASE_VAULT_ID), paymentCoin],
+    arguments: [
+      tx.object(HEDGED_PLP_STRATEGY_ID),
+      tx.object(BASE_VAULT_ID),
+      paymentCoin,
+    ],
   })
 
   tx.transferObjects([shareCoin], walletAddress)
@@ -360,12 +367,16 @@ export async function buildHedgedPlpStrategyWithdrawTransaction({
     walletAddress,
     amount,
     HEDGED_PLP_SHARE_ASSET,
-    "Insufficient cHPLP balance"
+    "Insufficient hPLP balance"
   )
   const quoteCoin = tx.moveCall({
     target: hedgedPlpStrategyTarget("withdraw"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(HEDGED_PLP_STRATEGY_ID), tx.object(BASE_VAULT_ID), shareCoin],
+    arguments: [
+      tx.object(HEDGED_PLP_STRATEGY_ID),
+      tx.object(BASE_VAULT_ID),
+      shareCoin,
+    ],
   })
 
   tx.transferObjects([quoteCoin], walletAddress)

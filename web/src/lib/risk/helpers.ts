@@ -25,7 +25,7 @@ export const chartMetrics = [
   { id: "drawdown", label: "Drawdown" },
   { id: "liability", label: "Liability" },
   { id: "plpPrice", label: "PLP Price" },
-  { id: "vaultValue", label: "Vault Value" },
+  { id: "vaultValue", label: "Strategy Value" },
 ] satisfies { id: ChartMetric; label: string }[]
 
 export const sharePriceFormatter = new Intl.NumberFormat("en-US", {

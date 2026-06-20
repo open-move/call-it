@@ -128,7 +128,10 @@ export interface ShieldWalletState {
   hedgedPlpShareBalance: bigint
 }
 
-function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
+function baseValueForShares(
+  base: BaseVaultBcsValue | undefined,
+  shares: bigint
+) {
   if (shares <= 0n) {
     return 0n
   }
@@ -191,31 +194,32 @@ function normalizeHedgedPlpStrategy(
 }
 
 export async function getHedgedPlpStrategyState() {
-  if (!HEDGED_PLP_STRATEGY_ID) {
+  const strategyId: string = HEDGED_PLP_STRATEGY_ID
+  const baseVaultId: string = BASE_VAULT_ID
+
+  if (!strategyId) {
     return undefined
   }
 
   const [strategyObject, baseObject] = await Promise.all([
     getSuiGrpcClient().getObject({
       include: { content: true },
-      objectId: HEDGED_PLP_STRATEGY_ID,
+      objectId: strategyId,
     }),
-    BASE_VAULT_ID
+    baseVaultId
       ? getSuiGrpcClient().getObject({
           include: { content: true },
-          objectId: BASE_VAULT_ID,
+          objectId: baseVaultId,
         })
       : undefined,
   ])
   const content = strategyObject.object.content
 
-  if (!content) {
-    throw new Error("Hedged PLP strategy object has no readable content")
-  }
-
   return normalizeHedgedPlpStrategy(
     HedgedPlpStrategyBcs.parse(content),
-    baseObject?.object.content ? BaseVaultBcs.parse(baseObject.object.content) : undefined
+    baseObject?.object.content
+      ? BaseVaultBcs.parse(baseObject.object.content)
+      : undefined
   )
 }
 

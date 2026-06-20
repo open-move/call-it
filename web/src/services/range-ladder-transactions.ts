@@ -119,7 +119,10 @@ async function buildCoin(
 }
 
 function assertRangeLadderStrategyConfigured() {
-  if (!RANGE_LADDER_STRATEGY_ID || !BASE_VAULT_ID) {
+  const strategyId: string = RANGE_LADDER_STRATEGY_ID
+  const baseVaultId: string = BASE_VAULT_ID
+
+  if (!strategyId || !baseVaultId) {
     throw new Error("Range Ladder strategy is not initialized yet")
   }
 }
@@ -315,7 +318,11 @@ export async function buildRangeLadderStrategyDepositTransaction({
   const shareCoin = tx.moveCall({
     target: rangeLadderTarget("deposit"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(RANGE_LADDER_STRATEGY_ID), tx.object(BASE_VAULT_ID), paymentCoin],
+    arguments: [
+      tx.object(RANGE_LADDER_STRATEGY_ID),
+      tx.object(BASE_VAULT_ID),
+      paymentCoin,
+    ],
   })
 
   tx.transferObjects([shareCoin], walletAddress)
@@ -341,7 +348,11 @@ export async function buildRangeLadderStrategyWithdrawTransaction({
   const quoteCoin = tx.moveCall({
     target: rangeLadderTarget("withdraw"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(RANGE_LADDER_STRATEGY_ID), tx.object(BASE_VAULT_ID), shareCoin],
+    arguments: [
+      tx.object(RANGE_LADDER_STRATEGY_ID),
+      tx.object(BASE_VAULT_ID),
+      shareCoin,
+    ],
   })
 
   tx.transferObjects([quoteCoin], walletAddress)

@@ -32,7 +32,10 @@ export function getEstimatedOutput({
     : numericAmount * summary.plp_share_price
 }
 
-export function getEstimatedWithdrawAmount(amount: bigint, summary: VaultSummary) {
+export function getEstimatedWithdrawAmount(
+  amount: bigint,
+  summary: VaultSummary
+) {
   const totalSupply = BigInt(Math.floor(summary.plp_total_supply))
   const vaultValue = BigInt(Math.floor(summary.vault_value))
 
@@ -81,12 +84,12 @@ export function getEarnInvalidReason({
   }
 
   if (estimatedWithdrawAmount === undefined || estimatedWithdrawAmount === 0n) {
-    return "Vault withdrawable DUSDC is unavailable."
+    return "Strategy withdrawable DUSDC is unavailable."
   }
 
   return estimatedWithdrawAmount >
     BigInt(Math.floor(summary.available_withdrawal))
-    ? "Withdrawal exceeds vault withdrawable DUSDC."
+    ? "Withdrawal exceeds strategy withdrawable DUSDC."
     : undefined
 }
 

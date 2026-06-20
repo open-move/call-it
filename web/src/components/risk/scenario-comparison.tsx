@@ -37,7 +37,7 @@ export function ScenarioComparison({ rows }: { rows: RiskScenarioRow[] }) {
             <span>Scenario</span>
             <span className="text-right">Settle</span>
             <span className="text-right">Liability</span>
-            <span className="text-right">Vault</span>
+            <span className="text-right">Strategy</span>
             <span className="text-right">PLP price</span>
             <span className="text-right">Drawdown</span>
           </div>

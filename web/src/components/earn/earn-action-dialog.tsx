@@ -111,7 +111,7 @@ export function EarnActionDialog({
           />
           {action === "withdraw" && (
             <PanelRow
-              label="Vault withdrawable"
+              label="Strategy withdrawable"
               value={formatQuoteAmount(summary.available_withdrawal)}
             />
           )}
