@@ -28,7 +28,7 @@ const strategyCards: StrategyCardData[] = [
     key: "earn",
     shareToken: "PLP",
     status: "Live",
-    title: "Base PLP",
+    title: "PLP Earn",
   },
   {
     description:

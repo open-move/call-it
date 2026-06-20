@@ -2,7 +2,6 @@ import { ArrowUpRightIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatRelativeTime } from "@/lib/format"
 import { formatQuoteAmount, formatAddress } from "@/lib/earn/format"
 import { getAccountUrl, getTransactionUrl } from "@/lib/earn/activity"
@@ -21,13 +20,13 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
   }, [activity.length])
 
   return (
-    <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <CardHeader className="px-3 py-2.5 [.border-b]:pb-2.5">
-        <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Strategy Activity
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-0 py-0">
+    <div className="rounded-lg bg-card">
+      <div className="px-3 py-2.5">
+        <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          Strategy activity
+        </h2>
+      </div>
+      <div>
         <div className="hidden border-b border-border/40 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase md:grid md:grid-cols-[0.9fr_0.65fr_0.9fr_1fr_1fr_0.7fr]">
           <div>Tx</div>
           <div>Type</div>
@@ -120,8 +119,8 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
             </Button>
           </div>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   )
 }
 

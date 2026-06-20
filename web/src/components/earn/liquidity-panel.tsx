@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react"
 
+import { DataRow } from "@/components/primitives/data-row"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useEarnAction } from "@/lib/earn/hooks"
 import type { EarnAction } from "@/lib/earn/quote"
 import type { VaultSummary } from "@/lib/types/predict"
-import { PanelRow } from "../primitives/panel-row"
 import { EarnActionDialog } from "./earn-action-dialog"
 
 export function LiquidityPanel({ summary }: { summary: VaultSummary }) {
@@ -25,7 +24,6 @@ export function LiquidityPanel({ summary }: { summary: VaultSummary }) {
 function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
   const [action, setAction] = useState<EarnAction>("supply")
   const [amount, setAmount] = useState("")
-  const estimatedOutput = undefined
 
   return (
     <LiquidityPanelFrame
@@ -33,7 +31,7 @@ function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
       amount={amount}
       buttonDisabled
       buttonLabel={action === "supply" ? "Deposit DUSDC" : "Withdraw PLP"}
-      estimatedOutput={estimatedOutput}
+      estimatedOutput={undefined}
       message="Connect wallet to view your position."
       messageTone="muted"
       onActionChange={setAction}
@@ -96,20 +94,18 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       walletAddress={walletAddress}
       walletBlock={
         walletAddress && (
-          <div className="space-y-3 pt-1">
-            <div>
-              <div className="text-xs font-medium text-muted-foreground">
-                PLP value
-              </div>
-              <div className="mt-1 font-mono text-xl leading-tight font-medium tracking-tight text-foreground tabular-nums">
+          <>
+            <div className="mt-4">
+              <div className="text-xs text-muted-foreground">PLP value</div>
+              <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
                 {plpValueLabel}
               </div>
             </div>
-            <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5">
-              <PanelRow label="DUSDC balance" value={dusdcBalanceValue} />
-              <PanelRow label="PLP balance" value={plpBalanceValue} />
+            <div className="mt-5">
+              <DataRow label="DUSDC balance" value={dusdcBalanceValue} />
+              <DataRow label="PLP balance" value={plpBalanceValue} />
             </div>
-          </div>
+          </>
         )
       }
     />
@@ -166,46 +162,39 @@ function LiquidityPanelFrame({
 
   return (
     <>
-      <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
-        <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
-          <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-            Your Position
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">
-          {walletAddress ? (
-            walletBlock
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm">
-              <p className="text-center text-xs text-muted-foreground">
-                Connect wallet to view your position.
-              </p>
-            </div>
-          )}
+      <div className="flex h-full flex-col rounded-lg bg-card p-4">
+        <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          Your position
+        </h2>
 
-          {walletAddress && (
-            <div className="mt-auto">
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  className="active:scale-[0.98]"
-                  onClick={() => selectAction("supply")}
-                  type="button"
-                >
-                  Deposit DUSDC
-                </Button>
-                <Button
-                  className="active:scale-[0.98]"
-                  onClick={() => selectAction("withdraw")}
-                  type="button"
-                  variant="outline"
-                >
-                  Withdraw
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+        {walletAddress ? (
+          walletBlock
+        ) : (
+          <p className="mt-4 max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
+            Connect your wallet to deposit DUSDC and hold PLP shares.
+          </p>
+        )}
+
+        {walletAddress && (
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+            <Button
+              className="active:scale-[0.96]"
+              onClick={() => selectAction("supply")}
+              type="button"
+            >
+              Deposit DUSDC
+            </Button>
+            <Button
+              className="active:scale-[0.96]"
+              onClick={() => selectAction("withdraw")}
+              type="button"
+              variant="outline"
+            >
+              Withdraw
+            </Button>
+          </div>
+        )}
+      </div>
 
       <EarnActionDialog
         action={action}

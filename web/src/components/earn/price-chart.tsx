@@ -22,7 +22,7 @@ export function VaultPriceChart({
   const yDomain = getChartDomain(chartData.points)
 
   return (
-    <div className="mt-5 border-t border-border/35 pt-4">
+    <div>
       <div className="mb-3 flex items-center justify-between gap-4">
         <div className="text-xs leading-none text-muted-foreground">
           PLP Price
@@ -31,7 +31,7 @@ export function VaultPriceChart({
           {formatSharePrice(summary.plp_share_price)} DUSDC
         </div>
       </div>
-      <div className="h-44 sm:h-48">
+      <div className="h-28 sm:h-32">
         {chartData.points.length > 0 && yDomain ? (
           <ResponsiveContainer height="100%" width="100%">
             <AreaChart
