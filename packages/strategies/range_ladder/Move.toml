@@ -1,8 +1,9 @@
 [package]
-name = "range_ladder"
+name = "range_ladder_strategy"
 edition = "2024"
 
 [dependencies]
+base_vault = { local = "../../base_vault" }
 deepbook_predict = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/predict", rev = "c9ee19690222f6a67c4365ca13df5df1c70cb545" }
 
 [dep-replacements.testnet.deepbook_predict]

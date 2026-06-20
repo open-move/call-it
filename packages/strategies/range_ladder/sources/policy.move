@@ -1,5 +1,5 @@
-/// Policy and recorded range-position types for the managed Range Ladder vault.
-module range_ladder::policy;
+/// Policy and recorded range-position types for the managed Range Ladder strategy.
+module range_ladder_strategy::policy;
 
 use deepbook_predict::range_key::RangeKey;
 

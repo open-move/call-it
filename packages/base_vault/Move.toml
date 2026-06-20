@@ -1,0 +1,5 @@
+[package]
+name = "base_vault"
+edition = "2024"
+
+[dependencies]

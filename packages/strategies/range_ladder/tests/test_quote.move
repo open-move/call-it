@@ -1,5 +1,5 @@
 #[test_only]
-module range_ladder::test_quote;
+module range_ladder_strategy::test_quote;
 
 use std::unit_test::destroy;
 use sui::coin_registry::{Self, Currency};

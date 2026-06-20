@@ -1,9 +1,10 @@
 [package]
-name = "callit_vaults"
+name = "shield_strategy"
 edition = "2024"
 
 [dependencies]
 deepbook_predict = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/predict", rev = "c9ee19690222f6a67c4365ca13df5df1c70cb545" }
+base_vault = { local = "../../base_vault" }
 
 [dep-replacements.testnet.deepbook_predict]
 git = "https://github.com/MystenLabs/deepbookv3.git"
