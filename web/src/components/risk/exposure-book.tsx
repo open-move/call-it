@@ -3,73 +3,12 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatExpiryDate } from "@/lib/format"
-import {
-  exposurePageSize,
-  formatDusdc,
-  getExposureSummary,
-} from "@/lib/risk/helpers"
+import { exposurePageSize, formatDusdc } from "@/lib/risk/helpers"
 import type { ExposureFilter } from "@/lib/risk/helpers"
 import type { RiskExposureRow, RiskModel } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
+import { ExposureConcentration } from "./exposure-concentration"
 import { TableValue } from "./table-value"
-
-function ExposureSummary({
-  summary,
-}: {
-  summary: ReturnType<typeof getExposureSummary>
-}) {
-  return (
-    <div className="grid border-t border-border/45 bg-muted/10 md:grid-cols-4">
-      <div className="border-b border-border/35 px-3 py-2.5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-        <div className="text-xs leading-none text-muted-foreground">
-          Open max payout
-        </div>
-        <div className="mt-2 truncate font-mono font-medium text-foreground tabular-nums">
-          {formatDusdc(summary.totalMaxPayout, 0)}
-        </div>
-        <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Reconstructed book
-        </div>
-      </div>
-      <div className="border-b border-border/35 px-3 py-2.5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-        <div className="text-xs leading-none text-muted-foreground">
-          Directional
-        </div>
-        <div className="mt-2 truncate font-mono font-medium text-foreground tabular-nums">
-          {formatDusdc(summary.directionalMaxPayout, 0)}
-        </div>
-        <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Up and Down positions
-        </div>
-      </div>
-      <div className="border-b border-border/35 px-3 py-2.5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-        <div className="text-xs leading-none text-muted-foreground">Range</div>
-        <div className="mt-2 truncate font-mono font-medium text-foreground tabular-nums">
-          {formatDusdc(summary.rangeMaxPayout, 0)}
-        </div>
-        <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          Inside-range positions
-        </div>
-      </div>
-      <div className="border-b border-border/35 px-3 py-2.5 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-        <div className="text-xs leading-none text-muted-foreground">
-          Largest line
-        </div>
-        <div className="mt-2 truncate font-mono font-medium text-foreground tabular-nums">
-          {summary.largestExposure
-            ? `${summary.largestExposure.assetSymbol} ${formatDusdc(
-                summary.largestExposure.maxPayoutUsd,
-                0
-              )}`
-            : "--"}
-        </div>
-        <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-          {summary.largestExposure?.settlementLabel ?? "No exposure"}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function ExposureRow({ row }: { row: RiskExposureRow }) {
   return (
@@ -78,7 +17,7 @@ function ExposureRow({ row }: { row: RiskExposureRow }) {
         <div className="truncate font-medium text-foreground">
           {row.assetSymbol} - {row.settlementLabel}
         </div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
+        <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
           {row.oracleId.slice(0, 8)}...{row.oracleId.slice(-4)}
         </div>
       </div>
@@ -102,7 +41,7 @@ function ExposureTable({ rows }: { rows: RiskExposureRow[] }) {
   return (
     <div className="overflow-auto border-t border-border/45">
       <div className="min-w-[58rem]">
-        <div className="grid grid-cols-[minmax(14rem,1.5fr)_4rem_7rem_7rem_7.5rem_7.5rem_6rem] gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+        <div className="grid grid-cols-[minmax(14rem,1.5fr)_4rem_7rem_7rem_7.5rem_7.5rem_6rem] gap-4 border-b border-border/45 bg-muted/30 px-3 py-2 text-[11px] text-muted-foreground">
           <span>Market</span>
           <span>Kind</span>
           <span className="text-right">Open qty</span>
@@ -126,7 +65,6 @@ function ExposureTable({ rows }: { rows: RiskExposureRow[] }) {
 export function ExposureBook({ model }: { model: RiskModel }) {
   const [filter, setFilter] = useState<ExposureFilter>("all")
   const [page, setPage] = useState(0)
-  const exposureSummary = getExposureSummary(model.exposureRows)
   const filteredRows = model.exposureRows.filter(
     (row) => filter === "all" || row.kind === filter
   )
@@ -145,12 +83,12 @@ export function ExposureBook({ model }: { model: RiskModel }) {
   }
 
   return (
-    <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+    <Card className="overflow-hidden rounded-lg border-0 bg-card py-0 shadow-none ring-0">
       <CardContent className="p-0">
         <div className="flex flex-col gap-3 px-4 pt-4 pb-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-              Exposure Book
+              Exposure book
             </div>
             <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
               Open directional and range positions reconstructed from public
@@ -178,7 +116,7 @@ export function ExposureBook({ model }: { model: RiskModel }) {
           </div>
         </div>
 
-        <ExposureSummary summary={exposureSummary} />
+        <ExposureConcentration rows={model.exposureRows} />
 
         {model.hasIncompleteReconstruction ? (
           <div className="border-t border-chart-4/25 bg-chart-4/10 px-4 py-2 text-xs leading-5 text-chart-4">

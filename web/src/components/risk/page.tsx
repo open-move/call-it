@@ -5,6 +5,7 @@ import { AuditTape } from "./audit-tape"
 import { RiskCockpit } from "./cockpit"
 import { ExposureBook } from "./exposure-book"
 import { RiskHeader } from "./header"
+import { RiskHero } from "./hero"
 
 export interface RiskPageProps {
   model: RiskModel
@@ -25,6 +26,7 @@ export function Page({ model }: RiskPageProps) {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         <RiskHeader model={model} />
+        <RiskHero model={model} selectedScenario={selectedScenario} />
         <RiskCockpit
           model={model}
           onScenarioChange={setSelectedScenarioId}

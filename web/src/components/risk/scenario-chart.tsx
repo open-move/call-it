@@ -1,4 +1,3 @@
-import { useState } from "react"
 import {
   Area,
   AreaChart,
@@ -11,36 +10,35 @@ import {
 } from "recharts"
 
 import { Button } from "@/components/ui/button"
-import {
-  chartMetrics,
-  formatChartTick,
-} from "@/lib/risk/helpers"
+import { chartMetrics, formatChartTick } from "@/lib/risk/helpers"
 import type { ChartMetric } from "@/lib/risk/helpers"
-import type { RiskScenarioRow } from "@/lib/risk/types"
+import type { RiskScenarioId, RiskScenarioRow } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
+
+type ChartRow = RiskScenarioRow & { chartValue: number }
 
 export function ScenarioChartPanel({
   metric,
   onMetricChange,
+  onScenarioChange,
   rows,
   selectedScenario,
 }: {
   metric: ChartMetric
   onMetricChange: (metric: ChartMetric) => void
-  rows: Array<RiskScenarioRow & { chartValue: number }>
+  onScenarioChange: (scenarioId: RiskScenarioId) => void
+  rows: ChartRow[]
   selectedScenario: RiskScenarioRow
 }) {
+  const sortedRows = [...rows].sort(
+    (first, second) => first.drawdownPct - second.drawdownPct
+  )
+
   return (
-    <section className="min-w-0 px-4 py-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-            Shock Curve
-          </div>
-          <p className="mt-2 max-w-xl text-xs leading-5 text-muted-foreground">
-            Scenario estimates use public oracle marks and reconstructed open
-            payout exposure.
-          </p>
+    <div className="min-w-0">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="text-xs text-muted-foreground">
+          Shock curve · click a point to inspect
         </div>
         <div className="flex flex-wrap gap-1.5">
           {chartMetrics.map((chartMetric) => (
@@ -61,29 +59,29 @@ export function ScenarioChartPanel({
         </div>
       </div>
 
-      <div className="mt-4 h-72 rounded-md border border-border/35 bg-muted/15 px-3 py-3 sm:h-80">
+      <div className="mt-3 h-64 sm:h-72">
         <ResponsiveContainer
           height="100%"
-          initialDimension={{ height: 320, width: 900 }}
+          initialDimension={{ height: 288, width: 720 }}
           width="100%"
         >
           <AreaChart
-            data={rows}
+            className="cursor-pointer"
+            data={sortedRows}
             margin={{ bottom: 0, left: 0, right: 12, top: 10 }}
+            onClick={(state) => {
+              const row = sortedRows.find(
+                (candidate) => candidate.label === state.activeLabel
+              )
+
+              if (row) {
+                onScenarioChange(row.id)
+              }
+            }}
           >
             <defs>
-              <linearGradient
-                id="riskMetricGradient"
-                x1="0"
-                x2="0"
-                y1="0"
-                y2="1"
-              >
-                <stop
-                  offset="5%"
-                  stopColor="var(--primary)"
-                  stopOpacity={0.24}
-                />
+              <linearGradient id="riskMetricGradient" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.24} />
                 <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
               </linearGradient>
             </defs>
@@ -124,8 +122,9 @@ export function ScenarioChartPanel({
               type="monotone"
             />
             <Line
+              activeDot={{ r: 4 }}
               dataKey="chartValue"
-              dot={false}
+              dot={{ r: 2 }}
               isAnimationActive={false}
               stroke="var(--primary)"
               strokeWidth={2.25}
@@ -134,6 +133,6 @@ export function ScenarioChartPanel({
           </AreaChart>
         </ResponsiveContainer>
       </div>
-    </section>
+    </div>
   )
 }

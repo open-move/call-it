@@ -6,12 +6,12 @@ import type { RiskModel } from "@/lib/risk/types"
 
 export function RiskHeader({ model }: { model: RiskModel }) {
   return (
-    <div className="rounded-md bg-card px-4 py-3 shadow-none ring-0">
+    <div className="rounded-lg bg-card px-4 py-3 shadow-none ring-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-              Risk Console
+              Risk console
             </h1>
             <Badge className="px-2 py-0.5 text-[10px]" tone={BadgeTone.Warning}>
               Model output
