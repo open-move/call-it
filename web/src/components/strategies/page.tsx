@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowRightIcon } from "lucide-react"
 
+import { AllocationBar } from "@/components/primitives/allocation-bar"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { Card } from "@/components/ui/card"
 import { StrategyVisual } from "./strategy-visual"
@@ -8,12 +9,7 @@ import {
   getStrategyStatusTone,
   useStrategyStats,
 } from "@/lib/strategies/hooks"
-import type {
-  AllocationSegment,
-  AllocationTone,
-  StrategyKey,
-  StrategyStat,
-} from "@/lib/strategies/hooks"
+import type { StrategyKey, StrategyStat } from "@/lib/strategies/hooks"
 
 interface StrategyCardData {
   description: string
@@ -71,66 +67,6 @@ function SkeletonBar({ className }: { className: string }) {
       aria-hidden="true"
       className={`inline-block animate-pulse rounded bg-muted align-middle ${className}`}
     />
-  )
-}
-
-const allocationToneClassName: Record<AllocationTone, string> = {
-  primary: "bg-primary",
-  down: "bg-outcome-down",
-  muted: "bg-muted-foreground/40",
-}
-
-const allocationDotClassName: Record<AllocationTone, string> = {
-  primary: "bg-primary",
-  down: "bg-outcome-down",
-  muted: "bg-muted-foreground/55",
-}
-
-function AllocationViz({
-  label,
-  segments,
-}: {
-  label: string
-  segments?: AllocationSegment[]
-}) {
-  return (
-    <div>
-      <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-2 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full">
-        {segments ? (
-          segments.map((segment) => (
-            <div
-              className={`h-full ${allocationToneClassName[segment.tone]} transition-[width] duration-500 ease-out`}
-              key={segment.label}
-              style={{ width: `${Math.round(segment.pct * 100)}%` }}
-            />
-          ))
-        ) : (
-          <div className="h-full w-full animate-pulse bg-muted/60" />
-        )}
-      </div>
-      {segments ? (
-        <div className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
-          {segments.map((segment) => (
-            <div className="flex items-center gap-1.5" key={segment.label}>
-              <span
-                className={`size-1.5 rounded-full ${allocationDotClassName[segment.tone]}`}
-              />
-              <span className="text-[10px] text-muted-foreground">
-                {segment.label}
-              </span>
-              <span className="font-mono text-[10px] font-medium text-foreground tabular-nums">
-                {Math.round(segment.pct * 100)}%
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-2.5 h-3 w-32 animate-pulse rounded bg-muted/50" />
-      )}
-    </div>
   )
 }
 
@@ -204,7 +140,7 @@ function StrategyCard({
         </div>
 
         <div className="mt-3">
-          <AllocationViz label={allocationLabel} segments={stat?.segments} />
+          <AllocationBar label={allocationLabel} segments={stat?.segments} />
         </div>
 
         <div className="mt-auto pt-4">

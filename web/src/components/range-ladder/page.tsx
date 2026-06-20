@@ -3,7 +3,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useRangeLadderAction } from "@/lib/range-ladder/hooks"
 import type { RangeLadderProduct } from "@/lib/types/range-ladder"
 import { ActionDialog } from "./action-dialog"
-import { RangeLadderProductHeader } from "./header"
+import { RangeLadderHero } from "./hero"
 import { PolicyCard } from "./policy-card"
 import { PositionPanel } from "./position-panel"
 import { RoundProgressCard } from "./round-progress-card"
@@ -47,21 +47,21 @@ export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <RangeLadderProductHeader />
+        <RangeLadderHero />
 
         <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
-          <StrategyOverviewCard
-            isLoading={isLoadingVault}
-            status={status}
-            strategy={strategy}
-          />
-
           <PositionPanel
             onOpenAction={openActionDialog}
             onSignIn={() => setShowAuthFlow(true)}
             strategy={strategy}
             wallet={wallet}
             walletAddress={walletAddress}
+          />
+
+          <StrategyOverviewCard
+            isLoading={isLoadingVault}
+            status={status}
+            strategy={strategy}
           />
         </div>
 

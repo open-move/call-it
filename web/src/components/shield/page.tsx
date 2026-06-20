@@ -3,7 +3,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useShieldAction } from "@/lib/shield/hooks"
 import type { ShieldProduct } from "@/lib/types/shield"
 import { ShieldActionDialog } from "./action-dialog"
-import { ShieldProductHeader } from "./header"
+import { ShieldHero } from "./hero"
 import { ShieldPolicyCard } from "./policy-card"
 import { ShieldPositionPanel } from "./position-panel"
 import { RoundProgressCard } from "./round-progress-card"
@@ -46,21 +46,21 @@ export function Page({ products }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <ShieldProductHeader />
+        <ShieldHero />
 
         <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
-          <ShieldOverviewCard
-            isLoading={isLoadingVault}
-            status={status}
-            strategy={strategy}
-          />
-
           <ShieldPositionPanel
             onOpenAction={openActionDialog}
             onSignIn={() => setShowAuthFlow(true)}
             strategy={strategy}
             wallet={wallet}
             walletAddress={walletAddress}
+          />
+
+          <ShieldOverviewCard
+            isLoading={isLoadingVault}
+            status={status}
+            strategy={strategy}
           />
         </div>
 

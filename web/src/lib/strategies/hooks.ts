@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react"
 
+import type {
+  AllocationSegment,
+  AllocationTone,
+} from "@/components/primitives/allocation-bar"
 import { StatusTone } from "@/components/primitives/status-indicator"
 import { QUOTE_SCALE } from "@/lib/config"
 import { getVaultStatus as getRangeLadderStatus } from "@/lib/range-ladder/helpers"
@@ -9,15 +13,6 @@ import { getRangeLadderStrategyState } from "@/services/range-ladder-client"
 import { getHedgedPlpStrategyState } from "@/services/shield-client"
 
 export type StrategyKey = "earn" | "shield" | "rangeLadder"
-
-export type AllocationTone = "primary" | "down" | "muted"
-
-export interface AllocationSegment {
-  label: string
-  /** Fraction 0..1 of the bar. */
-  pct: number
-  tone: AllocationTone
-}
 
 export interface StrategyStat {
   navUsd?: number
@@ -34,6 +29,7 @@ export function getStrategyStatusTone(status?: string): StatusTone {
     case "Open":
     case "Live":
     case "Round active":
+    case "Between rounds":
       return StatusTone.Live
     case "Oracle settled":
     case "Paused":
