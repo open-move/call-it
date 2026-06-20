@@ -9,7 +9,6 @@ use std::unit_test::{assert_eq, destroy};
 use sui::{
     coin::{Self, Coin},
     test_scenario::{begin, end, return_shared, Scenario},
-    transfer,
 };
 
 const ADMIN: address = @0xA;

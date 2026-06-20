@@ -1,5 +1,5 @@
 /// Oracle-bound Hedged PLP strategy accounting.
-module hedged_plp_strategy::hedged_plp_strategy;
+module hedged_plp_strategy::strategy;
 
 use std::option::{Self, Option};
 use sui::{
@@ -8,7 +8,6 @@ use sui::{
     coin::{Self, Coin, TreasuryCap},
     event,
     object::{Self, ID, UID},
-    transfer,
 };
 
 use deepbook_predict::{
@@ -20,6 +19,7 @@ use deepbook_predict::{
 };
 
 use base_vault::base_vault::{Self, BASE_VAULT, BaseVault};
+use hedged_plp_strategy::hplp::HPLP;
 use hedged_plp_strategy::policy::{Self, Policy};
 
 const BPS_DENOMINATOR: u64 = 10_000;
@@ -53,8 +53,6 @@ const EWrongPredict: u64 = 28;
 const EWrongBaseVault: u64 = 29;
 const EWrongStrategyKeeperCap: u64 = 30;
 
-public struct HEDGED_PLP_STRATEGY has drop {}
-
 public struct Round has copy, drop, store {
     predict_id: ID,
     oracle_id: ID,
@@ -65,7 +63,7 @@ public struct Round has copy, drop, store {
 
 public struct Strategy<phantom Quote> has key {
     id: UID,
-    treasury: TreasuryCap<HEDGED_PLP_STRATEGY>,
+    treasury: TreasuryCap<HPLP>,
     base_vault_id: ID,
     base_shares: Balance<BASE_VAULT>,
     cash: Balance<Quote>,
@@ -140,23 +138,9 @@ public struct RoundRealized has copy, drop {
     nav_after_realize: u64,
 }
 
-#[allow(deprecated_usage)]
-fun init(witness: HEDGED_PLP_STRATEGY, ctx: &mut TxContext) {
-    let (treasury, metadata) = coin::create_currency(
-        witness,
-        6,
-        b"cHPLP",
-        b"CallIt Hedged PLP Strategy Share",
-        b"Tokenized share of the CallIt Hedged PLP strategy.",
-        option::none(),
-        ctx,
-    );
-    transfer::public_freeze_object(metadata);
-    transfer::public_transfer(treasury, ctx.sender());
-}
 
 public fun create_strategy<Quote>(
-    treasury: TreasuryCap<HEDGED_PLP_STRATEGY>,
+    treasury: TreasuryCap<HPLP>,
     base: &BaseVault<Quote>,
     manager: &PredictManager,
     policy: Policy,
@@ -202,7 +186,7 @@ public fun deposit<Quote>(
     base: &mut BaseVault<Quote>,
     funds: Coin<Quote>,
     ctx: &mut TxContext,
-): Coin<HEDGED_PLP_STRATEGY> {
+): Coin<HPLP> {
     assert!(!strategy.paused, EPaused);
     assert_base_vault(strategy, base);
     assert!(option::is_none(&strategy.active_round), ERoundAlreadyActive);
@@ -234,7 +218,7 @@ public fun deposit<Quote>(
 public fun withdraw<Quote>(
     strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
-    shares: Coin<HEDGED_PLP_STRATEGY>,
+    shares: Coin<HPLP>,
     ctx: &mut TxContext,
 ): Coin<Quote> {
     assert_base_vault(strategy, base);

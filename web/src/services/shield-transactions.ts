@@ -53,7 +53,7 @@ function shieldTarget(functionName: string) {
 }
 
 function hedgedPlpStrategyTarget(functionName: string) {
-  return `${HEDGED_PLP_PACKAGE_ID}::hedged_plp_strategy::${functionName}`
+  return `${HEDGED_PLP_PACKAGE_ID}::strategy::${functionName}`
 }
 
 function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {

@@ -1,5 +1,5 @@
 /// Managed Range Ladder strategy using true DeepBook Predict RangeKey positions.
-module range_ladder_strategy::range_ladder_strategy;
+module range_ladder_strategy::strategy;
 
 use std::option::{Self, Option};
 use sui::{
@@ -8,7 +8,6 @@ use sui::{
     coin::{Self, Coin, TreasuryCap},
     event,
     object::{Self, ID, UID},
-    transfer,
 };
 
 use deepbook_predict::{
@@ -20,6 +19,7 @@ use deepbook_predict::{
 
 use base_vault::base_vault::{Self, BASE_VAULT, BaseVault};
 use range_ladder_strategy::policy::{Self, Policy, Position, Rung};
+use range_ladder_strategy::rladder::RLADDER;
 
 const BPS_DENOMINATOR: u64 = 10_000;
 
@@ -45,8 +45,6 @@ const EInvalidRangePayout: u64 = 19;
 const EWrongBaseVault: u64 = 20;
 const EWrongStrategyKeeperCap: u64 = 21;
 
-public struct RANGE_LADDER_STRATEGY has drop {}
-
 public struct Round has copy, drop, store {
     predict_id: ID,
     oracle_id: ID,
@@ -55,7 +53,7 @@ public struct Round has copy, drop, store {
 
 public struct Strategy<phantom Quote> has key {
     id: UID,
-    treasury: TreasuryCap<RANGE_LADDER_STRATEGY>,
+    treasury: TreasuryCap<RLADDER>,
     base_vault_id: ID,
     base_shares: Balance<BASE_VAULT>,
     cash: Balance<Quote>,
@@ -120,23 +118,8 @@ public struct RoundSettled has copy, drop {
     nav_after_settle: u64,
 }
 
-#[allow(deprecated_usage)]
-fun init(witness: RANGE_LADDER_STRATEGY, ctx: &mut TxContext) {
-    let (treasury, metadata) = coin::create_currency(
-        witness,
-        6,
-        b"cRANGE",
-        b"CallIt Range Ladder Strategy Share",
-        b"Tokenized share of the CallIt Range Ladder strategy.",
-        option::none(),
-        ctx,
-    );
-    transfer::public_freeze_object(metadata);
-    transfer::public_transfer(treasury, ctx.sender());
-}
-
 public fun create_strategy<Quote>(
-    treasury: TreasuryCap<RANGE_LADDER_STRATEGY>,
+    treasury: TreasuryCap<RLADDER>,
     base: &BaseVault<Quote>,
     manager: &PredictManager,
     policy: Policy,
@@ -180,7 +163,7 @@ public fun deposit<Quote>(
     base: &mut BaseVault<Quote>,
     funds: Coin<Quote>,
     ctx: &mut TxContext,
-): Coin<RANGE_LADDER_STRATEGY> {
+): Coin<RLADDER> {
     assert!(!strategy.paused, EPaused);
     assert_base_vault(strategy, base);
     assert!(option::is_none(&strategy.active_round), ERoundAlreadyActive);
@@ -211,7 +194,7 @@ public fun deposit<Quote>(
 public fun withdraw<Quote>(
     strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
-    shares: Coin<RANGE_LADDER_STRATEGY>,
+    shares: Coin<RLADDER>,
     ctx: &mut TxContext,
 ): Coin<Quote> {
     assert_base_vault(strategy, base);

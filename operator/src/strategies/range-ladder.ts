@@ -33,7 +33,7 @@ interface RungPlan {
 }
 
 function target(config: OperatorConfig, functionName: string) {
-  return `${config.rangeLadder.packageId}::range_ladder_strategy::${functionName}`
+  return `${config.rangeLadder.packageId}::strategy::${functionName}`
 }
 
 function policyTarget(config: OperatorConfig, functionName: string) {

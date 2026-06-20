@@ -35,7 +35,7 @@ export const HEDGED_PLP_PACKAGE_ID =
 
 export const HEDGED_PLP_STRATEGY_ID = ""
 
-export const HEDGED_PLP_SHARE_ASSET = `${HEDGED_PLP_PACKAGE_ID}::hedged_plp_strategy::HEDGED_PLP_STRATEGY`
+export const HEDGED_PLP_SHARE_ASSET = `${HEDGED_PLP_PACKAGE_ID}::hplp::HPLP`
 
 export const SHIELD_PACKAGE_ID = ""
 
@@ -53,7 +53,7 @@ export const RANGE_LADDER_ORIGINAL_PACKAGE_ID = RANGE_LADDER_PACKAGE_ID
 
 export const RANGE_LADDER_STRATEGY_ID = ""
 
-export const RANGE_LADDER_SHARE_ASSET = `${RANGE_LADDER_PACKAGE_ID}::range_ladder_strategy::RANGE_LADDER_STRATEGY`
+export const RANGE_LADDER_SHARE_ASSET = `${RANGE_LADDER_PACKAGE_ID}::rladder::RLADDER`
 
 export const SUI_GRPC_URL = "https://fullnode.testnet.sui.io:443"
 

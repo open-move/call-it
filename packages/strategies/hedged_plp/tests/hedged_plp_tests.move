@@ -3,7 +3,8 @@ module hedged_plp_strategy::hedged_plp_strategy_tests;
 
 use hedged_plp_strategy::{
     policy,
-    hedged_plp_strategy::{Self, HEDGED_PLP_STRATEGY, Strategy},
+    strategy::{Self as strategy, Strategy},
+    hplp::HPLP,
     test_quote::{Self, TEST_QUOTE},
 };
 use base_vault::base_vault::{Self as base_vault, BASE_VAULT, BaseVault};
@@ -17,7 +18,7 @@ use deepbook_predict::{
     registry::{Self, AdminCap, Registry},
 };
 use std::{option, unit_test::{assert_eq, destroy}};
-use sui::{clock::{Self, Clock}, coin::{Self, Coin}, coin_registry::Currency, object::ID, test_scenario::{begin, end, return_shared, Scenario}, transfer};
+use sui::{clock::{Self, Clock}, coin::{Self, Coin}, coin_registry::Currency, object::ID, test_scenario::{begin, end, return_shared, Scenario}};
 
 const ADMIN: address = @0xA;
 const USER: address = @0xB;
@@ -58,9 +59,9 @@ fun create_strategy_sets_policy_caps_and_manager() {
     let base_treasury = coin::create_treasury_cap_for_testing<BASE_VAULT>(test.ctx());
     let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
     let base_vault_id = base.id();
-    let treasury = coin::create_treasury_cap_for_testing<HEDGED_PLP_STRATEGY>(test.ctx());
+    let treasury = coin::create_treasury_cap_for_testing<HPLP>(test.ctx());
 
-    let (strategy, admin_cap, keeper_cap) = hedged_plp_strategy::create_strategy<TEST_QUOTE>(
+    let (strategy, admin_cap, keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
         treasury,
         &base,
         &manager,
@@ -80,13 +81,13 @@ fun create_strategy_sets_policy_caps_and_manager() {
     assert!(!strategy.paused());
     assert_eq!(policy::hedge_budget_bps(&strategy.policy()), HEDGE_BUDGET_BPS);
     assert_eq!(policy::max_plp_allocation_bps(&strategy.policy()), MAX_PLP_ALLOCATION_BPS);
-    assert_eq!(hedged_plp_strategy::admin_cap_strategy_id(&admin_cap), strategy_id);
-    assert_eq!(hedged_plp_strategy::keeper_cap_strategy_id(&keeper_cap), strategy_id);
+    assert_eq!(strategy::admin_cap_strategy_id(&admin_cap), strategy_id);
+    assert_eq!(strategy::keeper_cap_strategy_id(&keeper_cap), strategy_id);
 
-    hedged_plp_strategy::share_strategy(strategy);
+    strategy::share_strategy(strategy);
     base_vault::share_vault(base);
-    hedged_plp_strategy::destroy_admin_cap_for_testing(admin_cap);
-    hedged_plp_strategy::destroy_keeper_cap_for_testing(keeper_cap);
+    strategy::destroy_admin_cap_for_testing(admin_cap);
+    strategy::destroy_keeper_cap_for_testing(keeper_cap);
     base_vault::destroy_cap_for_testing(base_cap);
     return_shared(manager);
     };
@@ -104,7 +105,7 @@ fun deposit_mints_strategy_shares_into_base() {
     {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let shares = test.take_from_sender<Coin<HEDGED_PLP_STRATEGY>>();
+        let shares = test.take_from_sender<Coin<HPLP>>();
 
         assert_eq!(shares.value(), DEPOSIT_AMOUNT);
         assert_eq!(strategy.base_shares_amount(), DEPOSIT_AMOUNT);
@@ -156,9 +157,9 @@ fun withdraw_burns_shares_and_returns_cash() {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let shares = test.take_from_sender<Coin<HEDGED_PLP_STRATEGY>>();
+        let shares = test.take_from_sender<Coin<HPLP>>();
 
-        let out = hedged_plp_strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+        let out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
 
         assert_eq!(out.value(), DEPOSIT_AMOUNT);
         assert_eq!(strategy.base_shares_amount(), 0);
@@ -193,11 +194,11 @@ fun start_round_allocates_plp_and_opens_hedge() {
         assert_eq!(manager.position(key), HEDGE_QUANTITY);
         assert!(strategy.plp_amount() > 0);
         assert_eq!(strategy.plp_cost_basis(), 7_000_000_000);
-        assert_eq!(hedged_plp_strategy::round_predict_id(&round), env.predict_id);
-        assert_eq!(hedged_plp_strategy::round_oracle_id(&round), env.oracle_id);
-        assert_eq!(hedged_plp_strategy::round_strike(&round), STRIKE);
-        assert_eq!(hedged_plp_strategy::round_hedge_quantity(&round), HEDGE_QUANTITY);
-        assert!(!hedged_plp_strategy::round_settled(&round));
+        assert_eq!(strategy::round_predict_id(&round), env.predict_id);
+        assert_eq!(strategy::round_oracle_id(&round), env.oracle_id);
+        assert_eq!(strategy::round_strike(&round), STRIKE);
+        assert_eq!(strategy::round_hedge_quantity(&round), HEDGE_QUANTITY);
+        assert!(!strategy::round_settled(&round));
 
         return_shared(strategy);
         return_shared(manager);
@@ -229,8 +230,8 @@ fun withdraw_aborts_while_round_active() {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let shares = test.take_from_sender<Coin<HEDGED_PLP_STRATEGY>>();
-        let _out = hedged_plp_strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+        let shares = test.take_from_sender<Coin<HPLP>>();
+        let _out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
         return_shared(strategy);
         return_shared(base);
     };
@@ -272,13 +273,13 @@ fun start_round_aborts_on_wrong_manager() {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<hedged_plp_strategy::StrategyKeeperCap>();
+        let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(other_manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
 
-        hedged_plp_strategy::start_round(
+        strategy::start_round(
             &mut strategy,
             &mut base,
             &cap,
@@ -341,7 +342,7 @@ fun settle_round_does_not_withdraw_plp_or_unlock_round() {
         let round = option::destroy_some(strategy.active_round());
 
         assert!(strategy.has_active_round());
-        assert!(hedged_plp_strategy::round_settled(&round));
+        assert!(strategy::round_settled(&round));
         assert_eq!(strategy.plp_amount(), plp_before);
         assert_eq!(strategy.plp_cost_basis(), 7_000_000_000);
         assert_eq!(manager.balance<TEST_QUOTE>(), 0);
@@ -368,13 +369,13 @@ fun realize_round_withdraws_plp_and_unlocks_withdrawals() {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let shares = test.take_from_sender<Coin<HEDGED_PLP_STRATEGY>>();
+        let shares = test.take_from_sender<Coin<HPLP>>();
 
         assert!(!strategy.has_active_round());
         assert_eq!(strategy.plp_amount(), 0);
         assert_eq!(strategy.plp_cost_basis(), 0);
 
-        let out = hedged_plp_strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+        let out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
         assert!(out.value() > 0);
         assert_eq!(strategy.share_supply(), 0);
         assert_eq!(strategy.base_shares_amount(), 0);
@@ -611,16 +612,16 @@ fun wrong_strategy_cap_cannot_set_policy() {
     let manager = test.take_shared_by_id<PredictManager>(manager_id);
     let base_treasury = coin::create_treasury_cap_for_testing<BASE_VAULT>(test.ctx());
     let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
-    let first_treasury = coin::create_treasury_cap_for_testing<HEDGED_PLP_STRATEGY>(test.ctx());
-    let second_treasury = coin::create_treasury_cap_for_testing<HEDGED_PLP_STRATEGY>(test.ctx());
-    let (mut first_strategy, first_admin_cap, first_keeper_cap) = hedged_plp_strategy::create_strategy<TEST_QUOTE>(
+    let first_treasury = coin::create_treasury_cap_for_testing<HPLP>(test.ctx());
+    let second_treasury = coin::create_treasury_cap_for_testing<HPLP>(test.ctx());
+    let (mut first_strategy, first_admin_cap, first_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
         first_treasury,
         &base,
         &manager,
         default_policy(),
         test.ctx(),
     );
-    let (_second_strategy, second_admin_cap, second_keeper_cap) = hedged_plp_strategy::create_strategy<TEST_QUOTE>(
+    let (_second_strategy, second_admin_cap, second_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
         second_treasury,
         &base,
         &manager,
@@ -628,12 +629,12 @@ fun wrong_strategy_cap_cannot_set_policy() {
         test.ctx(),
     );
 
-    hedged_plp_strategy::set_policy(&mut first_strategy, &second_admin_cap, default_policy());
+    strategy::set_policy(&mut first_strategy, &second_admin_cap, default_policy());
 
-    hedged_plp_strategy::destroy_admin_cap_for_testing(first_admin_cap);
-    hedged_plp_strategy::destroy_keeper_cap_for_testing(first_keeper_cap);
-    hedged_plp_strategy::destroy_admin_cap_for_testing(second_admin_cap);
-    hedged_plp_strategy::destroy_keeper_cap_for_testing(second_keeper_cap);
+    strategy::destroy_admin_cap_for_testing(first_admin_cap);
+    strategy::destroy_keeper_cap_for_testing(first_keeper_cap);
+    strategy::destroy_admin_cap_for_testing(second_admin_cap);
+    strategy::destroy_keeper_cap_for_testing(second_keeper_cap);
     base_vault::destroy_cap_for_testing(base_cap);
     abort
 }
@@ -663,10 +664,10 @@ fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Pol
     base_vault::destroy_cap_for_testing(base_cap);
 
     test.next_tx(ADMIN);
-    let treasury = coin::create_treasury_cap_for_testing<HEDGED_PLP_STRATEGY>(test.ctx());
+    let treasury = coin::create_treasury_cap_for_testing<HPLP>(test.ctx());
     let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(base_vault_id);
     let manager = test.take_shared_by_id<PredictManager>(manager_id);
-    let (strategy, admin_cap, keeper_cap) = hedged_plp_strategy::create_strategy<TEST_QUOTE>(
+    let (strategy, admin_cap, keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
         treasury,
         &base,
         &manager,
@@ -674,7 +675,7 @@ fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Pol
         test.ctx(),
     );
     let strategy_id = strategy.id();
-    hedged_plp_strategy::share_strategy(strategy);
+    strategy::share_strategy(strategy);
     transfer::public_transfer(admin_cap, ADMIN);
     transfer::public_transfer(keeper_cap, ADMIN);
     return_shared(base);
@@ -688,13 +689,13 @@ fun start_round(test: &mut Scenario, env: &Env, strike: u64, quantity: u64) {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<hedged_plp_strategy::StrategyKeeperCap>();
+        let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
 
-        hedged_plp_strategy::start_round(
+        strategy::start_round(
             &mut strategy,
             &mut base,
             &cap,
@@ -721,13 +722,13 @@ fun settle_round(test: &mut Scenario, env: &Env) {
     test.next_tx(ADMIN);
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        let cap = test.take_from_sender<hedged_plp_strategy::StrategyKeeperCap>();
+        let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
 
-        hedged_plp_strategy::settle_round(&mut strategy, &cap, &mut predict, &mut manager, &oracle, &clock, test.ctx());
+        strategy::settle_round(&mut strategy, &cap, &mut predict, &mut manager, &oracle, &clock, test.ctx());
 
         return_shared(strategy);
         return_shared(predict);
@@ -743,11 +744,11 @@ fun realize_round(test: &mut Scenario, env: &Env) {
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<hedged_plp_strategy::StrategyKeeperCap>();
+        let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let clock = test.take_shared<Clock>();
 
-        hedged_plp_strategy::realize_round(&mut strategy, &mut base, &cap, &mut predict, &clock, test.ctx());
+        strategy::realize_round(&mut strategy, &mut base, &cap, &mut predict, &clock, test.ctx());
 
         return_shared(strategy);
         return_shared(base);
@@ -761,7 +762,7 @@ fun tamper_round_predict_id(test: &mut Scenario, env: &Env) {
     test.next_tx(ADMIN);
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        hedged_plp_strategy::set_active_round_predict_id_for_testing(&mut strategy, env.manager_id);
+        strategy::set_active_round_predict_id_for_testing(&mut strategy, env.manager_id);
         return_shared(strategy);
     }
 }
@@ -919,7 +920,7 @@ fun deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) {
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let funds = coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx());
 
-        let shares = hedged_plp_strategy::deposit(&mut strategy, &mut base, funds, test.ctx());
+        let shares = strategy::deposit(&mut strategy, &mut base, funds, test.ctx());
 
         transfer::public_transfer(shares, user);
         return_shared(strategy);

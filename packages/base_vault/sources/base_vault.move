@@ -1,13 +1,11 @@
 /// Cash-only shared liquidity warehouse for CallIt strategies.
 module base_vault::base_vault;
 
-use std::option;
 use sui::{
     balance::{Self, Balance},
     coin::{Self, Coin, TreasuryCap},
     event,
     object::{Self, ID, UID},
-    transfer,
 };
 
 const EPaused: u64 = 1;

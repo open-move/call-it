@@ -27,7 +27,7 @@ interface HedgedPlpTickOptions {
 }
 
 function target(config: OperatorConfig, functionName: string) {
-  return `${config.hedgedPlp.packageId}::hedged_plp_strategy::${functionName}`
+  return `${config.hedgedPlp.packageId}::strategy::${functionName}`
 }
 
 function bpsAmount(amount: bigint, bps: number) {

@@ -53,7 +53,7 @@ export interface RangeLadderStrategyTransactionParams {
 const PREMIUM_BUFFER_BPS = 250n
 
 function rangeLadderTarget(functionName: string) {
-  return `${RANGE_LADDER_PACKAGE_ID}::range_ladder_strategy::${functionName}`
+  return `${RANGE_LADDER_PACKAGE_ID}::strategy::${functionName}`
 }
 
 function rangeLadderPolicyTarget(functionName: string) {
