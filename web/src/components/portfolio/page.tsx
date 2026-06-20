@@ -1,7 +1,6 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { formatAddress } from "@mysten/sui/utils"
-import { Link } from "@tanstack/react-router"
-import { ArrowUpRightIcon, SearchIcon, WalletIcon } from "lucide-react"
+import { SearchIcon, WalletIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import {
@@ -15,6 +14,14 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { ActivityTabsFrame } from "@/components/shared/activity/activity-tabs-frame"
+import {
+  ActivityEmptyState,
+  ActivityNotice,
+  ActivityTableHeader,
+} from "@/components/shared/activity/activity-table"
+import { PositionTable } from "@/components/shared/activity/position-table"
+import type { PositionTableRow } from "@/components/shared/activity/position-table"
 import {
   Dialog,
   DialogContent,
@@ -39,11 +46,7 @@ import {
   QUOTE_SCALE,
 } from "@/lib/config"
 import { formatRelativeTime, formatUsd } from "@/lib/format"
-import {
-  getRangePositionStatus,
-  getSettledRangeMarkValue,
-} from "@/lib/trade-activity"
-import { getPositionSummariesFromActivity } from "@/lib/trade-positions"
+import { loadManagerPredictPositions } from "@/lib/predict-position-source"
 import type {
   DirectionalPositionMintEvent,
   DirectionalPositionRedeemEvent,
@@ -55,12 +58,10 @@ import type {
   RangeRedeemEvent,
   VaultSummary,
 } from "@/lib/types/predict"
+import type { PositionRow } from "@/lib/types/trade"
 import {
   getDirectionalPositionMints,
   getDirectionalPositionRedeems,
-  getManagerPositions,
-  getManagerPositionSummaries,
-  getManagerRanges,
 } from "@/services/predict-client"
 import {
   buildManagerDepositTransaction,
@@ -143,18 +144,6 @@ interface PortfolioSummary {
   unrealizedPnlUsd: number
   upCostBasisUsd: number
   downCostBasisUsd: number
-}
-
-interface RangeAccumulator {
-  expiry: number
-  higherStrike: number
-  lastActivityAt: number
-  lowerStrike: number
-  mintedQuantity: number
-  oracleId: string
-  redeemedQuantity: number
-  totalCost: number
-  totalPayout: number
 }
 
 interface RealizedPnlEvent {
@@ -380,50 +369,107 @@ function getPnlClassName(value: number | null) {
   return value > 0 ? "text-outcome-up" : "text-outcome-down"
 }
 
-function getDirectionalPositions(
+function getReservedPositionIds(
   summaries: ManagerPositionSummary[],
-  oracleById: Map<string, OracleInfo>,
   shieldPositions: ShieldPositionRow[]
-): PortfolioPosition[] {
-  return summaries
-    .filter((summary) => summary.open_quantity > 0)
-    .map((summary) => {
-      const assetSymbol = getAssetSymbol(oracleById, summary.oracle_id)
-      const shieldReservation = findShieldReservation(summary, shieldPositions)
-      const strikePriceUsd = toUsdPrice(summary.strike)
-      const side: MarketSide = summary.is_up ? "up" : "down"
-      const type = summary.is_up ? "UP" : "DOWN"
+): Set<string> {
+  return new Set(
+    summaries
+      .filter((summary) => findShieldReservation(summary, shieldPositions))
+      .map((summary) => {
+        const side = summary.is_up ? "up" : "down"
 
-      return {
-        assetSymbol,
-        averageEntryPrice:
-          summary.average_entry_price === null
-            ? null
-            : toUsdPrice(summary.average_entry_price),
-        contractLabel: `${assetSymbol} ${formatUsd(strikePriceUsd, 0)} ${type}`,
-        costBasisUsd: toQuoteAmount(summary.open_cost_basis),
-        currentValueUsd:
-          summary.mark_value === null
-            ? null
-            : toQuoteAmount(summary.mark_value),
-        expiryMs: summary.expiry,
-        id: `${summary.manager_id}:${summary.oracle_id}:${summary.strike}:${side}`,
-        lastActivityAt: summary.last_activity_at,
-        manageSearch: { side, strike: strikePriceUsd },
-        markPrice:
-          summary.mark_price === null ? null : toUsdPrice(summary.mark_price),
-        oracleId: summary.oracle_id,
-        realizedPnlUsd: toQuoteAmount(summary.realized_pnl),
-        reservationLabel: shieldReservation ? "Shield reserved" : undefined,
-        size: toQuoteAmount(summary.open_quantity),
-        status: summary.status,
-        type,
-        unrealizedPnlUsd:
-          summary.mark_value === null
-            ? null
-            : toQuoteAmount(summary.unrealized_pnl),
-      }
-    })
+        return `${summary.manager_id}:${summary.oracle_id}:${summary.strike}:${side}`
+      })
+  )
+}
+
+function getPortfolioPositionFromRow({
+  oracleById,
+  position,
+  reservedPositionIds,
+}: {
+  oracleById: Map<string, OracleInfo>
+  position: PositionRow
+  reservedPositionIds: Set<string>
+}): PortfolioPosition {
+  const assetSymbol = getAssetSymbol(oracleById, position.oracleId)
+
+  if (position.kind === "directional") {
+    const strikePriceUsd = position.strikePriceUsd
+    const side: MarketSide = position.side === "above" ? "up" : "down"
+    const type = position.side === "above" ? "UP" : "DOWN"
+
+    return {
+      assetSymbol,
+      averageEntryPrice: position.averageEntryPrice,
+      contractLabel: `${assetSymbol} ${formatUsd(strikePriceUsd, 0)} ${type}`,
+      costBasisUsd: position.openCostBasisUsd,
+      currentValueUsd: position.markValueUsd,
+      expiryMs: position.expiryMs,
+      id: position.id,
+      lastActivityAt: position.lastActivityAt,
+      manageSearch: { side, strike: strikePriceUsd },
+      markPrice: position.markPrice,
+      oracleId: position.oracleId,
+      realizedPnlUsd: position.realizedPnlUsd,
+      reservationLabel: reservedPositionIds.has(position.id)
+        ? "Shield reserved"
+        : undefined,
+      size: position.openQuantity,
+      status: position.status,
+      type,
+      unrealizedPnlUsd: position.unrealizedPnlUsd,
+    }
+  }
+
+  return {
+    assetSymbol,
+    averageEntryPrice: position.averageEntryPrice,
+    contractLabel: `${assetSymbol} ${formatUsd(position.lowerStrikePriceUsd, 0)}-${formatUsd(position.higherStrikePriceUsd, 0)} Range`,
+    costBasisUsd: position.openCostBasisUsd,
+    currentValueUsd: position.markValueUsd,
+    expiryMs: position.expiryMs,
+    id: position.id,
+    lastActivityAt: position.lastActivityAt,
+    manageSearch: {
+      higherStrike: position.higherStrikePriceUsd,
+      lowerStrike: position.lowerStrikePriceUsd,
+      strike: position.lowerStrikePriceUsd,
+    },
+    markPrice: position.markPrice,
+    oracleId: position.oracleId,
+    realizedPnlUsd: position.realizedPnlUsd,
+    size: position.openQuantity,
+    status: position.status,
+    type: "RNG",
+    unrealizedPnlUsd: position.unrealizedPnlUsd,
+  }
+}
+
+function getPortfolioPositions({
+  oracleById,
+  positions,
+  reservedPositionIds,
+}: {
+  oracleById: Map<string, OracleInfo>
+  positions: PositionRow[]
+  reservedPositionIds: Set<string>
+}) {
+  return positions
+    .filter((position) => position.openQuantity > 0)
+    .map((position) =>
+      getPortfolioPositionFromRow({
+        oracleById,
+        position,
+        reservedPositionIds,
+      })
+    )
+    .sort(
+      (firstPosition, secondPosition) =>
+        secondPosition.lastActivityAt - firstPosition.lastActivityAt ||
+        firstPosition.contractLabel.localeCompare(secondPosition.contractLabel)
+    )
 }
 
 function findShieldReservation(
@@ -438,126 +484,6 @@ function findShieldReservation(
       position.isUp === summary.is_up &&
       position.hedgeStrike === BigInt(Math.trunc(summary.strike))
   )
-}
-
-function getRangePositionKey(event: RangeMintEvent | RangeRedeemEvent) {
-  return `${event.manager_id}:${event.oracle_id}:${event.expiry}:${event.lower_strike}:${event.higher_strike}`
-}
-
-function getRangePositions(
-  activity: ManagerRangeActivityResponse,
-  oracleById: Map<string, OracleInfo>
-): PortfolioPosition[] {
-  const positions = new Map<string, RangeAccumulator>()
-
-  function getAccumulator(event: RangeMintEvent | RangeRedeemEvent) {
-    const key = getRangePositionKey(event)
-    const currentPosition = positions.get(key)
-
-    if (currentPosition) {
-      return currentPosition
-    }
-
-    const position = {
-      expiry: event.expiry,
-      higherStrike: event.higher_strike,
-      lastActivityAt: event.checkpoint_timestamp_ms,
-      lowerStrike: event.lower_strike,
-      mintedQuantity: 0,
-      oracleId: event.oracle_id,
-      redeemedQuantity: 0,
-      totalCost: 0,
-      totalPayout: 0,
-    }
-
-    positions.set(key, position)
-    return position
-  }
-
-  for (const event of activity.minted) {
-    const position = getAccumulator(event)
-
-    position.mintedQuantity += event.quantity
-    position.totalCost += event.cost
-    position.lastActivityAt = Math.max(
-      position.lastActivityAt,
-      event.checkpoint_timestamp_ms
-    )
-  }
-
-  for (const event of activity.redeemed) {
-    const position = getAccumulator(event)
-
-    position.redeemedQuantity += event.quantity
-    position.totalPayout += event.payout
-    position.lastActivityAt = Math.max(
-      position.lastActivityAt,
-      event.checkpoint_timestamp_ms
-    )
-  }
-
-  return Array.from(positions.entries())
-    .map(([id, position]) => {
-      const mintedQuantity = toQuoteAmount(position.mintedQuantity)
-      const redeemedQuantity = toQuoteAmount(position.redeemedQuantity)
-      const size = Math.max(mintedQuantity - redeemedQuantity, 0)
-      const averageEntryPrice =
-        mintedQuantity > 0
-          ? toQuoteAmount(position.totalCost) / mintedQuantity
-          : null
-      const redeemedCostBasis =
-        averageEntryPrice === null ? 0 : averageEntryPrice * redeemedQuantity
-      const lowerStrikePriceUsd = toUsdPrice(position.lowerStrike)
-      const higherStrikePriceUsd = toUsdPrice(position.higherStrike)
-      const assetSymbol = getAssetSymbol(oracleById, position.oracleId)
-      const oracle = oracleById.get(position.oracleId)
-      const rawOpenQuantity = Math.max(
-        position.mintedQuantity - position.redeemedQuantity,
-        0
-      )
-      const markValue = getSettledRangeMarkValue({
-        higherStrike: position.higherStrike,
-        lowerStrike: position.lowerStrike,
-        openQuantity: rawOpenQuantity,
-        oracle,
-      })
-      const currentValueUsd =
-        markValue === null ? null : toQuoteAmount(markValue)
-      const markPrice =
-        currentValueUsd === null || size <= 0 ? null : currentValueUsd / size
-      const costBasisUsd =
-        averageEntryPrice === null ? 0 : averageEntryPrice * size
-
-      return {
-        assetSymbol,
-        averageEntryPrice,
-        contractLabel: `${assetSymbol} ${formatUsd(lowerStrikePriceUsd, 0)}-${formatUsd(higherStrikePriceUsd, 0)} Range`,
-        costBasisUsd,
-        currentValueUsd,
-        expiryMs: position.expiry,
-        id,
-        lastActivityAt: position.lastActivityAt,
-        manageSearch: {
-          higherStrike: higherStrikePriceUsd,
-          lowerStrike: lowerStrikePriceUsd,
-          strike: lowerStrikePriceUsd,
-        },
-        markPrice,
-        oracleId: position.oracleId,
-        realizedPnlUsd: toQuoteAmount(position.totalPayout) - redeemedCostBasis,
-        size,
-        status: getRangePositionStatus({
-          expiry: position.expiry,
-          markValue,
-          openQuantity: rawOpenQuantity,
-          oracle,
-        }),
-        type: "RNG" as const,
-        unrealizedPnlUsd:
-          currentValueUsd === null ? null : currentValueUsd - costBasisUsd,
-      }
-    })
-    .filter((position) => position.size > 0)
 }
 
 function getDirectionalActivityKey(
@@ -726,27 +652,6 @@ function getRealizedPnlChartData({
   ])
 }
 
-function getPortfolioPositions({
-  oracleById,
-  rangeActivity,
-  shieldPositions,
-  summaries,
-}: {
-  oracleById: Map<string, OracleInfo>
-  rangeActivity: ManagerRangeActivityResponse
-  shieldPositions: ShieldPositionRow[]
-  summaries: ManagerPositionSummary[]
-}) {
-  return [
-    ...getDirectionalPositions(summaries, oracleById, shieldPositions),
-    ...getRangePositions(rangeActivity, oracleById),
-  ].sort(
-    (firstPosition, secondPosition) =>
-      secondPosition.lastActivityAt - firstPosition.lastActivityAt ||
-      firstPosition.contractLabel.localeCompare(secondPosition.contractLabel)
-  )
-}
-
 function getPortfolioSummary({
   dusdcBalance,
   plpBalance,
@@ -849,7 +754,7 @@ function getFilteredPositions({
 }
 
 function canRedeemPortfolioPosition(position: PortfolioPosition) {
-  if (position.status.toLowerCase() !== "redeemable" || position.size <= 0) {
+  if (!canLifecyclePortfolioPosition(position)) {
     return false
   }
 
@@ -1053,17 +958,15 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
 
       try {
         const [
-          summaryResult,
-          rangeActivity,
+          positionSource,
           directionalMinted,
           directionalRedeemed,
           shieldPositions,
         ] = await Promise.all([
-          getManagerPositionSummaries(managerId).catch(() => undefined),
-          getManagerRanges(managerId).catch(() => ({
-            minted: [],
-            redeemed: [],
-          })),
+          loadManagerPredictPositions({
+            managerId,
+            oracleById: getOracleById(oracles),
+          }),
           getDirectionalPositionMints(REALIZED_ACTIVITY_LIMIT).catch(() => []),
           getDirectionalPositionRedeems(REALIZED_ACTIVITY_LIMIT).catch(
             () => []
@@ -1072,15 +975,10 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
         ])
 
         const currentOracleById = getOracleById(oracles)
-        const summaries =
-          summaryResult ??
-          getPositionSummariesFromActivity(
-            await getManagerPositions(managerId).catch(() => ({
-              minted: [],
-              redeemed: [],
-            })),
-            currentOracleById
-          )
+        const reservedPositionIds = getReservedPositionIds(
+          positionSource.summaries,
+          shieldPositions
+        )
 
         if (!isStale) {
           setPortfolioState({
@@ -1091,9 +989,8 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
             plpBalance,
             positions: getPortfolioPositions({
               oracleById: currentOracleById,
-              rangeActivity,
-              shieldPositions,
-              summaries,
+              positions: positionSource.rows,
+              reservedPositionIds,
             }),
             realizedPnlPoints: getRealizedPnlChartData({
               directionalMinted: directionalMinted.filter(
@@ -1103,7 +1000,7 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
                 (event) => event.manager_id === managerId
               ),
               oracleById: currentOracleById,
-              rangeActivity,
+              rangeActivity: positionSource.rangeActivity,
             }),
           })
         }
@@ -2342,75 +2239,49 @@ function PositionsLedger({
   searchQuery: string
   totalPositions: PortfolioPosition[]
 }) {
+  const searchInput = (
+    <div className="relative w-full lg:w-72">
+      <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      <Input
+        className="h-8 pl-8"
+        placeholder="Search markets"
+        value={searchQuery}
+        onChange={(event) => onSearchChange(event.target.value)}
+      />
+    </div>
+  )
+
   return (
-    <Card className="min-h-96 overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
-      <Tabs
-        className="flex min-h-96 min-w-0 flex-col gap-0"
-        value={activeTab}
-        onValueChange={(value) => onTabChange(value as PortfolioTab)}
-      >
-        <div className="flex shrink-0 flex-col gap-3 border-b border-border/45 px-4 py-3 lg:h-11 lg:flex-row lg:items-center lg:justify-between lg:py-0">
-          <TabsList
-            className="h-full w-full justify-start gap-5 overflow-x-auto rounded-none p-0"
-            variant="line"
-          >
-            {portfolioTabs.map((tab) => (
-              <TabsTrigger
-                className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
-                key={tab.value}
-                value={tab.value}
-              >
-                <span>{tab.label}</span>
-                <span className="rounded-sm bg-muted/45 px-1.5 py-0.5 font-mono text-[10px] leading-none text-current tabular-nums opacity-80">
-                  {getTabCount(totalPositions, tab.value)}
-                </span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <div className="relative w-full lg:w-72">
-            <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              className="h-8 pl-8"
-              placeholder="Search markets"
-              value={searchQuery}
-              onChange={(event) => onSearchChange(event.target.value)}
-            />
-          </div>
-        </div>
-
-        {portfolioTabs.map((tab) => (
-          <TabsContent
-            className="min-h-0 flex-1 overflow-hidden"
-            key={tab.value}
-            value={tab.value}
-          >
-            {tab.value === "activity" ? (
-              <ActivityTable isLoading={isLoading} positions={positions} />
-            ) : (
-              <>
-                <div className="hidden h-full min-h-0 overflow-auto lg:block">
-                  <PositionsTable
-                    isLoading={isLoading}
-                    onRedeemPosition={onRedeemPosition}
-                    positions={positions}
-                    redeemingPositionId={redeemingPositionId}
-                  />
-                </div>
-                <div className="grid gap-2 p-3 lg:hidden">
-                  <MobilePositionsList
-                    isLoading={isLoading}
-                    onRedeemPosition={onRedeemPosition}
-                    positions={positions}
-                    redeemingPositionId={redeemingPositionId}
-                  />
-                </div>
-              </>
-            )}
-          </TabsContent>
-        ))}
-      </Tabs>
-    </Card>
+    <ActivityTabsFrame
+      cardClassName="min-h-96"
+      headerClassName="h-auto flex-col items-stretch gap-3 px-4 py-3 lg:h-11 lg:flex-row lg:items-center lg:py-0"
+      headerContent={searchInput}
+      tabsClassName="min-h-96"
+      value={activeTab}
+      onValueChange={onTabChange}
+      tabs={portfolioTabs.map((tab) => ({
+        content:
+          tab.value === "activity" ? (
+            <ActivityTable isLoading={isLoading} positions={positions} />
+          ) : (
+            <div className="h-full min-h-0 p-3">
+              <PositionTable
+                emptyMessage="No positions in this view."
+                isLoading={isLoading}
+                loadingMessage="Loading portfolio positions."
+                rows={getPortfolioPositionTableRows({
+                  onLifecyclePosition: onRedeemPosition,
+                  positions,
+                  redeemingPositionId,
+                })}
+              />
+            </div>
+          ),
+        count: getTabCount(totalPositions, tab.value),
+        label: tab.label,
+        value: tab.value,
+      }))}
+    />
   )
 }
 
@@ -2421,23 +2292,7 @@ function PortfolioHeaderRow({
   className: string
   columns: Array<{ align?: "left" | "right"; label: string }>
 }) {
-  return (
-    <div
-      className={cn(
-        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
-        className
-      )}
-    >
-      {columns.map((column, index) => (
-        <span
-          className={cn("truncate", column.align === "right" && "text-right")}
-          key={`${column.label}-${index}`}
-        >
-          {column.label}
-        </span>
-      ))}
-    </div>
-  )
+  return <ActivityTableHeader columns={columns} gridClassName={className} />
 }
 
 function PositionTypeTag({ position }: { position: PortfolioPosition }) {
@@ -2453,124 +2308,127 @@ function PositionTypeTag({ position }: { position: PortfolioPosition }) {
   )
 }
 
-function PositionAction({
-  onRedeemPosition,
-  position,
-  redeemingPositionId,
-}: {
-  onRedeemPosition: (position: PortfolioPosition) => void
-  position: PortfolioPosition
-  redeemingPositionId?: string
-}) {
-  return canRedeemPortfolioPosition(position) ? (
-    <Button
-      className="justify-self-end"
-      disabled={redeemingPositionId === position.id}
-      size="xs"
-      type="button"
-      variant="secondary"
-      onClick={() => onRedeemPosition(position)}
-    >
-      {redeemingPositionId === position.id ? "Redeeming..." : "Redeem"}
-    </Button>
-  ) : (
-    <Button
-      className="justify-self-end text-muted-foreground"
-      render={
-        <Link
-          params={{ oracleId: position.oracleId }}
-          search={position.manageSearch}
-          to="/markets/$oracleId"
-        />
-      }
-      size="xs"
-      type="button"
-      variant="ghost"
-    >
-      Manage
-      <ArrowUpRightIcon className="size-3" />
-    </Button>
+function getPositionLifecycleActionLabel(position: PortfolioPosition) {
+  const status = position.status.toLowerCase()
+
+  if (status === "redeemable") {
+    return "Redeem position"
+  }
+
+  if (status === "lost" || status === "liquidated") {
+    return "Clear position"
+  }
+
+  return "Close position"
+}
+
+function canAddToPortfolioPosition(position: PortfolioPosition) {
+  const status = position.status.toLowerCase()
+
+  return status === "active" || status === "open"
+}
+
+function canLifecyclePortfolioPosition(position: PortfolioPosition) {
+  const status = position.status.toLowerCase()
+
+  return (
+    position.size > 0 &&
+    (status === "active" ||
+      status === "open" ||
+      status === "redeemable" ||
+      status === "lost" ||
+      status === "liquidated")
   )
 }
 
-function PositionsTable({
-  isLoading,
-  onRedeemPosition,
+function getPortfolioMarketUrl(position: PortfolioPosition) {
+  const params = new URLSearchParams({
+    strike: position.manageSearch.strike.toString(),
+  })
+
+  if (position.type === "RNG") {
+    params.set("mode", "range")
+
+    if (position.manageSearch.lowerStrike !== undefined) {
+      params.set("lowerStrike", position.manageSearch.lowerStrike.toString())
+    }
+
+    if (position.manageSearch.higherStrike !== undefined) {
+      params.set("higherStrike", position.manageSearch.higherStrike.toString())
+    }
+  } else if (position.manageSearch.side) {
+    params.set("side", position.manageSearch.side)
+  }
+
+  return `/markets/${position.oracleId}?${params.toString()}`
+}
+
+function getPortfolioPositionTone(position: PortfolioPosition) {
+  if (position.type === "UP") {
+    return "up" as const
+  }
+
+  if (position.type === "DOWN") {
+    return "down" as const
+  }
+
+  return "range" as const
+}
+
+function getPortfolioPositionTableRows({
+  onLifecyclePosition,
   positions,
   redeemingPositionId,
 }: {
-  isLoading: boolean
-  onRedeemPosition: (position: PortfolioPosition) => void
+  onLifecyclePosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
   redeemingPositionId?: string
-}) {
-  if (isLoading) {
-    return <LedgerEmptyState message="Loading portfolio positions." />
-  }
+}): PositionTableRow[] {
+  return positions.map((position) => {
+    const isLifecyclePending = redeemingPositionId === position.id
 
-  if (positions.length === 0) {
-    return <LedgerEmptyState message="No positions in this view." />
-  }
-
-  const hasUnavailableValues = positions.some(
-    (position) => position.size > 0 && position.currentValueUsd === null
-  )
-
-  return (
-    <div className="min-w-[56rem]">
-      {hasUnavailableValues ? (
-        <div className="border-b border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Live exit values are unavailable. Entry and premium are shown from
-          trade history.
-        </div>
-      ) : null}
-      <PortfolioHeaderRow
-        className="grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem]"
-        columns={[
-          { label: "Contract" },
-          { align: "right", label: "Contracts" },
-          { align: "right", label: "Avg entry" },
-          { align: "right", label: "Value" },
-          { align: "right", label: "PnL" },
-          { align: "right", label: "" },
-        ]}
-      />
-      {positions.map((position) => (
-        <div
-          className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0"
-          key={position.id}
-        >
-          <PositionMarketCell position={position} />
-          <span className="truncate text-right font-mono text-muted-foreground tabular-nums">
-            {formatQuantity(position.size)}
-          </span>
-          <span className="truncate text-right font-mono tabular-nums">
-            {formatCents(position.averageEntryPrice)}
-          </span>
-          <span className="truncate text-right font-mono tabular-nums">
-            {position.currentValueUsd === null
-              ? "--"
-              : formatDusdc(position.currentValueUsd)}
-          </span>
-          <span
-            className={cn(
-              "truncate text-right font-mono tabular-nums",
-              getPnlClassName(position.unrealizedPnlUsd)
-            )}
-          >
-            {position.unrealizedPnlUsd === null
-              ? "--"
-              : formatSignedDusdc(position.unrealizedPnlUsd)}
-          </span>
-          <PositionAction
-            onRedeemPosition={onRedeemPosition}
-            position={position}
-            redeemingPositionId={redeemingPositionId}
-          />
-        </div>
-      ))}
-    </div>
-  )
+    return {
+      actions: [
+        ...(canAddToPortfolioPosition(position)
+          ? [
+              {
+                label: "Add to position",
+                onSelect: () => {
+                  window.location.assign(getPortfolioMarketUrl(position))
+                },
+              },
+            ]
+          : []),
+        ...(canLifecyclePortfolioPosition(position)
+          ? [
+              {
+                disabled: isLifecyclePending,
+                label: isLifecyclePending
+                  ? "Submitting..."
+                  : getPositionLifecycleActionLabel(position),
+                onSelect: () => onLifecyclePosition(position),
+              },
+            ]
+          : []),
+      ],
+      averageEntryPrice: position.averageEntryPrice,
+      badges: position.reservationLabel ? (
+        <ReservationBadge position={position} />
+      ) : undefined,
+      contractLabel: position.contractLabel,
+      id: position.id,
+      meta: `${position.status} · ${formatExpiryDistance(position.expiryMs)} · ${formatRelativeTime(position.lastActivityAt)}`,
+      pnlUsd:
+        position.unrealizedPnlUsd === null
+          ? null
+          : position.unrealizedPnlUsd + position.realizedPnlUsd,
+      premiumUsd: position.costBasisUsd,
+      quantity: position.size,
+      tag: position.type,
+      tone: getPortfolioPositionTone(position),
+      valueUnavailable: position.currentValueUsd === null,
+    }
+  })
 }
 
 function PositionMarketCell({ position }: { position: PortfolioPosition }) {
@@ -2606,160 +2464,7 @@ function ReservationBadge({ position }: { position: PortfolioPosition }) {
 }
 
 function LedgerEmptyState({ message }: { message: string }) {
-  return (
-    <div className="grid min-h-56 place-items-center px-3 py-8 text-center text-sm text-muted-foreground">
-      {message}
-    </div>
-  )
-}
-
-function MobilePositionsList({
-  isLoading,
-  onRedeemPosition,
-  positions,
-  redeemingPositionId,
-}: {
-  isLoading: boolean
-  onRedeemPosition: (position: PortfolioPosition) => void
-  positions: PortfolioPosition[]
-  redeemingPositionId?: string
-}) {
-  if (isLoading) {
-    return <LedgerEmptyState message="Loading portfolio positions." />
-  }
-
-  if (positions.length === 0) {
-    return <LedgerEmptyState message="No positions in this view." />
-  }
-
-  const hasUnavailableValues = positions.some(
-    (position) => position.size > 0 && position.currentValueUsd === null
-  )
-
-  return (
-    <>
-      {hasUnavailableValues ? (
-        <div className="rounded-md border border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-          Live exit values are unavailable. Entry and premium are shown from
-          trade history.
-        </div>
-      ) : null}
-      {positions.map((position) => (
-        <div
-          className="rounded-md border border-border/35 bg-muted/15 px-3 py-3"
-          key={position.id}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  className={cn(
-                    "font-mono text-[10px] tracking-wide",
-                    getPositionTypeClassName(position.type)
-                  )}
-                >
-                  {position.type}
-                </span>
-                <span className="truncate text-sm font-medium text-foreground">
-                  {position.contractLabel}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">
-                {formatQuantity(position.size)} contracts
-              </div>
-              {position.reservationLabel ? (
-                <div className="mt-2">
-                  <ReservationBadge position={position} />
-                </div>
-              ) : null}
-            </div>
-            {canRedeemPortfolioPosition(position) ? (
-              <Button
-                disabled={redeemingPositionId === position.id}
-                size="xs"
-                type="button"
-                variant="secondary"
-                onClick={() => onRedeemPosition(position)}
-              >
-                {redeemingPositionId === position.id
-                  ? "Redeeming..."
-                  : "Redeem"}
-              </Button>
-            ) : (
-              <Button
-                render={
-                  <Link
-                    params={{ oracleId: position.oracleId }}
-                    search={position.manageSearch}
-                    to="/markets/$oracleId"
-                  />
-                }
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                Manage
-              </Button>
-            )}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/35 pt-3 text-xs">
-            <MobileStat
-              label="Avg entry"
-              value={formatCents(position.averageEntryPrice)}
-            />
-            <MobileStat
-              label="Premium"
-              value={formatDusdc(position.costBasisUsd)}
-            />
-            <MobileStat
-              label="Value"
-              value={
-                position.currentValueUsd === null
-                  ? "--"
-                  : formatDusdc(position.currentValueUsd)
-              }
-            />
-            <MobileStat
-              className={getPnlClassName(position.unrealizedPnlUsd)}
-              label="PnL"
-              value={
-                position.unrealizedPnlUsd === null
-                  ? "--"
-                  : formatSignedDusdc(position.unrealizedPnlUsd)
-              }
-            />
-          </div>
-          <div className="mt-3 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-            {position.status} · {formatRelativeTime(position.lastActivityAt)}
-          </div>
-        </div>
-      ))}
-    </>
-  )
-}
-
-function MobileStat({
-  className,
-  label,
-  value,
-}: {
-  className?: string
-  label: string
-  value: string
-}) {
-  return (
-    <div className="min-w-0 rounded-md bg-background/35 px-2.5 py-2">
-      <div className="text-muted-foreground">{label}</div>
-      <div
-        className={cn(
-          "mt-0.5 font-mono text-foreground tabular-nums",
-          className
-        )}
-      >
-        {value}
-      </div>
-    </div>
-  )
+  return <ActivityEmptyState message={message} />
 }
 
 function ActivityTable({
@@ -2786,10 +2491,10 @@ function ActivityTable({
       <div className="hidden h-full min-h-0 overflow-auto lg:block">
         <div className="min-w-[54rem]">
           {hasUnavailableValues ? (
-            <div className="border-b border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+            <ActivityNotice>
               Live exit values are unavailable. Entry and premium are shown from
               trade history.
-            </div>
+            </ActivityNotice>
           ) : null}
           <PortfolioHeaderRow
             className="grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_6rem_5.5rem]"
@@ -2839,10 +2544,10 @@ function ActivityTable({
 
       <div className="grid gap-2 p-3 lg:hidden">
         {hasUnavailableValues ? (
-          <div className="rounded-md border border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+          <ActivityNotice>
             Live exit values are unavailable. Entry and premium are shown from
             trade history.
-          </div>
+          </ActivityNotice>
         ) : null}
         {positions.map((position) => (
           <div
@@ -2889,5 +2594,29 @@ function ActivityTable({
         ))}
       </div>
     </>
+  )
+}
+
+function MobileStat({
+  className,
+  label,
+  value,
+}: {
+  className?: string
+  label: string
+  value: string
+}) {
+  return (
+    <div className="min-w-0 rounded-md bg-background/35 px-2.5 py-2">
+      <div className="text-muted-foreground">{label}</div>
+      <div
+        className={cn(
+          "mt-0.5 font-mono text-foreground tabular-nums",
+          className
+        )}
+      >
+        {value}
+      </div>
+    </div>
   )
 }

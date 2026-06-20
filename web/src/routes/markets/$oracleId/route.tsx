@@ -16,7 +16,10 @@ import {
   getRangeMints,
   getRangeRedeems,
 } from "@/services/predict-client"
-import { marketSearchSchema, getInitialSide } from "@/features/market-detail/search"
+import {
+  marketSearchSchema,
+  getInitialSide,
+} from "@/features/market-detail/search"
 import {
   loadExpiryOptions,
   loadMarketOptions,
@@ -25,6 +28,9 @@ import {
 export const Route = createFileRoute("/markets/$oracleId")({
   validateSearch: marketSearchSchema,
   loaderDeps: ({ search }) => ({
+    higherStrike: search.higherStrike,
+    lowerStrike: search.lowerStrike,
+    mode: search.mode,
     side: search.side,
     strike: search.strike,
   }),
@@ -59,6 +65,9 @@ export const Route = createFileRoute("/markets/$oracleId")({
 
     return {
       expiryOptions,
+      initialHigherStrikePriceUsd: deps.higherStrike,
+      initialLowerStrikePriceUsd: deps.lowerStrike,
+      initialMode: deps.mode,
       initialSide: getInitialSide(deps.side),
       market,
       marketOptions,
@@ -79,6 +88,9 @@ function Market() {
   return (
     <MarketDetailPage
       expiryOptions={loaderData.expiryOptions}
+      initialHigherStrikePriceUsd={loaderData.initialHigherStrikePriceUsd}
+      initialLowerStrikePriceUsd={loaderData.initialLowerStrikePriceUsd}
+      initialMode={loaderData.initialMode}
       initialSide={loaderData.initialSide}
       market={loaderData.market}
       marketOptions={loaderData.marketOptions}

@@ -24,6 +24,9 @@ import { Trades } from "./trades"
 
 export interface PageProps {
   expiryOptions: ExpiryOption[]
+  initialHigherStrikePriceUsd?: number
+  initialLowerStrikePriceUsd?: number
+  initialMode?: "binary" | "range"
   initialSide?: "above" | "below"
   market: MarketSnapshot
   marketOptions: TradeMarket[]
@@ -36,6 +39,9 @@ export interface PageProps {
 
 export function Page({
   expiryOptions,
+  initialHigherStrikePriceUsd,
+  initialLowerStrikePriceUsd,
+  initialMode,
   initialSide,
   market,
   marketOptions,
@@ -108,6 +114,9 @@ export function Page({
 
         <aside className="h-full min-w-0 xl:sticky xl:top-[4.25rem] xl:self-start">
           <OrderTicket
+            initialHigherStrikePriceUsd={initialHigherStrikePriceUsd}
+            initialLowerStrikePriceUsd={initialLowerStrikePriceUsd}
+            initialMode={initialMode}
             initialSide={initialSide}
             market={market}
             onStrikeChange={setActiveStrikePriceUsd}

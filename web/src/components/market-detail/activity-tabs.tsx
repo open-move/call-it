@@ -1,41 +1,25 @@
 import { useEffect, useState } from "react"
 import type { ReactNode } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { ArrowUpRightIcon, MoreHorizontalIcon } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
+import { ActivityTabsFrame } from "@/components/shared/activity/activity-tabs-frame"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/primitives/dropdown-menu"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+  ActivityCenteredEmptyState,
+  ActivityTableHeader,
+  ActivityTransactionLink,
+} from "@/components/shared/activity/activity-table"
+import { PositionTable } from "@/components/shared/activity/position-table"
+import type { PositionTableRow } from "@/components/shared/activity/position-table"
 import { formatRelativeTime, formatUsd } from "@/lib/format"
 import type { MarketSnapshot } from "@/lib/types/market"
-import {
-  getPositionRows,
-  getRangePositionsFromActivity,
-} from "@/lib/trade-activity"
-import {
-  filterPositions,
-  getPositionSummariesFromActivity,
-} from "@/lib/trade-positions"
+import { loadManagerPredictPositions } from "@/lib/predict-position-source"
 import type {
   PositionRow,
   PositionTradeIntent,
   RedemptionActivityRow,
   TradeActivityRow,
 } from "@/lib/types/trade"
-import {
-  getManagerRanges,
-  getManagerPositions,
-  getManagerPositionSummaries,
-} from "@/services/predict-client"
 import {
   buildPredictRedeemTransaction,
   executeSuiTransaction,
@@ -51,10 +35,7 @@ import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 
-import {
-  QUOTE_SCALE as POSITION_QUANTITY_SCALE,
-  SUI_NETWORK,
-} from "@/lib/config"
+import { QUOTE_SCALE as POSITION_QUANTITY_SCALE } from "@/lib/config"
 
 interface PositionLoadState {
   errorMessage?: string
@@ -91,20 +72,7 @@ export interface ActivityTabsProps {
   trades: TradeActivityRow[]
 }
 
-interface ActivityTabsFrameProps {
-  positionsContent: ReactNode
-  positionsTab: ActivityTabMeta
-  redemptionsContent: ReactNode
-  redemptionsTab: ActivityTabMeta
-  tradesContent: ReactNode
-  tradesTab: ActivityTabMeta
-}
-
 type ActivityTabValue = "positions" | "trades" | "redemptions"
-interface ActivityTabMeta {
-  count?: number
-  label: string
-}
 type ContractTone = "above" | "below" | "range"
 
 interface ContractToneInput {
@@ -112,31 +80,12 @@ interface ContractToneInput {
   side?: "above" | "below"
 }
 
-function formatAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`
-}
-
 function addressMatches(firstAddress: string, secondAddress: string) {
   return firstAddress.toLowerCase() === secondAddress.toLowerCase()
 }
 
-function getTransactionUrl(transactionDigest: string) {
-  return `https://suiscan.xyz/${SUI_NETWORK}/tx/${transactionDigest}`
-}
-
-function formatDusdcValue(value: number) {
-  return `${value.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  })} DUSDC`
-}
-
 function formatPriceCents(price: number) {
   return `${(price * 100).toFixed(1)}c`
-}
-
-function formatNullablePriceCents(price: number | null) {
-  return price === null ? "--" : formatPriceCents(price)
 }
 
 function formatQuantity(quantity: number) {
@@ -160,20 +109,6 @@ function formatCompactDusdc(value: number) {
     maximumFractionDigits: value >= 100 ? 0 : 2,
     minimumFractionDigits: value >= 100 ? 0 : 2,
   })} DUSDC`
-}
-
-function formatPnlDusdc(value: number) {
-  const formatted = formatDusdcValue(Math.abs(value))
-
-  if (value > 0) {
-    return `+${formatted}`
-  }
-
-  if (value < 0) {
-    return `-${formatted}`
-  }
-
-  return formatted
 }
 
 function formatRange(
@@ -217,10 +152,6 @@ function getContractTextClass(row: ContractToneInput) {
 
 function getContractKindLabel(row: ContractToneInput) {
   return row.kind === "range" ? "RNG" : getSideLabel(row.side ?? "below")
-}
-
-function getPositionTextClass(position: PositionRow) {
-  return getContractTextClass(position)
 }
 
 function getMarketOracleInfo(market: MarketSnapshot) {
@@ -340,36 +271,18 @@ async function loadWalletMarketPositions({
     return { positions: [] }
   }
 
-  const [summaryResult, rangeActivity] = await Promise.all([
-    getManagerPositionSummaries(managerId).catch(() => undefined),
-    getManagerRanges(managerId).catch(() => ({ minted: [], redeemed: [] })),
-  ])
-  const summaries =
-    summaryResult ??
-    getPositionSummariesFromActivity(
-      await getManagerPositions(managerId).catch(() => ({
-        minted: [],
-        redeemed: [],
-      })),
-      getMarketOracleInfo(market)
-    )
-  const directionalPositions = filterPositions(summaries, {
-    expiryMs: market.expiryMs,
-    oracleId: market.oracleId,
-  })
-  const rangePositions = getRangePositionsFromActivity(
-    rangeActivity.minted,
-    rangeActivity.redeemed,
-    {
+  const loadedPositions = await loadManagerPredictPositions({
+    filter: {
       expiryMs: market.expiryMs,
       oracleId: market.oracleId,
     },
-    getMarketOracleInfo(market)
-  )
+    managerId,
+    oracleById: getMarketOracleInfo(market),
+  })
 
   return {
     managerId,
-    positions: getPositionRows(directionalPositions, rangePositions),
+    positions: loadedPositions.rows,
   }
 }
 
@@ -425,18 +338,41 @@ export function ActivityTabs(props: ActivityTabsProps) {
   if (!isClient) {
     return (
       <ActivityTabsFrame
-        positionsContent={
-          <EmptyState message="Connect wallet to view your positions." />
+        cardClassName="xl:col-span-2"
+        defaultValue="positions"
+        tabs={
+          [
+            {
+              content: (
+                <EmptyState message="Connect wallet to view your positions." />
+              ),
+              contentClassName: "px-3 py-3",
+              label: "Positions",
+              value: "positions",
+            },
+            {
+              content: (
+                <EmptyState message="Connect wallet to view your fills." />
+              ),
+              contentClassName: "overflow-auto",
+              label: "Fills",
+              value: "trades",
+            },
+            {
+              content: (
+                <EmptyState message="Connect wallet to view your redeem activity." />
+              ),
+              contentClassName: "overflow-auto",
+              label: "Redeems",
+              value: "redemptions",
+            },
+          ] satisfies Array<{
+            content: ReactNode
+            contentClassName?: string
+            label: string
+            value: ActivityTabValue
+          }>
         }
-        positionsTab={{ label: "Positions" }}
-        redemptionsContent={
-          <EmptyState message="Connect wallet to view your redeem activity." />
-        }
-        redemptionsTab={{ label: "Redeems" }}
-        tradesContent={
-          <EmptyState message="Connect wallet to view your fills." />
-        }
-        tradesTab={{ label: "Fills" }}
       />
     )
   }
@@ -719,120 +655,63 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
   return (
     <ActivityTabsFrame
-      positionsContent={
-        <PositionsPanel
-          assetSymbol={market.assetSymbol}
-          errorMessage={positionState.errorMessage}
-          isLoading={positionState.isLoading}
-          onAddPosition={onAddPosition}
-          onCancelLifecycle={() => setConfirmState({})}
-          onConfirmLifecycle={executePositionLifecycle}
-          onRequestLifecycle={requestPositionLifecycle}
-          positions={visiblePositions}
-          pendingLifecyclePosition={confirmState.position}
-          previewErrorMessage={previewState.errorMessage}
-          previewIsExecuting={previewState.isExecuting}
-          previewIsLoading={previewState.isLoading}
-          previewMessage={previewState.message}
-          walletAddress={walletAddress}
-        />
-      }
-      positionsTab={positionsTab}
-      redemptionsContent={
-        <RedemptionsPanel
-          assetSymbol={market.assetSymbol}
-          redemptions={visibleRedemptions}
-          walletAddress={walletAddress}
-        />
-      }
-      redemptionsTab={redemptionsTab}
-      tradesContent={
-        <TradesPanel
-          assetSymbol={market.assetSymbol}
-          trades={visibleTrades}
-          walletAddress={walletAddress}
-        />
-      }
-      tradesTab={tradesTab}
+      cardClassName="xl:col-span-2"
+      defaultValue="positions"
+      tabs={[
+        {
+          ...positionsTab,
+          content: (
+            <PositionsPanel
+              assetSymbol={market.assetSymbol}
+              errorMessage={positionState.errorMessage}
+              isLoading={positionState.isLoading}
+              onAddPosition={onAddPosition}
+              onCancelLifecycle={() => setConfirmState({})}
+              onConfirmLifecycle={executePositionLifecycle}
+              onRequestLifecycle={requestPositionLifecycle}
+              positions={visiblePositions}
+              pendingLifecyclePosition={confirmState.position}
+              previewErrorMessage={previewState.errorMessage}
+              previewIsExecuting={previewState.isExecuting}
+              previewIsLoading={previewState.isLoading}
+              previewMessage={previewState.message}
+              walletAddress={walletAddress}
+            />
+          ),
+          contentClassName: "px-3 py-3",
+          value: "positions" as const,
+        },
+        {
+          ...tradesTab,
+          content: (
+            <TradesPanel
+              assetSymbol={market.assetSymbol}
+              trades={visibleTrades}
+              walletAddress={walletAddress}
+            />
+          ),
+          contentClassName: "overflow-auto",
+          value: "trades" as const,
+        },
+        {
+          ...redemptionsTab,
+          content: (
+            <RedemptionsPanel
+              assetSymbol={market.assetSymbol}
+              redemptions={visibleRedemptions}
+              walletAddress={walletAddress}
+            />
+          ),
+          contentClassName: "overflow-auto",
+          value: "redemptions" as const,
+        },
+      ]}
     />
   )
 }
 
-function ActivityTabsFrame({
-  positionsContent,
-  positionsTab,
-  redemptionsContent,
-  redemptionsTab,
-  tradesContent,
-  tradesTab,
-}: ActivityTabsFrameProps) {
-  return (
-    <Card className="h-96 min-w-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:col-span-2">
-      <Tabs
-        className="flex h-full min-h-0 flex-col gap-0"
-        defaultValue="positions"
-      >
-        <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border/45 px-3">
-          <TabsList
-            className="h-full w-full justify-start gap-5 overflow-x-auto rounded-none p-0"
-            variant="line"
-          >
-            <ActivityTabTrigger tab={positionsTab} value="positions" />
-            <ActivityTabTrigger tab={tradesTab} value="trades" />
-            <ActivityTabTrigger tab={redemptionsTab} value="redemptions" />
-          </TabsList>
-        </div>
-
-        <TabsContent
-          className="min-h-0 flex-1 overflow-hidden px-3 py-3"
-          value="positions"
-        >
-          {positionsContent}
-        </TabsContent>
-
-        <TabsContent className="min-h-0 flex-1 overflow-auto" value="trades">
-          {tradesContent}
-        </TabsContent>
-
-        <TabsContent
-          className="min-h-0 flex-1 overflow-auto"
-          value="redemptions"
-        >
-          {redemptionsContent}
-        </TabsContent>
-      </Tabs>
-    </Card>
-  )
-}
-
-function ActivityTabTrigger({
-  tab,
-  value,
-}: {
-  tab: ActivityTabMeta
-  value: ActivityTabValue
-}) {
-  return (
-    <TabsTrigger
-      className="flex-none rounded-none px-0 text-xs font-medium tracking-[-0.01em] text-muted-foreground transition-[color] duration-150 after:bg-primary hover:text-foreground data-active:text-foreground"
-      value={value}
-    >
-      <span>{tab.label}</span>
-      {tab.count === undefined ? null : (
-        <span className="rounded-sm bg-muted/45 px-1.5 py-0.5 font-mono text-[10px] leading-none text-current tabular-nums opacity-80">
-          {tab.count}
-        </span>
-      )}
-    </TabsTrigger>
-  )
-}
-
 function EmptyState({ message }: { message: string }) {
-  return (
-    <div className="flex h-full min-h-0 items-center justify-center text-center text-sm text-muted-foreground">
-      {message}
-    </div>
-  )
+  return <ActivityCenteredEmptyState message={message} />
 }
 
 function PositionsPanel({
@@ -906,11 +785,15 @@ function PositionsPanel({
         </p>
       )}
       {positions.length > 0 ? (
-        <PositionsTable
-          assetSymbol={assetSymbol}
-          onAddPosition={onAddPosition}
-          onRequestLifecycle={onRequestLifecycle}
-          positions={positions}
+        <PositionTable
+          emptyMessage="No open positions for this market."
+          loadingMessage="Loading positions."
+          rows={getPositionTableRows({
+            assetSymbol,
+            onAddPosition,
+            onRequestLifecycle,
+            positions,
+          })}
         />
       ) : (
         <EmptyState message={emptyMessage} />
@@ -953,48 +836,7 @@ function LifecycleConfirmBanner({
   )
 }
 
-interface PositionHeaderColumn {
-  align?: "left" | "right"
-  label: string
-}
-
-const positionTableGrid =
-  "grid-cols-[minmax(12rem,1.7fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem]"
-
-function PositionHeaderRow({ columns }: { columns: PositionHeaderColumn[] }) {
-  return (
-    <div
-      className={cn(
-        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
-        positionTableGrid
-      )}
-    >
-      {columns.map((column, index) => (
-        <span
-          className={cn("truncate", column.align === "right" && "text-right")}
-          key={`${column.label}-${index}`}
-        >
-          {column.label}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-function PositionKindTag({ position }: { position: PositionRow }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex w-9 shrink-0 font-mono text-[10px] tracking-wide uppercase",
-        getPositionTextClass(position)
-      )}
-    >
-      {getPositionKindLabel(position)}
-    </span>
-  )
-}
-
-function PositionsTable({
+function getPositionTableRows({
   assetSymbol,
   onAddPosition,
   onRequestLifecycle,
@@ -1004,150 +846,54 @@ function PositionsTable({
   onAddPosition: (intent: AddPositionIntent) => void
   onRequestLifecycle: (position: PositionRow) => void
   positions: PositionRow[]
-}) {
-  const hasUnavailableValues = positions.some(
-    (position) => position.openQuantity > 0 && position.markValueUsd === null
-  )
+}): PositionTableRow[] {
+  return positions.map((position) => {
+    const pnl =
+      position.unrealizedPnlUsd !== null
+        ? position.unrealizedPnlUsd + position.realizedPnlUsd
+        : null
+    const lifecycleActionLabel = getPositionLifecycleActionLabel(position)
+    const showLifecycleAction =
+      canClosePosition(position) ||
+      canRedeemPosition(position) ||
+      canClearPosition(position)
 
-  return (
-    <div className="min-h-0 flex-1 overflow-auto">
-      <div className="min-w-[52rem]">
-        {hasUnavailableValues ? (
-          <div className="border-b border-border/35 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-            Live exit values are unavailable. Entry and premium are shown from
-            trade history.
-          </div>
-        ) : null}
-        <PositionHeaderRow
-          columns={[
-            { label: "Contract" },
-            { align: "right", label: "Contracts" },
-            { align: "right", label: "Avg entry" },
-            { align: "right", label: "Premium" },
-            { align: "right", label: "PnL" },
-            { align: "right", label: "" },
-          ]}
-        />
-        {positions.map((position) => {
-          const pnl =
-            position.unrealizedPnlUsd !== null
-              ? position.unrealizedPnlUsd + position.realizedPnlUsd
-              : null
-          const pnlClassName =
-            pnl === null
-              ? "text-muted-foreground"
-              : pnl > 0
-                ? "text-outcome-up"
-                : pnl < 0
-                  ? "text-outcome-down"
-                  : "text-muted-foreground"
-
-          return (
-            <div
-              className={cn(
-                "grid gap-4 border-b border-border/35 px-3 py-2 text-xs",
-                positionTableGrid
-              )}
-              key={position.id}
-            >
-              <div className="min-w-0">
-                <div className="flex min-w-0 items-start gap-2">
-                  <PositionKindTag position={position} />
-                  <div className="min-w-0">
-                    <div className="truncate font-medium text-foreground">
-                      {getPositionContract(position, assetSymbol)}
-                    </div>
-                    <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground uppercase">
-                      {position.status} ·{" "}
-                      {formatRelativeTime(position.lastActivityAt)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <span className="text-right font-mono text-muted-foreground tabular-nums">
-                {formatPositionQuantity(position.openQuantity)}
-              </span>
-              <span className="text-right font-mono tabular-nums">
-                {formatNullablePriceCents(position.averageEntryPrice)}
-              </span>
-              <span className="text-right font-mono tabular-nums">
-                {formatCompactDusdc(position.openCostBasisUsd)}
-              </span>
-              <span
-                className={cn(
-                  "text-right font-mono tabular-nums",
-                  pnlClassName
-                )}
-              >
-                {pnl === null ? "--" : formatPnlDusdc(pnl)}
-              </span>
-              <PositionActionMenu
-                onAddPosition={onAddPosition}
-                onRequestLifecycle={onRequestLifecycle}
-                position={position}
-              />
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function PositionActionMenu({
-  onAddPosition,
-  onRequestLifecycle,
-  position,
-}: {
-  onAddPosition: (intent: AddPositionIntent) => void
-  onRequestLifecycle: (position: PositionRow) => void
-  position: PositionRow
-}) {
-  const lifecycleActionLabel = getPositionLifecycleActionLabel(position)
-  const showLifecycleAction =
-    canClosePosition(position) ||
-    canRedeemPosition(position) ||
-    canClearPosition(position)
-
-  return (
-    <div className="flex justify-end">
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              aria-label="Position actions"
-              className="bg-muted text-muted-foreground shadow-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            />
-          }
-        >
-          <MoreHorizontalIcon className="size-3.5" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel className="font-sans text-xs font-medium tracking-normal text-muted-foreground normal-case">
-              Manage Position
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {canAddToPosition(position) ? (
-              <DropdownMenuItem
-                onClick={() => onAddPosition(getPositionAddIntent(position))}
-              >
-                Add to position
-              </DropdownMenuItem>
-            ) : null}
-            {showLifecycleAction ? (
-              <DropdownMenuItem onClick={() => onRequestLifecycle(position)}>
-                {lifecycleActionLabel}
-              </DropdownMenuItem>
-            ) : null}
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  )
+    return {
+      actions: [
+        ...(canAddToPosition(position)
+          ? [
+              {
+                label: "Add to position",
+                onSelect: () => onAddPosition(getPositionAddIntent(position)),
+              },
+            ]
+          : []),
+        ...(showLifecycleAction
+          ? [
+              {
+                label: lifecycleActionLabel,
+                onSelect: () => onRequestLifecycle(position),
+              },
+            ]
+          : []),
+      ],
+      averageEntryPrice: position.averageEntryPrice,
+      contractLabel: getPositionContract(position, assetSymbol),
+      id: position.id,
+      meta: `${position.status} · ${formatRelativeTime(position.lastActivityAt)}`,
+      pnlUsd: pnl,
+      premiumUsd: position.openCostBasisUsd,
+      quantity: position.openQuantity,
+      tag: getPositionKindLabel(position),
+      tone:
+        position.kind === "range"
+          ? "range"
+          : position.side === "above"
+            ? "up"
+            : "down",
+      valueUnavailable: position.markValueUsd === null,
+    }
+  })
 }
 
 function TradesPanel({
@@ -1206,18 +952,13 @@ function ActivityHeaderRow({
   columns: string[]
 }) {
   return (
-    <div
-      className={cn(
-        "grid gap-4 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase",
-        className
-      )}
-    >
-      {columns.map((column) => (
-        <span className="truncate last:text-right" key={column}>
-          {column}
-        </span>
-      ))}
-    </div>
+    <ActivityTableHeader
+      columns={columns.map((column, index) => ({
+        align: index === columns.length - 1 ? "right" : "left",
+        label: column,
+      }))}
+      gridClassName={className}
+    />
   )
 }
 
@@ -1268,7 +1009,9 @@ function TradesTable({
             <span className="font-mono tabular-nums">
               {formatCompactDusdc(trade.costUsd)}
             </span>
-            <TransactionLink transactionDigest={trade.transactionDigest} />
+            <ActivityTransactionLink
+              transactionDigest={trade.transactionDigest}
+            />
             <span className="text-right font-mono text-muted-foreground tabular-nums">
               {formatRelativeTime(trade.timestampMs)}
             </span>
@@ -1313,7 +1056,9 @@ function RedemptionsTable({
             <span className="font-mono tabular-nums">
               {formatCompactDusdc(redemption.payoutUsd)}
             </span>
-            <TransactionLink transactionDigest={redemption.transactionDigest} />
+            <ActivityTransactionLink
+              transactionDigest={redemption.transactionDigest}
+            />
             <span className="text-right font-mono text-muted-foreground tabular-nums">
               {formatRelativeTime(redemption.timestampMs)}
             </span>
@@ -1321,20 +1066,5 @@ function RedemptionsTable({
         ))}
       </div>
     </div>
-  )
-}
-
-function TransactionLink({ transactionDigest }: { transactionDigest: string }) {
-  return (
-    <a
-      aria-label="Open transaction in explorer"
-      className="inline-flex min-w-0 items-center gap-1 truncate font-mono text-muted-foreground tabular-nums transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none active:scale-[0.98]"
-      href={getTransactionUrl(transactionDigest)}
-      rel="noreferrer"
-      target="_blank"
-    >
-      <span className="truncate">{formatAddress(transactionDigest)}</span>
-      <ArrowUpRightIcon className="size-3 shrink-0" />
-    </a>
   )
 }

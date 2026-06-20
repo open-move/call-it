@@ -3,12 +3,13 @@ import type { SuiClientTypes } from "@mysten/sui/client"
 import type { TransactionObjectArgument } from "@mysten/sui/transactions"
 
 import {
+  BASE_VAULT_ID,
   PREDICT_CLOCK_ID,
   PREDICT_OBJECT_ID,
   PREDICT_QUOTE_ASSET,
   SHIELD_PACKAGE_ID,
   SHIELD_SHARE_ASSET,
-  SHIELD_VAULT_ID,
+  SHIELD_STRATEGY_ID,
 } from "@/lib/config"
 import { quotePredictTradeSafe } from "./predict-quotes"
 import { buildQuoteCoin, toOnchainPrice } from "./predict-transactions"
@@ -38,7 +39,7 @@ export interface ShieldClaimParams {
   walletAddress: string
 }
 
-export interface ShieldVaultTransactionParams {
+export interface ShieldStrategyTransactionParams {
   amount: bigint
   walletAddress: string
 }
@@ -50,8 +51,8 @@ function shieldTarget(functionName: string) {
   return `${SHIELD_PACKAGE_ID}::shield::${functionName}`
 }
 
-function shieldVaultTarget(functionName: string) {
-  return `${SHIELD_PACKAGE_ID}::shield_vault::${functionName}`
+function shieldStrategyTarget(functionName: string) {
+  return `${SHIELD_PACKAGE_ID}::shield_strategy::${functionName}`
 }
 
 function selectCoins(coins: SuiClientTypes.Coin[], amount: bigint) {
@@ -108,9 +109,9 @@ async function buildCoin(
   return splitCoin
 }
 
-function assertShieldVaultConfigured() {
-  if (!SHIELD_VAULT_ID) {
-    throw new Error("Shield vault is not initialized yet")
+function assertShieldStrategyConfigured() {
+  if (!SHIELD_STRATEGY_ID || !BASE_VAULT_ID) {
+    throw new Error("Shield strategy is not initialized yet")
   }
 }
 
@@ -325,19 +326,19 @@ export async function prepareShieldClaimTransaction(params: ShieldClaimParams) {
   return transaction
 }
 
-export async function buildShieldVaultDepositTransaction({
+export async function buildShieldStrategyDepositTransaction({
   amount,
   walletAddress,
-}: ShieldVaultTransactionParams) {
-  assertShieldVaultConfigured()
+}: ShieldStrategyTransactionParams) {
+  assertShieldStrategyConfigured()
 
   const tx = new Transaction()
   tx.setSender(walletAddress)
   const paymentCoin = await buildQuoteCoin(tx, walletAddress, amount)
   const shareCoin = tx.moveCall({
-    target: shieldVaultTarget("deposit"),
+    target: shieldStrategyTarget("deposit"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(SHIELD_VAULT_ID), paymentCoin],
+    arguments: [tx.object(SHIELD_STRATEGY_ID), tx.object(BASE_VAULT_ID), paymentCoin],
   })
 
   tx.transferObjects([shareCoin], walletAddress)
@@ -345,11 +346,11 @@ export async function buildShieldVaultDepositTransaction({
   return tx
 }
 
-export async function buildShieldVaultWithdrawTransaction({
+export async function buildShieldStrategyWithdrawTransaction({
   amount,
   walletAddress,
-}: ShieldVaultTransactionParams) {
-  assertShieldVaultConfigured()
+}: ShieldStrategyTransactionParams) {
+  assertShieldStrategyConfigured()
 
   const tx = new Transaction()
   tx.setSender(walletAddress)
@@ -361,9 +362,9 @@ export async function buildShieldVaultWithdrawTransaction({
     "Insufficient cSHIELD balance"
   )
   const quoteCoin = tx.moveCall({
-    target: shieldVaultTarget("withdraw"),
+    target: shieldStrategyTarget("withdraw"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(SHIELD_VAULT_ID), shareCoin],
+    arguments: [tx.object(SHIELD_STRATEGY_ID), tx.object(BASE_VAULT_ID), shareCoin],
   })
 
   tx.transferObjects([quoteCoin], walletAddress)

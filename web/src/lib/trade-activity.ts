@@ -156,10 +156,13 @@ export function getRedemptionActivityRows(
 }
 
 interface RangePositionAccumulator {
+  expiry: number
   higherStrike: number
   lastActivityAt: number
   lowerStrike: number
+  managerId: string
   mintedQuantity: number
+  oracleId: string
   totalCost: number
   totalPayout: number
   redeemedQuantity: number
@@ -220,7 +223,7 @@ export function getRangePositionStatus({
 export function getRangePositionsFromActivity(
   mintedEvents: RangeMintEvent[],
   redeemedEvents: RangeRedeemEvent[],
-  { expiryMs, oracleId }: FilterActivityOptions,
+  filter?: FilterActivityOptions,
   oracleById = new Map<string, OracleInfo>()
 ): RangePosition[] {
   const positions = new Map<string, RangePositionAccumulator>()
@@ -234,10 +237,13 @@ export function getRangePositionsFromActivity(
     }
 
     const position = {
+      expiry: event.expiry,
       higherStrike: event.higher_strike,
       lastActivityAt: event.checkpoint_timestamp_ms,
       lowerStrike: event.lower_strike,
+      managerId: event.manager_id,
       mintedQuantity: 0,
+      oracleId: event.oracle_id,
       redeemedQuantity: 0,
       totalCost: 0,
       totalPayout: 0,
@@ -249,7 +255,9 @@ export function getRangePositionsFromActivity(
 
   mintedEvents
     .filter(
-      (event) => event.oracle_id === oracleId && event.expiry === expiryMs
+      (event) =>
+        !filter ||
+        (event.oracle_id === filter.oracleId && event.expiry === filter.expiryMs)
     )
     .forEach((event) => {
       const position = getAccumulator(event)
@@ -264,7 +272,9 @@ export function getRangePositionsFromActivity(
 
   redeemedEvents
     .filter(
-      (event) => event.oracle_id === oracleId && event.expiry === expiryMs
+      (event) =>
+        !filter ||
+        (event.oracle_id === filter.oracleId && event.expiry === filter.expiryMs)
     )
     .forEach((event) => {
       const position = getAccumulator(event)
@@ -289,7 +299,7 @@ export function getRangePositionsFromActivity(
             : null
         const redeemedCostBasis =
           averageEntryPrice === null ? 0 : averageEntryPrice * redeemedQuantity
-        const oracle = oracleById.get(oracleId)
+        const oracle = oracleById.get(position.oracleId)
         const rawOpenQuantity = Math.max(
           position.mintedQuantity - position.redeemedQuantity,
           0
@@ -311,18 +321,21 @@ export function getRangePositionsFromActivity(
 
         return {
           averageEntryPrice,
+          expiryMs: position.expiry,
           higherStrikePriceUsd: toUsdPrice(position.higherStrike),
           id,
           lastActivityAt: position.lastActivityAt,
           lowerStrikePriceUsd: toUsdPrice(position.lowerStrike),
+          managerId: position.managerId,
           markPrice,
           markValueUsd,
+          oracleId: position.oracleId,
           openCostBasisUsd,
           openQuantity,
           realizedPnlUsd:
             toQuoteAmount(position.totalPayout) - redeemedCostBasis,
           status: getRangePositionStatus({
-            expiry: expiryMs,
+            expiry: position.expiry,
             markValue,
             openQuantity: rawOpenQuantity,
             oracle,

@@ -2,10 +2,11 @@ import { bcs } from "@mysten/sui/bcs"
 import type { SuiClientTypes } from "@mysten/sui/client"
 
 import {
+  BASE_VAULT_ID,
   PREDICT_QUOTE_ASSET,
   SHIELD_ORIGINAL_PACKAGE_ID,
   SHIELD_SHARE_ASSET,
-  SHIELD_VAULT_ID,
+  SHIELD_STRATEGY_ID,
 } from "@/lib/config"
 import {
   BalanceBcs,
@@ -28,7 +29,14 @@ const TreasuryCapBcs = bcs.struct("TreasuryCap", {
   total_supply: SupplyBcs,
 })
 
-const ShieldVaultPolicyBcs = bcs.struct("VaultPolicy", {
+const BaseVaultBcs = bcs.struct("BaseVault", {
+  id: SuiUidBcs,
+  treasury: TreasuryCapBcs,
+  cash: BalanceBcs,
+  paused: bcs.Bool,
+})
+
+const ShieldStrategyPolicyBcs = bcs.struct("StrategyPolicy", {
   hedge_budget_bps: bcs.U16,
   strike_band_bps: bcs.U16,
   reserve_bps: bcs.U16,
@@ -44,19 +52,22 @@ const ShieldRoundBcs = bcs.struct("ShieldRound", {
   settled: bcs.Bool,
 })
 
-const ShieldVaultBcs = bcs.struct("ShieldVault", {
+const ShieldStrategyBcs = bcs.struct("ShieldStrategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
+  base_vault_id: SuiIdBcs,
+  base_shares: BalanceBcs,
   cash: BalanceBcs,
   plp: BalanceBcs,
   plp_cost_basis: bcs.U64,
   manager_id: SuiIdBcs,
   active_round: bcs.option(ShieldRoundBcs),
-  policy: ShieldVaultPolicyBcs,
+  policy: ShieldStrategyPolicyBcs,
   paused: bcs.Bool,
 })
 
-type ShieldVaultBcsValue = ReturnType<typeof ShieldVaultBcs.parse>
+type ShieldStrategyBcsValue = ReturnType<typeof ShieldStrategyBcs.parse>
+type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
 const ShieldPolicyBcs = bcs.struct("ShieldPolicy", {
   id: SuiUidBcs,
@@ -83,7 +94,7 @@ export interface ShieldPositionRow {
   policyId: string
 }
 
-export interface ShieldVaultState {
+export interface ShieldStrategyState {
   activeRound: {
     hedgeQuantity: bigint
     oracleId: string
@@ -92,6 +103,8 @@ export interface ShieldVaultState {
     strike: bigint
     strikeUsd: number
   } | null
+  baseShares: bigint
+  baseVaultId: string
   cash: bigint
   managerId: string
   nav: bigint
@@ -107,7 +120,7 @@ export interface ShieldVaultState {
   }
   sharePrice: number
   shareSupply: bigint
-  vaultId: string
+  strategyId: string
 }
 
 export interface ShieldWalletState {
@@ -115,10 +128,33 @@ export interface ShieldWalletState {
   shieldShareBalance: bigint
 }
 
-function normalizeShieldVault(value: ShieldVaultBcsValue): ShieldVaultState {
+function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
+  if (shares <= 0n) {
+    return 0n
+  }
+
+  if (!base) {
+    return shares
+  }
+
+  const nav = readBcsBigInt(base.cash.value)
+  const supply = readBcsBigInt(base.treasury.total_supply.value)
+
+  if (supply <= 0n) {
+    throw new Error("Base Vault has shares to value but zero supply")
+  }
+
+  return (shares * nav) / supply
+}
+
+function normalizeShieldStrategy(
+  value: ShieldStrategyBcsValue,
+  base?: BaseVaultBcsValue
+): ShieldStrategyState {
   const cash = readBcsBigInt(value.cash.value)
+  const baseShares = readBcsBigInt(value.base_shares.value)
   const plpCostBasis = readBcsBigInt(value.plp_cost_basis)
-  const nav = cash + plpCostBasis
+  const nav = cash + plpCostBasis + baseValueForShares(base, baseShares)
   const shareSupply = readBcsBigInt(value.treasury.total_supply.value)
   const activeRound = value.active_round
 
@@ -133,6 +169,8 @@ function normalizeShieldVault(value: ShieldVaultBcsValue): ShieldVaultState {
           strikeUsd: toUsdPrice(readBcsBigInt(activeRound.strike)),
         }
       : null,
+    baseShares,
+    baseVaultId: value.base_vault_id,
     cash,
     managerId: value.manager_id,
     nav,
@@ -148,26 +186,37 @@ function normalizeShieldVault(value: ShieldVaultBcsValue): ShieldVaultState {
     },
     sharePrice: shareSupply > 0n ? Number(nav) / Number(shareSupply) : 1,
     shareSupply,
-    vaultId: value.id.id,
+    strategyId: value.id.id,
   }
 }
 
-export async function getShieldVaultState() {
-  if (!SHIELD_VAULT_ID) {
+export async function getShieldStrategyState() {
+  if (!SHIELD_STRATEGY_ID) {
     return undefined
   }
 
-  const object = await getSuiGrpcClient().getObject({
-    include: { content: true },
-    objectId: SHIELD_VAULT_ID,
-  })
-  const content = object.object.content
+  const [strategyObject, baseObject] = await Promise.all([
+    getSuiGrpcClient().getObject({
+      include: { content: true },
+      objectId: SHIELD_STRATEGY_ID,
+    }),
+    BASE_VAULT_ID
+      ? getSuiGrpcClient().getObject({
+          include: { content: true },
+          objectId: BASE_VAULT_ID,
+        })
+      : undefined,
+  ])
+  const content = strategyObject.object.content
 
   if (!content) {
-    throw new Error("Shield vault object has no readable content")
+    throw new Error("Shield strategy object has no readable content")
   }
 
-  return normalizeShieldVault(ShieldVaultBcs.parse(content))
+  return normalizeShieldStrategy(
+    ShieldStrategyBcs.parse(content),
+    baseObject?.object.content ? BaseVaultBcs.parse(baseObject.object.content) : undefined
+  )
 }
 
 export async function getShieldWalletState(owner: string) {

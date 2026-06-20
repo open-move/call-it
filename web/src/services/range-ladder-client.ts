@@ -2,10 +2,11 @@ import { bcs } from "@mysten/sui/bcs"
 import type { SuiClientTypes } from "@mysten/sui/client"
 
 import {
+  BASE_VAULT_ID,
   PREDICT_QUOTE_ASSET,
   RANGE_LADDER_ORIGINAL_PACKAGE_ID,
   RANGE_LADDER_SHARE_ASSET,
-  RANGE_LADDER_VAULT_ID,
+  RANGE_LADDER_STRATEGY_ID,
 } from "@/lib/config"
 import {
   BalanceBcs,
@@ -27,7 +28,14 @@ const TreasuryCapBcs = bcs.struct("TreasuryCap", {
   total_supply: SupplyBcs,
 })
 
-const RangeLadderVaultPolicyBcs = bcs.struct("RangeLadderPolicy", {
+const BaseVaultBcs = bcs.struct("BaseVault", {
+  id: SuiUidBcs,
+  treasury: TreasuryCapBcs,
+  cash: BalanceBcs,
+  paused: bcs.Bool,
+})
+
+const RangeLadderStrategyPolicyBcs = bcs.struct("RangeLadderPolicy", {
   premium_budget_bps: bcs.U16,
   reserve_bps: bcs.U16,
   max_range_ask_bps: bcs.U64,
@@ -46,13 +54,15 @@ const RangeRoundBcs = bcs.struct("RangeRound", {
   positions: bcs.vector(RangePositionBcs),
 })
 
-const RangeLadderVaultBcs = bcs.struct("RangeLadderVault", {
+const RangeLadderStrategyBcs = bcs.struct("RangeLadderStrategy", {
   id: SuiUidBcs,
   treasury: TreasuryCapBcs,
+  base_vault_id: SuiIdBcs,
+  base_shares: BalanceBcs,
   cash: BalanceBcs,
   manager_id: SuiIdBcs,
   active_round: bcs.option(RangeRoundBcs),
-  policy: RangeLadderVaultPolicyBcs,
+  policy: RangeLadderStrategyPolicyBcs,
   paused: bcs.Bool,
 })
 
@@ -66,7 +76,8 @@ const RangeLadderTicketPolicyBcs = bcs.struct("RangeLadderPolicy", {
   created_at_ms: bcs.U64,
 })
 
-type RangeLadderVaultBcsValue = ReturnType<typeof RangeLadderVaultBcs.parse>
+type RangeLadderStrategyBcsValue = ReturnType<typeof RangeLadderStrategyBcs.parse>
+type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
 type ObjectWithContent = SuiClientTypes.Object<{ content: true }>
 
@@ -91,7 +102,7 @@ export interface RangeLadderPolicyRow {
   totalCost: bigint
 }
 
-export interface RangeLadderVaultState {
+export interface RangeLadderStrategyState {
   activeRound: {
     oracleId: string
     positionCount: number
@@ -100,6 +111,8 @@ export interface RangeLadderVaultState {
     totalCost: bigint
     totalQuantity: bigint
   } | null
+  baseShares: bigint
+  baseVaultId: string
   cash: bigint
   managerId: string
   nav: bigint
@@ -112,7 +125,7 @@ export interface RangeLadderVaultState {
   }
   sharePrice: number
   shareSupply: bigint
-  vaultId: string
+  strategyId: string
 }
 
 export interface RangeLadderWalletState {
@@ -137,11 +150,33 @@ function normalizeRangePosition(
   } satisfies RangeLadderPositionRow
 }
 
-function normalizeRangeLadderVault(
-  value: RangeLadderVaultBcsValue
-): RangeLadderVaultState {
+function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
+  if (shares <= 0n) {
+    return 0n
+  }
+
+  if (!base) {
+    return shares
+  }
+
+  const nav = readBcsBigInt(base.cash.value)
+  const supply = readBcsBigInt(base.treasury.total_supply.value)
+
+  if (supply <= 0n) {
+    throw new Error("Base Vault has shares to value but zero supply")
+  }
+
+  return (shares * nav) / supply
+}
+
+function normalizeRangeLadderStrategy(
+  value: RangeLadderStrategyBcsValue,
+  base?: BaseVaultBcsValue
+): RangeLadderStrategyState {
   const cash = readBcsBigInt(value.cash.value)
+  const baseShares = readBcsBigInt(value.base_shares.value)
   const shareSupply = readBcsBigInt(value.treasury.total_supply.value)
+  const nav = cash + baseValueForShares(base, baseShares)
   const activeRound = value.active_round
 
   return {
@@ -165,9 +200,11 @@ function normalizeRangeLadderVault(
           }
         })()
       : null,
+    baseShares,
+    baseVaultId: value.base_vault_id,
     cash,
     managerId: value.manager_id,
-    nav: cash,
+    nav,
     paused: value.paused,
     policy: {
       maxRangeAskBps: readBcsBigInt(value.policy.max_range_ask_bps),
@@ -175,28 +212,39 @@ function normalizeRangeLadderVault(
       premiumBudgetBps: value.policy.premium_budget_bps,
       reserveBps: value.policy.reserve_bps,
     },
-    sharePrice: shareSupply > 0n ? Number(cash) / Number(shareSupply) : 1,
+    sharePrice: shareSupply > 0n ? Number(nav) / Number(shareSupply) : 1,
     shareSupply,
-    vaultId: value.id.id,
+    strategyId: value.id.id,
   }
 }
 
-export async function getRangeLadderVaultState() {
-  if (!RANGE_LADDER_VAULT_ID) {
+export async function getRangeLadderStrategyState() {
+  if (!RANGE_LADDER_STRATEGY_ID) {
     return undefined
   }
 
-  const object = await getSuiGrpcClient().getObject({
-    include: { content: true },
-    objectId: RANGE_LADDER_VAULT_ID,
-  })
-  const content = object.object.content
+  const [strategyObject, baseObject] = await Promise.all([
+    getSuiGrpcClient().getObject({
+      include: { content: true },
+      objectId: RANGE_LADDER_STRATEGY_ID,
+    }),
+    BASE_VAULT_ID
+      ? getSuiGrpcClient().getObject({
+          include: { content: true },
+          objectId: BASE_VAULT_ID,
+        })
+      : undefined,
+  ])
+  const content = strategyObject.object.content
 
   if (!content) {
-    throw new Error("Range Ladder vault object has no readable content")
+    throw new Error("Range Ladder strategy object has no readable content")
   }
 
-  return normalizeRangeLadderVault(RangeLadderVaultBcs.parse(content))
+  return normalizeRangeLadderStrategy(
+    RangeLadderStrategyBcs.parse(content),
+    baseObject?.object.content ? BaseVaultBcs.parse(baseObject.object.content) : undefined
+  )
 }
 
 export async function getRangeLadderWalletState(owner: string) {

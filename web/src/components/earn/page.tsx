@@ -12,23 +12,10 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
+
 import { formatRelativeTime } from "@/lib/format"
 import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
-import {
-  PREDICT_LP_ASSET,
-  PREDICT_QUOTE_ASSET,
-  PREDICT_QUOTE_DECIMALS,
-  QUOTE_SCALE,
-  SUI_NETWORK,
-} from "@/lib/config"
+import { PREDICT_QUOTE_DECIMALS, QUOTE_SCALE, SUI_NETWORK } from "@/lib/config"
 import {
   buildSupplyLiquidityTransaction,
   buildWithdrawLiquidityTransaction,
@@ -45,9 +32,11 @@ import type {
   VaultPerformanceResponse,
   VaultSummary,
 } from "@/lib/types/predict"
-import { getSuiGrpcClient } from "@/services/sui-client"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
+import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
+import { EarnActionDialog } from "./earn-action-dialog"
+import { PanelRow } from "../primitives/panel-row"
 
 export interface PageProps {
   performance: VaultPerformanceResponse
@@ -55,8 +44,6 @@ export interface PageProps {
   summary: VaultSummary
   withdrawals: LpWithdrawalEvent[]
 }
-
-type EarnAction = "supply" | "withdraw"
 
 type LpActivity =
   | {
@@ -122,6 +109,10 @@ function formatQuoteAmount(value: number, symbol = "DUSDC") {
   return formatTokenAmount(toQuoteUsd(value), symbol)
 }
 
+function formatWalletAmount(value: bigint, symbol: string, maxDecimals = 4) {
+  return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, maxDecimals)} ${symbol}`
+}
+
 function formatSharePrice(value: number) {
   return sharePriceFormatter.format(value)
 }
@@ -157,8 +148,9 @@ function getActivity(
     type: "Withdraw" as const,
   }))
 
-  return [...supplyActivity, ...withdrawalActivity]
-    .sort((first, second) => second.timestampMs - first.timestampMs)
+  return [...supplyActivity, ...withdrawalActivity].sort(
+    (first, second) => second.timestampMs - first.timestampMs
+  )
 }
 
 function getAccountUrl(account: string) {
@@ -226,10 +218,7 @@ export function Page({
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
         <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
-          <VaultStatsCard
-            performance={performance}
-            summary={summary}
-          />
+          <VaultStatsCard performance={performance} summary={summary} />
 
           <aside className="min-w-0">
             <LiquidityPanel summary={summary} />
@@ -280,10 +269,6 @@ function VaultStatsCard({
             label="PLP Supply"
             value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
           />
-          <VaultStatRow
-            label="PLP Price"
-            value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
-          />
         </div>
 
         <VaultPriceChart performance={performance} summary={summary} />
@@ -305,89 +290,6 @@ function VaultStatRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-function VaultPriceChart({
-  performance,
-  summary,
-}: {
-  performance: VaultPerformanceResponse
-  summary: VaultSummary
-}) {
-  const chartData = getDisplayChartPoints(performance.points)
-  const yDomain = getChartDomain(chartData.points)
-
-  return (
-    <div className="mt-5 border-t border-border/35 pt-4">
-      <div className="h-44 sm:h-48">
-        {chartData.points.length > 0 && yDomain ? (
-          <ResponsiveContainer height="100%" width="100%">
-            <AreaChart
-              data={chartData.points}
-              margin={{ bottom: 0, left: 0, right: 10, top: 8 }}
-            >
-              <defs>
-                <linearGradient
-                  id="plpShareGradient"
-                  x1="0"
-                  x2="0"
-                  y1="0"
-                  y2="1"
-                >
-                  <stop
-                    offset="5%"
-                    stopColor="var(--primary)"
-                    stopOpacity={0.24}
-                  />
-                  <stop
-                    offset="95%"
-                    stopColor="var(--primary)"
-                    stopOpacity={0}
-                  />
-                </linearGradient>
-              </defs>
-              <CartesianGrid
-                stroke="var(--border)"
-                strokeDasharray="3 3"
-                strokeOpacity={0.7}
-                vertical={false}
-              />
-              <XAxis
-                axisLine={false}
-                dataKey="timestamp_ms"
-                domain={["dataMin", "dataMax"]}
-                minTickGap={34}
-                scale="time"
-                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                tickFormatter={(value) => dateFormatter.format(new Date(value))}
-                tickLine={false}
-                type="number"
-              />
-              <YAxis
-                axisLine={false}
-                domain={yDomain}
-                tick={{ fill: "var(--muted-foreground)", fontSize: 11 }}
-                tickFormatter={(value) => Number(value).toFixed(4)}
-                tickLine={false}
-                width={52}
-              />
-              <Area
-                dataKey="share_price"
-                fill="url(#plpShareGradient)"
-                isAnimationActive={false}
-                stroke="var(--primary)"
-                strokeWidth={2.25}
-                type="monotone"
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            No vault performance history is available yet.
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 function LiquidityPanel({ summary }: { summary: VaultSummary }) {
   const [isClient, setIsClient] = useState(false)
@@ -415,7 +317,7 @@ function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
       buttonDisabled
       buttonLabel={action === "supply" ? "Deposit DUSDC" : "Withdraw PLP"}
       estimatedOutput={estimatedOutput}
-      message="Connect wallet to view balances."
+      message="Connect wallet to view your position."
       messageTone="muted"
       onActionChange={setAction}
       onAmountChange={setAmount}
@@ -430,16 +332,23 @@ function LiquidityPanelFallback({ summary }: { summary: VaultSummary }) {
 
 function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
   const [action, setAction] = useState<EarnAction>("supply")
   const [amount, setAmount] = useState("")
   const [dialogAction, setDialogAction] = useState<EarnAction>()
-  const [balances, setBalances] = useState<WalletBalances>()
-  const [isLoadingBalances, setIsLoadingBalances] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string>()
   const [errorMessage, setErrorMessage] = useState<string>()
   const walletAddress = primaryWallet?.address
+  const balances: WalletBalances | undefined = walletAddress
+    ? {
+        dusdc: predictAccount.walletDusdcBalance ?? 0n,
+        plp: predictAccount.walletPlpBalance ?? 0n,
+      }
+    : undefined
+  const isLoadingBalances =
+    Boolean(walletAddress) && predictAccount.status === "loading"
   const selectedAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
   const estimatedOutput = getEstimatedOutput({ action, amount, summary })
   const estimatedWithdrawAmount = selectedAmount
@@ -449,6 +358,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     action === "supply" &&
     !!selectedAmount &&
     !!balances &&
+    summary.plp_share_price > 0 &&
     selectedAmount <= balances.dusdc
   const canWithdraw =
     action === "withdraw" &&
@@ -461,7 +371,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
   const buttonDisabled =
     isSubmitting || isLoadingBalances || (!!walletAddress && !canSubmit)
   const buttonLabel = !walletAddress
-    ? "Sign in"
+    ? "Connect wallet"
     : isSubmitting
       ? action === "supply"
         ? "Depositing"
@@ -469,64 +379,6 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       : action === "supply"
         ? "Deposit DUSDC"
         : "Withdraw PLP"
-
-  async function loadBalances(address: string) {
-    const [dusdcBalance, plpBalance] = await Promise.all([
-      getSuiGrpcClient().getBalance({
-        coinType: PREDICT_QUOTE_ASSET,
-        owner: address,
-      }),
-      getSuiGrpcClient().getBalance({
-        coinType: PREDICT_LP_ASSET,
-        owner: address,
-      }),
-    ])
-
-    return {
-      dusdc: BigInt(dusdcBalance.balance.balance),
-      plp: BigInt(plpBalance.balance.balance),
-    } satisfies WalletBalances
-  }
-
-  useEffect(() => {
-    let isStale = false
-
-    async function refreshBalances() {
-      if (!walletAddress) {
-        setBalances(undefined)
-        return
-      }
-
-      setIsLoadingBalances(true)
-
-      try {
-        const nextBalances = await loadBalances(walletAddress)
-
-        if (!isStale) {
-          setBalances(nextBalances)
-          setErrorMessage(undefined)
-        }
-      } catch (error) {
-        if (!isStale) {
-          setErrorMessage(
-            error instanceof Error
-              ? error.message
-              : "Failed to load wallet balances"
-          )
-        }
-      } finally {
-        if (!isStale) {
-          setIsLoadingBalances(false)
-        }
-      }
-    }
-
-    void refreshBalances()
-
-    return () => {
-      isStale = true
-    }
-  }, [walletAddress])
 
   async function handleSubmit() {
     if (!walletAddress) {
@@ -543,18 +395,23 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     }
 
     if (!selectedAmount) {
-      setErrorMessage("Enter a positive amount")
+      setErrorMessage("Enter a positive amount.")
       return
     }
 
     if (action === "supply" && balances && selectedAmount > balances.dusdc) {
-      setErrorMessage("Deposit amount exceeds DUSDC balance")
+      setErrorMessage("Deposit exceeds wallet DUSDC.")
+      return
+    }
+
+    if (action === "supply" && summary.plp_share_price <= 0) {
+      setErrorMessage("PLP share price is unavailable.")
       return
     }
 
     if (action === "withdraw") {
       if (balances && selectedAmount > balances.plp) {
-        setErrorMessage("Withdraw amount exceeds PLP balance")
+        setErrorMessage("Withdrawal exceeds wallet PLP.")
         return
       }
 
@@ -563,7 +420,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
         estimatedWithdrawAmount >
           BigInt(Math.floor(summary.available_withdrawal))
       ) {
-        setErrorMessage("Withdraw amount exceeds vault liquidity")
+        setErrorMessage("Withdrawal exceeds vault withdrawable DUSDC.")
         return
       }
     }
@@ -595,7 +452,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       )
       setAmount("")
       setDialogAction(undefined)
-      setBalances(await loadBalances(walletAddress))
+      await predictAccount.refreshAccount()
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
@@ -643,10 +500,10 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
     (Number(plpBalance) / 10 ** PREDICT_QUOTE_DECIMALS) *
     summary.plp_share_price
   const dusdcBalanceValue = balances
-    ? `${formatDecimalUnits(dusdcBalance, PREDICT_QUOTE_DECIMALS)} DUSDC`
+    ? formatWalletAmount(dusdcBalance, "DUSDC")
     : "--"
   const plpBalanceValue = balances
-    ? `${formatDecimalUnits(plpBalance, PREDICT_QUOTE_DECIMALS)} PLP`
+    ? formatWalletAmount(plpBalance, "PLP")
     : "--"
   const plpValueLabel = balances ? formatTokenAmount(plpValue, "DUSDC") : "--"
   const actionBalanceLabel =
@@ -761,25 +618,17 @@ function LiquidityPanelFrame({
       <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0 xl:row-span-2">
         <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
           <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-            Your Liquidity
+            Your Position
           </CardTitle>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col gap-3 px-4 pt-2 pb-4">
           {walletAddress ? (
             walletBlock
           ) : (
-            <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm">
+            <div className="flex flex-1 items-center justify-center text-sm">
               <p className="text-center text-xs text-muted-foreground">
-                Connect wallet to view your liquidity.
+                Connect wallet to view your position.
               </p>
-              <Button
-                className="w-full"
-                disabled={buttonDisabled}
-                onClick={onSubmit}
-                type="button"
-              >
-                Sign in to manage liquidity
-              </Button>
             </div>
           )}
 
@@ -829,141 +678,6 @@ function LiquidityPanelFrame({
   )
 }
 
-function EarnActionDialog({
-  action,
-  actionBalanceLabel,
-  actionBalanceValue,
-  amount,
-  buttonDisabled,
-  buttonLabel,
-  estimatedOutput,
-  invalidReason,
-  message,
-  messageTone,
-  onAmountChange,
-  onMaxAmount,
-  onOpenChange,
-  onSubmit,
-  open,
-  summary,
-}: {
-  action: EarnAction
-  actionBalanceLabel?: string
-  actionBalanceValue?: string
-  amount: string
-  buttonDisabled: boolean
-  buttonLabel: string
-  estimatedOutput?: number
-  invalidReason?: string
-  message?: string
-  messageTone: "error" | "muted"
-  onAmountChange: (amount: string) => void
-  onMaxAmount?: () => void
-  onOpenChange?: (open: boolean) => void
-  onSubmit: () => void
-  open: boolean
-  summary: VaultSummary
-}) {
-  return (
-    <Dialog onOpenChange={(nextOpen) => onOpenChange?.(nextOpen)} open={open}>
-      <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
-        <DialogHeader className="gap-1">
-          <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-            {action === "supply" ? "Deposit DUSDC" : "Withdraw PLP"}
-          </DialogTitle>
-        </DialogHeader>
-
-        <label className="block space-y-2">
-          <span className="text-xs font-medium text-muted-foreground">
-            Amount
-          </span>
-          <div className="relative">
-            <Input
-              className="border-border/35 bg-muted/25 pr-28 font-mono text-sm shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-              inputMode="decimal"
-              onChange={(event) => onAmountChange(event.target.value)}
-              placeholder="0.00"
-              value={amount}
-            />
-            <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-2 text-xs text-muted-foreground">
-              <Button
-                className="px-2 font-mono text-[10px]"
-                disabled={!onMaxAmount}
-                onClick={onMaxAmount}
-                size="xs"
-                type="button"
-                variant="ghost"
-              >
-                MAX
-              </Button>
-              <span>{action === "supply" ? "DUSDC" : "PLP"}</span>
-            </div>
-          </div>
-        </label>
-
-        <div className="space-y-2.5 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
-          {actionBalanceLabel && actionBalanceValue && (
-            <PanelRow label={actionBalanceLabel} value={actionBalanceValue} />
-          )}
-          <PanelRow
-            label="Est. receive"
-            value={
-              estimatedOutput === undefined
-                ? "--"
-                : formatTokenAmount(
-                    estimatedOutput,
-                    action === "supply" ? "PLP" : "DUSDC",
-                    6
-                  )
-            }
-          />
-          <PanelRow
-            label="PLP price"
-            value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
-          />
-          {action === "withdraw" && (
-            <PanelRow
-              label="Vault withdrawable"
-              value={formatQuoteAmount(summary.available_withdrawal)}
-            />
-          )}
-        </div>
-
-        {message && (
-          <p
-            className={cn(
-              "rounded-md px-3 py-2 text-xs leading-5",
-              messageTone === "error"
-                ? "border border-destructive/25 bg-destructive/10 text-destructive"
-                : "bg-muted/15 text-muted-foreground"
-            )}
-          >
-            {message}
-          </p>
-        )}
-
-        {!message && invalidReason && (
-          <p className="rounded-md bg-muted/15 px-3 py-2 text-xs leading-5 text-muted-foreground">
-            {invalidReason}
-          </p>
-        )}
-
-        <DialogFooter>
-          <Button
-            className="w-full active:scale-[0.98]"
-            disabled={buttonDisabled}
-            onClick={onSubmit}
-            size="lg"
-            type="button"
-          >
-            {buttonLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function getEstimatedOutput({
   action,
   amount,
@@ -980,6 +694,10 @@ function getEstimatedOutput({
     return undefined
   }
 
+  if (summary.plp_share_price <= 0) {
+    return undefined
+  }
+
   return action === "supply"
     ? numericAmount / summary.plp_share_price
     : numericAmount * summary.plp_share_price
@@ -987,12 +705,13 @@ function getEstimatedOutput({
 
 function getEstimatedWithdrawAmount(amount: bigint, summary: VaultSummary) {
   const totalSupply = BigInt(Math.floor(summary.plp_total_supply))
+  const vaultValue = BigInt(Math.floor(summary.vault_value))
 
-  if (totalSupply === 0n) {
+  if (totalSupply <= 0n || vaultValue <= 0n) {
     return 0n
   }
 
-  return (amount * BigInt(Math.floor(summary.vault_value))) / totalSupply
+  return (amount * vaultValue) / totalSupply
 }
 
 function getEarnInvalidReason({
@@ -1019,33 +738,39 @@ function getEarnInvalidReason({
   }
 
   if (action === "supply") {
-    return selectedAmount > balances.dusdc ? "Exceeds DUSDC balance" : undefined
+    if (summary.plp_share_price <= 0) {
+      return "PLP share price is unavailable."
+    }
+
+    return selectedAmount > balances.dusdc
+      ? "Deposit exceeds wallet DUSDC."
+      : undefined
   }
 
   if (selectedAmount > balances.plp) {
-    return "Exceeds PLP balance"
+    return "Withdrawal exceeds wallet PLP."
   }
 
   if (estimatedWithdrawAmount === undefined || estimatedWithdrawAmount === 0n) {
-    return "Vault liquidity unavailable"
+    return "Vault withdrawable DUSDC is unavailable."
   }
 
   return estimatedWithdrawAmount >
     BigInt(Math.floor(summary.available_withdrawal))
-    ? "Exceeds vault liquidity"
+    ? "Withdrawal exceeds vault withdrawable DUSDC."
     : undefined
 }
 
 function getMaxWithdrawShares(summary: VaultSummary) {
   const vaultValue = BigInt(Math.floor(summary.vault_value))
+  const totalSupply = BigInt(Math.floor(summary.plp_total_supply))
 
-  if (vaultValue === 0n) {
+  if (vaultValue <= 0n || totalSupply <= 0n) {
     return 0n
   }
 
   return (
-    (BigInt(Math.floor(summary.available_withdrawal)) *
-      BigInt(Math.floor(summary.plp_total_supply))) /
+    (BigInt(Math.floor(summary.available_withdrawal)) * totalSupply) /
     vaultValue
   )
 }
@@ -1138,7 +863,9 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
           <div className="flex items-center justify-between border-t border-border/40 px-3 py-2">
             <Button
               disabled={page === 0}
-              onClick={() => setPage((currentPage) => Math.max(0, currentPage - 1))}
+              onClick={() =>
+                setPage((currentPage) => Math.max(0, currentPage - 1))
+              }
               size="xs"
               type="button"
               variant="outline"
@@ -1151,7 +878,9 @@ function ActivityCard({ activity }: { activity: LpActivity[] }) {
             <Button
               disabled={page >= pageCount - 1}
               onClick={() =>
-                setPage((currentPage) => Math.min(pageCount - 1, currentPage + 1))
+                setPage((currentPage) =>
+                  Math.min(pageCount - 1, currentPage + 1)
+                )
               }
               size="xs"
               type="button"
@@ -1201,7 +930,7 @@ function LabeledActivityLink({
     >
       <span className="text-muted-foreground md:hidden">{label}</span>
       <a
-        className="inline-flex min-w-0 items-center gap-1 text-muted-foreground transition-[color,transform] duration-150 hover:text-foreground active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+        className="inline-flex min-w-0 items-center gap-1 text-muted-foreground transition-[color,transform] duration-150 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none active:scale-[0.98]"
         href={href}
         rel="noreferrer"
         target="_blank"
@@ -1209,19 +938,6 @@ function LabeledActivityLink({
         <span className="truncate">{value}</span>
         <ArrowUpRightIcon className="size-3 shrink-0" />
       </a>
-    </div>
-  )
-}
-
-function PanelRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <span className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span className="truncate text-right font-mono text-xs font-medium text-foreground tabular-nums">
-        {value}
-      </span>
     </div>
   )
 }

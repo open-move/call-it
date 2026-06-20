@@ -26,17 +26,17 @@ import { cn } from "@/lib/utils"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import { executeSuiTransaction } from "@/services/predict-transactions"
 import {
-  getRangeLadderVaultState,
+  getRangeLadderStrategyState,
   getRangeLadderWalletState,
 } from "@/services/range-ladder-client"
 import type {
   RangeLadderPositionRow,
-  RangeLadderVaultState,
+  RangeLadderStrategyState,
   RangeLadderWalletState,
 } from "@/services/range-ladder-client"
 import {
-  buildRangeLadderVaultDepositTransaction,
-  buildRangeLadderVaultWithdrawTransaction,
+  buildRangeLadderStrategyDepositTransaction,
+  buildRangeLadderStrategyWithdrawTransaction,
 } from "@/services/range-ladder-transactions"
 
 export interface PageProps {
@@ -87,16 +87,16 @@ function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-function getVaultStatus(vault?: RangeLadderVaultState) {
-  if (!vault) {
+function getVaultStatus(strategy?: RangeLadderStrategyState) {
+  if (!strategy) {
     return "Loading"
   }
 
-  if (vault.paused) {
+  if (strategy.paused) {
     return "Paused"
   }
 
-  if (vault.activeRound) {
+  if (strategy.activeRound) {
     return "Round active"
   }
 
@@ -105,52 +105,52 @@ function getVaultStatus(vault?: RangeLadderVaultState) {
 
 function getWithdrawQuote(
   amount: bigint | null,
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
 ) {
-  if (!amount || !vault || vault.shareSupply === 0n) {
+  if (!amount || !strategy || strategy.shareSupply === 0n) {
     return undefined
   }
 
-  return (amount * vault.nav) / vault.shareSupply
+  return (amount * strategy.nav) / strategy.shareSupply
 }
 
-function getDepositQuote(amount: bigint | null, vault?: RangeLadderVaultState) {
-  if (!amount || !vault) {
+function getDepositQuote(amount: bigint | null, strategy?: RangeLadderStrategyState) {
+  if (!amount || !strategy) {
     return undefined
   }
 
-  if (vault.shareSupply === 0n || vault.nav === 0n) {
+  if (strategy.shareSupply === 0n || strategy.nav === 0n) {
     return amount
   }
 
-  return (amount * vault.shareSupply) / vault.nav
+  return (amount * strategy.shareSupply) / strategy.nav
 }
 
 function getUserValue(
   wallet?: RangeLadderWalletState,
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
 ) {
-  return getWithdrawQuote(wallet?.rangeShareBalance ?? null, vault) ?? 0n
+  return getWithdrawQuote(wallet?.rangeShareBalance ?? null, strategy) ?? 0n
 }
 
-function getRoundStage(vault?: RangeLadderVaultState): RoundStepId {
-  return vault?.activeRound ? "start" : "deposit"
+function getRoundStage(strategy?: RangeLadderStrategyState): RoundStepId {
+  return strategy?.activeRound ? "start" : "deposit"
 }
 
-function getRoundStateCopy(vault?: RangeLadderVaultState) {
-  if (!vault) {
+function getRoundStateCopy(strategy?: RangeLadderStrategyState) {
+  if (!strategy) {
     return "Loading Range Ladder round state."
   }
 
-  if (vault.paused) {
-    return "Vault actions are paused while the operator reviews the ladder."
+  if (strategy.paused) {
+    return "Strategy actions are paused while the operator reviews the ladder."
   }
 
-  if (!vault.activeRound) {
+  if (!strategy.activeRound) {
     return "Deposits and withdrawals are open until the operator starts the next ladder."
   }
 
-  return "The vault holds native Predict ranges. Settlement must land inside a rung for that rung to pay."
+  return "The strategy holds native Predict ranges. Settlement must land inside a rung for that rung to pay."
 }
 
 function getStepState(step: RoundStepId, activeStep: RoundStepId) {
@@ -171,10 +171,10 @@ function getStepState(step: RoundStepId, activeStep: RoundStepId) {
 }
 
 function getRoundProduct(
-  vault: RangeLadderVaultState | undefined,
+  strategy: RangeLadderStrategyState | undefined,
   products: RangeLadderProduct[]
 ) {
-  const oracleId = vault?.activeRound?.oracleId
+  const oracleId = strategy?.activeRound?.oracleId
 
   if (!oracleId) {
     return undefined
@@ -193,7 +193,7 @@ function getInvalidReason({
   canUseVault,
   isLoadingWallet,
   parsedAmount,
-  vault,
+  strategy,
   walletAddress,
 }: {
   action: RangeLadderAction
@@ -201,15 +201,15 @@ function getInvalidReason({
   canUseVault: boolean
   isLoadingWallet: boolean
   parsedAmount: bigint | null
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
   walletAddress?: string
 }) {
   if (!walletAddress) {
     return "Connect wallet to use Range Ladder."
   }
 
-  if (!vault) {
-    return "Range Ladder vault is still loading."
+  if (!strategy) {
+    return "Range Ladder strategy is still loading."
   }
 
   if (!canUseVault) {
@@ -237,7 +237,7 @@ export function Page({ products }: PageProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const walletAddress = primaryWallet?.address
   const refreshRoute = useAppRouteRefresh()
-  const [vault, setVault] = useState<RangeLadderVaultState | undefined>()
+  const [strategy, setVault] = useState<RangeLadderStrategyState | undefined>()
   const [wallet, setWallet] = useState<RangeLadderWalletState | undefined>()
   const [isLoadingVault, setIsLoadingVault] = useState(true)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
@@ -248,12 +248,12 @@ export function Page({ products }: PageProps) {
   const [messageTone, setMessageTone] = useState<"error" | "muted">("muted")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const parsedAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
-  const depositQuote = getDepositQuote(parsedAmount, vault)
-  const withdrawQuote = getWithdrawQuote(parsedAmount, vault)
-  const status = getVaultStatus(vault)
-  const activeRoundProduct = getRoundProduct(vault, products)
+  const depositQuote = getDepositQuote(parsedAmount, strategy)
+  const withdrawQuote = getWithdrawQuote(parsedAmount, strategy)
+  const status = getVaultStatus(strategy)
+  const activeRoundProduct = getRoundProduct(strategy, products)
   const nextLadder = getNextLadder(products)
-  const canUseVault = !!vault && !vault.paused && !vault.activeRound
+  const canUseVault = !!strategy && !strategy.paused && !strategy.activeRound
   const actionBalance =
     action === "deposit" ? wallet?.dusdcBalance : wallet?.rangeShareBalance
   const canSubmit =
@@ -268,7 +268,7 @@ export function Page({ products }: PageProps) {
     canUseVault,
     isLoadingWallet,
     parsedAmount,
-    vault,
+    strategy,
     walletAddress,
   })
 
@@ -276,7 +276,7 @@ export function Page({ products }: PageProps) {
     setIsLoadingVault(true)
 
     try {
-      const nextVault = await getRangeLadderVaultState()
+      const nextVault = await getRangeLadderStrategyState()
 
       setVault(nextVault)
       setMessage(undefined)
@@ -387,11 +387,11 @@ export function Page({ products }: PageProps) {
     try {
       const transaction =
         action === "deposit"
-          ? await buildRangeLadderVaultDepositTransaction({
+          ? await buildRangeLadderStrategyDepositTransaction({
               amount: parsedAmount,
               walletAddress,
             })
-          : await buildRangeLadderVaultWithdrawTransaction({
+          : await buildRangeLadderStrategyWithdrawTransaction({
               amount: parsedAmount,
               walletAddress,
             })
@@ -427,13 +427,13 @@ export function Page({ products }: PageProps) {
           <RangeLadderOverviewCard
             isLoading={isLoadingVault}
             status={status}
-            vault={vault}
+            strategy={strategy}
           />
 
           <RangeLadderPositionPanel
             onOpenAction={openActionDialog}
             onSignIn={() => setShowAuthFlow(true)}
-            vault={vault}
+            strategy={strategy}
             wallet={wallet}
             walletAddress={walletAddress}
           />
@@ -444,9 +444,9 @@ export function Page({ products }: PageProps) {
             nextLadder={nextLadder}
             product={activeRoundProduct}
             status={status}
-            vault={vault}
+            strategy={strategy}
           />
-          <RangeLadderPolicyCard vault={vault} />
+          <RangeLadderPolicyCard strategy={strategy} />
         </div>
       </section>
 
@@ -468,7 +468,7 @@ export function Page({ products }: PageProps) {
         onSubmit={handleSubmit}
         open={dialogAction !== undefined}
         status={status}
-        vault={vault}
+        strategy={strategy}
         withdrawQuote={withdrawQuote}
       />
     </main>
@@ -479,11 +479,11 @@ function RangeLadderProductHeader() {
   return (
     <div className="mx-auto max-w-5xl rounded-md bg-card px-4 py-3">
       <div className="text-sm leading-none font-medium tracking-[-0.01em]">
-        Range Ladder · Native Predict range vault
+        Range Ladder · Native Predict range strategy
       </div>
       <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
         Back the calm market. Earn when price settles inside selected ranges.
-        Users hold cRANGE vault shares while the vault manages native Predict
+        Users hold cRANGE strategy shares while the strategy manages native Predict
         range rungs, settlement, and roll-forward.
       </p>
     </div>
@@ -493,65 +493,65 @@ function RangeLadderProductHeader() {
 function RangeLadderOverviewCard({
   isLoading,
   status,
-  vault,
+  strategy,
 }: {
   isLoading: boolean
   status: string
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
 }) {
   return (
     <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
         <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Vault Overview
+          Strategy Overview
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-4 pt-2 pb-4">
         <div className="space-y-2.5">
           <VaultOverviewRow
-            label="Vault cash"
-            value={vault ? formatDusdc(vault.nav) : isLoading ? "--" : "Setup"}
+            label="Strategy cash"
+            value={strategy ? formatDusdc(strategy.nav) : isLoading ? "--" : "Setup"}
           />
           <VaultOverviewRow
             label="Premium deployed"
             value={
-              vault?.activeRound
-                ? formatDusdc(vault.activeRound.totalCost, 4)
+              strategy?.activeRound
+                ? formatDusdc(strategy.activeRound.totalCost, 4)
                 : "--"
             }
           />
           <VaultOverviewRow
             label="Active rungs"
             value={
-              vault?.activeRound
-                ? vault.activeRound.positionCount.toString()
+              strategy?.activeRound
+                ? strategy.activeRound.positionCount.toString()
                 : "0"
             }
           />
           <VaultOverviewRow
             label="cRANGE Supply"
-            value={vault ? formatShares(vault.shareSupply) : "--"}
+            value={strategy ? formatShares(strategy.shareSupply) : "--"}
           />
           <VaultOverviewRow
             label="cRANGE Price"
             value={
-              vault
-                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+              strategy
+                ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
                 : "--"
             }
           />
           <VaultOverviewRow label="Status" value={status} />
         </div>
 
-        <RangePlan vault={vault} />
+        <RangePlan strategy={strategy} />
       </CardContent>
     </Card>
   )
 }
 
-function RangePlan({ vault }: { vault?: RangeLadderVaultState }) {
-  const premiumBudget = vault?.policy.premiumBudgetBps ?? 0
-  const reserve = vault?.policy.reserveBps ?? 0
+function RangePlan({ strategy }: { strategy?: RangeLadderStrategyState }) {
+  const premiumBudget = strategy?.policy.premiumBudgetBps ?? 0
+  const reserve = strategy?.policy.reserveBps ?? 0
 
   return (
     <div className="mt-4 rounded-md border border-border/35 bg-muted/25 p-3">
@@ -574,15 +574,15 @@ function RangePlan({ vault }: { vault?: RangeLadderVaultState }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <PlanItem
           label="Premium budget"
-          value={vault ? formatBps(vault.policy.premiumBudgetBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.premiumBudgetBps) : "--"}
         />
         <PlanItem
           label="Reserve"
-          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.reserveBps) : "--"}
         />
         <PlanItem
           label="Max rungs"
-          value={vault ? vault.policy.maxRungCount.toString() : "--"}
+          value={strategy ? strategy.policy.maxRungCount.toString() : "--"}
         />
       </div>
     </div>
@@ -605,17 +605,17 @@ function PlanItem({ label, value }: { label: string; value: string }) {
 function RangeLadderPositionPanel({
   onOpenAction,
   onSignIn,
-  vault,
+  strategy,
   wallet,
   walletAddress,
 }: {
   onOpenAction: (action: RangeLadderAction) => void
   onSignIn: () => void
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
   wallet?: RangeLadderWalletState
   walletAddress?: string
 }) {
-  const walletValue = getUserValue(wallet, vault)
+  const walletValue = getUserValue(wallet, strategy)
 
   return (
     <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -680,17 +680,17 @@ function RoundProgressCard({
   nextLadder,
   product,
   status,
-  vault,
+  strategy,
 }: {
   nextLadder?: RangeLadderProduct
   product?: RangeLadderProduct
   status: string
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
 }) {
-  const round = vault?.activeRound
-  const activeStep = getRoundStage(vault)
+  const round = strategy?.activeRound
+  const activeStep = getRoundStage(strategy)
   const contextProduct = product ?? nextLadder
-  const roundCopy = getRoundStateCopy(vault)
+  const roundCopy = getRoundStateCopy(strategy)
 
   return (
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -725,7 +725,7 @@ function RoundProgressCard({
         </div>
 
         <div className="space-y-2 rounded-md border border-border/35 bg-muted/15 p-3">
-          <RoundDetailRow label="Vault state" value={status} />
+          <RoundDetailRow label="Strategy state" value={status} />
           <RoundDetailRow
             label="Active rungs"
             value={round ? round.positionCount.toString() : "--"}
@@ -767,30 +767,30 @@ function RoundProgressCard({
   )
 }
 
-function RangeLadderPolicyCard({ vault }: { vault?: RangeLadderVaultState }) {
+function RangeLadderPolicyCard({ strategy }: { strategy?: RangeLadderStrategyState }) {
   return (
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
         <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Vault Policy
+          Strategy Policy
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 px-4 pt-2 pb-4">
         <PolicyRow
           label="Premium budget"
-          value={vault ? formatBps(vault.policy.premiumBudgetBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.premiumBudgetBps) : "--"}
         />
         <PolicyRow
           label="Reserve"
-          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.reserveBps) : "--"}
         />
         <PolicyRow
           label="Max range ask"
-          value={vault ? formatBps(vault.policy.maxRangeAskBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.maxRangeAskBps) : "--"}
         />
         <PolicyRow
           label="Max rungs"
-          value={vault ? vault.policy.maxRungCount.toString() : "--"}
+          value={strategy ? strategy.policy.maxRungCount.toString() : "--"}
         />
       </CardContent>
     </Card>
@@ -815,7 +815,7 @@ function RangeLadderActionDialog({
   onSubmit,
   open,
   status,
-  vault,
+  strategy,
   withdrawQuote,
 }: {
   action: RangeLadderAction
@@ -835,7 +835,7 @@ function RangeLadderActionDialog({
   onSubmit: () => void
   open: boolean
   status: string
-  vault?: RangeLadderVaultState
+  strategy?: RangeLadderStrategyState
   withdrawQuote?: bigint
 }) {
   const isDeposit = action === "deposit"
@@ -913,17 +913,17 @@ function RangeLadderActionDialog({
           <PanelRow
             label="cRANGE price"
             value={
-              vault
-                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+              strategy
+                ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
                 : "--"
             }
           />
-          <PanelRow label="Vault status" value={status} />
+          <PanelRow label="Strategy status" value={status} />
           {isDeposit ? (
             <PanelRow
               label="Round access"
               value={
-                status === "Between rounds" ? "Open vault" : "Next open round"
+                status === "Between rounds" ? "Open strategy" : "Next open round"
               }
             />
           ) : null}

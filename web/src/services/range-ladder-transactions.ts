@@ -3,12 +3,13 @@ import type { SuiClientTypes } from "@mysten/sui/client"
 import type { TransactionObjectArgument } from "@mysten/sui/transactions"
 
 import {
+  BASE_VAULT_ID,
   PREDICT_CLOCK_ID,
   PREDICT_OBJECT_ID,
   PREDICT_QUOTE_ASSET,
   RANGE_LADDER_PACKAGE_ID,
   RANGE_LADDER_SHARE_ASSET,
-  RANGE_LADDER_VAULT_ID,
+  RANGE_LADDER_STRATEGY_ID,
 } from "@/lib/config"
 import {
   formatPredictQuoteMessage,
@@ -44,7 +45,7 @@ export interface RangeLadderClaimParams {
   walletAddress: string
 }
 
-export interface RangeLadderVaultTransactionParams {
+export interface RangeLadderStrategyTransactionParams {
   amount: bigint
   walletAddress: string
 }
@@ -52,7 +53,7 @@ export interface RangeLadderVaultTransactionParams {
 const PREMIUM_BUFFER_BPS = 250n
 
 function rangeLadderTarget(functionName: string) {
-  return `${RANGE_LADDER_PACKAGE_ID}::range_ladder::${functionName}`
+  return `${RANGE_LADDER_PACKAGE_ID}::range_ladder_strategy::${functionName}`
 }
 
 function rangeLadderPolicyTarget(functionName: string) {
@@ -117,9 +118,9 @@ async function buildCoin(
   return splitCoin
 }
 
-function assertRangeLadderVaultConfigured() {
-  if (!RANGE_LADDER_VAULT_ID) {
-    throw new Error("Range Ladder vault is not initialized yet")
+function assertRangeLadderStrategyConfigured() {
+  if (!RANGE_LADDER_STRATEGY_ID || !BASE_VAULT_ID) {
+    throw new Error("Range Ladder strategy is not initialized yet")
   }
 }
 
@@ -302,11 +303,11 @@ export async function prepareRangeLadderClaimTransaction(
   return transaction
 }
 
-export async function buildRangeLadderVaultDepositTransaction({
+export async function buildRangeLadderStrategyDepositTransaction({
   amount,
   walletAddress,
-}: RangeLadderVaultTransactionParams) {
-  assertRangeLadderVaultConfigured()
+}: RangeLadderStrategyTransactionParams) {
+  assertRangeLadderStrategyConfigured()
 
   const tx = new Transaction()
   tx.setSender(walletAddress)
@@ -314,7 +315,7 @@ export async function buildRangeLadderVaultDepositTransaction({
   const shareCoin = tx.moveCall({
     target: rangeLadderTarget("deposit"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(RANGE_LADDER_VAULT_ID), paymentCoin],
+    arguments: [tx.object(RANGE_LADDER_STRATEGY_ID), tx.object(BASE_VAULT_ID), paymentCoin],
   })
 
   tx.transferObjects([shareCoin], walletAddress)
@@ -322,11 +323,11 @@ export async function buildRangeLadderVaultDepositTransaction({
   return tx
 }
 
-export async function buildRangeLadderVaultWithdrawTransaction({
+export async function buildRangeLadderStrategyWithdrawTransaction({
   amount,
   walletAddress,
-}: RangeLadderVaultTransactionParams) {
-  assertRangeLadderVaultConfigured()
+}: RangeLadderStrategyTransactionParams) {
+  assertRangeLadderStrategyConfigured()
 
   const tx = new Transaction()
   tx.setSender(walletAddress)
@@ -340,7 +341,7 @@ export async function buildRangeLadderVaultWithdrawTransaction({
   const quoteCoin = tx.moveCall({
     target: rangeLadderTarget("withdraw"),
     typeArguments: [PREDICT_QUOTE_ASSET],
-    arguments: [tx.object(RANGE_LADDER_VAULT_ID), shareCoin],
+    arguments: [tx.object(RANGE_LADDER_STRATEGY_ID), tx.object(BASE_VAULT_ID), shareCoin],
   })
 
   tx.transferObjects([quoteCoin], walletAddress)

@@ -50,6 +50,9 @@ type TicketMode = "binary" | "range"
 type ContractSide = "above" | "below"
 
 export interface OrderTicketProps {
+  initialHigherStrikePriceUsd?: number
+  initialLowerStrikePriceUsd?: number
+  initialMode?: TicketMode
   initialSide?: ContractSide
   market: MarketSnapshot
   onStrikeChange?: (strikePriceUsd: number) => void
@@ -248,6 +251,9 @@ function OrderTicketFallback(_props: OrderTicketProps) {
 }
 
 function OrderTicketClient({
+  initialHigherStrikePriceUsd,
+  initialLowerStrikePriceUsd,
+  initialMode = "binary",
   initialSide = "above",
   market,
   onStrikeChange,
@@ -257,7 +263,7 @@ function OrderTicketClient({
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
-  const [ticketMode, setTicketMode] = useState<TicketMode>("binary")
+  const [ticketMode, setTicketMode] = useState<TicketMode>(initialMode)
   const [contractSide, setContractSide] = useState<ContractSide>(initialSide)
   const [ticketStrikePriceUsd, setTicketStrikePriceUsd] = useState(
     selectedStrikePriceUsd
@@ -266,9 +272,20 @@ function OrderTicketClient({
   const [customStrike, setCustomStrike] = useState(() =>
     formatStrikeInput(selectedStrikePriceUsd)
   )
-  const [rangeStrikes, setRangeStrikes] = useState(() =>
-    getRangeStrikeDefaults(market, selectedStrikePriceUsd)
-  )
+  const [rangeStrikes, setRangeStrikes] = useState(() => {
+    const defaults = getRangeStrikeDefaults(market, selectedStrikePriceUsd)
+
+    return {
+      higher:
+        initialHigherStrikePriceUsd === undefined
+          ? defaults.higher
+          : normalizeStrikePrice(initialHigherStrikePriceUsd, market),
+      lower:
+        initialLowerStrikePriceUsd === undefined
+          ? defaults.lower
+          : normalizeStrikePrice(initialLowerStrikePriceUsd, market),
+    }
+  })
   const [quote, setQuote] = useState<PredictQuoteResult>()
   const [isQuoting, setIsQuoting] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -391,10 +408,29 @@ function OrderTicketClient({
 
   useEffect(() => {
     setTicketStrikePriceUsd(selectedStrikePriceUsd)
+    setTicketMode(initialMode)
     setContractSide(initialSide)
     setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
-    setRangeStrikes(getRangeStrikeDefaults(market, selectedStrikePriceUsd))
-  }, [initialSide, market, selectedStrikePriceUsd])
+    const defaults = getRangeStrikeDefaults(market, selectedStrikePriceUsd)
+
+    setRangeStrikes({
+      higher:
+        initialHigherStrikePriceUsd === undefined
+          ? defaults.higher
+          : normalizeStrikePrice(initialHigherStrikePriceUsd, market),
+      lower:
+        initialLowerStrikePriceUsd === undefined
+          ? defaults.lower
+          : normalizeStrikePrice(initialLowerStrikePriceUsd, market),
+    })
+  }, [
+    initialHigherStrikePriceUsd,
+    initialLowerStrikePriceUsd,
+    initialMode,
+    initialSide,
+    market,
+    selectedStrikePriceUsd,
+  ])
 
   function applyStrike(nextStrikePriceUsd: number) {
     const normalizedStrikePriceUsd = normalizeStrikePrice(

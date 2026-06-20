@@ -25,16 +25,16 @@ import { cn } from "@/lib/utils"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import { executeSuiTransaction } from "@/services/predict-transactions"
 import {
-  getShieldVaultState,
+  getShieldStrategyState,
   getShieldWalletState,
 } from "@/services/shield-client"
 import type {
-  ShieldVaultState,
+  ShieldStrategyState,
   ShieldWalletState,
 } from "@/services/shield-client"
 import {
-  buildShieldVaultDepositTransaction,
-  buildShieldVaultWithdrawTransaction,
+  buildShieldStrategyDepositTransaction,
+  buildShieldStrategyWithdrawTransaction,
 } from "@/services/shield-transactions"
 
 export interface PageProps {
@@ -85,73 +85,73 @@ function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
-function getVaultStatus(vault?: ShieldVaultState) {
-  if (!vault) {
+function getVaultStatus(strategy?: ShieldStrategyState) {
+  if (!strategy) {
     return "Loading"
   }
 
-  if (vault.paused) {
+  if (strategy.paused) {
     return "Paused"
   }
 
-  if (vault.activeRound?.settled) {
+  if (strategy.activeRound?.settled) {
     return "Oracle settled"
   }
 
-  if (vault.activeRound) {
+  if (strategy.activeRound) {
     return "Round active"
   }
 
   return "Open"
 }
 
-function getWithdrawQuote(amount: bigint | null, vault?: ShieldVaultState) {
-  if (!amount || !vault || vault.shareSupply === 0n) {
+function getWithdrawQuote(amount: bigint | null, strategy?: ShieldStrategyState) {
+  if (!amount || !strategy || strategy.shareSupply === 0n) {
     return undefined
   }
 
-  return (amount * vault.nav) / vault.shareSupply
+  return (amount * strategy.nav) / strategy.shareSupply
 }
 
-function getDepositQuote(amount: bigint | null, vault?: ShieldVaultState) {
-  if (!amount || !vault) {
+function getDepositQuote(amount: bigint | null, strategy?: ShieldStrategyState) {
+  if (!amount || !strategy) {
     return undefined
   }
 
-  if (vault.shareSupply === 0n || vault.nav === 0n) {
+  if (strategy.shareSupply === 0n || strategy.nav === 0n) {
     return amount
   }
 
-  return (amount * vault.shareSupply) / vault.nav
+  return (amount * strategy.shareSupply) / strategy.nav
 }
 
-function getUserValue(wallet?: ShieldWalletState, vault?: ShieldVaultState) {
-  return getWithdrawQuote(wallet?.shieldShareBalance ?? null, vault) ?? 0n
+function getUserValue(wallet?: ShieldWalletState, strategy?: ShieldStrategyState) {
+  return getWithdrawQuote(wallet?.shieldShareBalance ?? null, strategy) ?? 0n
 }
 
-function getRoundStage(vault?: ShieldVaultState): RoundStepId {
-  if (!vault?.activeRound) {
+function getRoundStage(strategy?: ShieldStrategyState): RoundStepId {
+  if (!strategy?.activeRound) {
     return "deposit"
   }
 
-  return vault.activeRound.settled ? "settle" : "start"
+  return strategy.activeRound.settled ? "settle" : "start"
 }
 
-function getRoundStateCopy(vault?: ShieldVaultState) {
-  if (!vault) {
+function getRoundStateCopy(strategy?: ShieldStrategyState) {
+  if (!strategy) {
     return "Loading Shield round state."
   }
 
-  if (vault.paused) {
-    return "Vault actions are paused while the operator reviews the round."
+  if (strategy.paused) {
+    return "Strategy actions are paused while the operator reviews the round."
   }
 
-  if (!vault.activeRound) {
+  if (!strategy.activeRound) {
     return "Deposits and withdrawals are open until the next Predict round starts."
   }
 
-  if (vault.activeRound.settled) {
-    return "Oracle settled. The vault can redeem the hedge, withdraw PLP, and reopen."
+  if (strategy.activeRound.settled) {
+    return "Oracle settled. The strategy can redeem the hedge, withdraw PLP, and reopen."
   }
 
   return "Capital is deployed into PLP with a DOWN hedge below spot."
@@ -175,10 +175,10 @@ function getStepState(step: RoundStepId, activeStep: RoundStepId) {
 }
 
 function getRoundProduct(
-  vault: ShieldVaultState | undefined,
+  strategy: ShieldStrategyState | undefined,
   products: ShieldProduct[]
 ) {
-  const oracleId = vault?.activeRound?.oracleId
+  const oracleId = strategy?.activeRound?.oracleId
 
   if (!oracleId) {
     return undefined
@@ -194,7 +194,7 @@ function getInvalidReason({
   isLoadingWallet,
   parsedAmount,
   status,
-  vault,
+  strategy,
   walletAddress,
 }: {
   action: ShieldAction
@@ -203,15 +203,15 @@ function getInvalidReason({
   isLoadingWallet: boolean
   parsedAmount: bigint | null
   status: string
-  vault?: ShieldVaultState
+  strategy?: ShieldStrategyState
   walletAddress?: string
 }) {
   if (!walletAddress) {
     return "Connect wallet to use Shield."
   }
 
-  if (!vault) {
-    return "Shield vault is still loading."
+  if (!strategy) {
+    return "Shield strategy is still loading."
   }
 
   if (!canUseVault) {
@@ -241,7 +241,7 @@ export function Page({ products }: PageProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const walletAddress = primaryWallet?.address
   const refreshRoute = useAppRouteRefresh()
-  const [vault, setVault] = useState<ShieldVaultState | undefined>()
+  const [strategy, setVault] = useState<ShieldStrategyState | undefined>()
   const [wallet, setWallet] = useState<ShieldWalletState | undefined>()
   const [isLoadingVault, setIsLoadingVault] = useState(true)
   const [isLoadingWallet, setIsLoadingWallet] = useState(false)
@@ -252,11 +252,11 @@ export function Page({ products }: PageProps) {
   const [messageTone, setMessageTone] = useState<"error" | "muted">("muted")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const parsedAmount = parseDecimalUnits(amount, PREDICT_QUOTE_DECIMALS)
-  const depositQuote = getDepositQuote(parsedAmount, vault)
-  const withdrawQuote = getWithdrawQuote(parsedAmount, vault)
-  const status = getVaultStatus(vault)
-  const roundProduct = getRoundProduct(vault, products)
-  const canUseVault = !!vault && !vault.paused && !vault.activeRound
+  const depositQuote = getDepositQuote(parsedAmount, strategy)
+  const withdrawQuote = getWithdrawQuote(parsedAmount, strategy)
+  const status = getVaultStatus(strategy)
+  const roundProduct = getRoundProduct(strategy, products)
+  const canUseVault = !!strategy && !strategy.paused && !strategy.activeRound
   const actionBalance =
     action === "deposit" ? wallet?.dusdcBalance : wallet?.shieldShareBalance
   const canSubmit =
@@ -272,7 +272,7 @@ export function Page({ products }: PageProps) {
     isLoadingWallet,
     parsedAmount,
     status,
-    vault,
+    strategy,
     walletAddress,
   })
 
@@ -280,7 +280,7 @@ export function Page({ products }: PageProps) {
     setIsLoadingVault(true)
 
     try {
-      const nextVault = await getShieldVaultState()
+      const nextVault = await getShieldStrategyState()
 
       setVault(nextVault)
       setMessage(undefined)
@@ -391,11 +391,11 @@ export function Page({ products }: PageProps) {
     try {
       const transaction =
         action === "deposit"
-          ? await buildShieldVaultDepositTransaction({
+          ? await buildShieldStrategyDepositTransaction({
               amount: parsedAmount,
               walletAddress,
             })
-          : await buildShieldVaultWithdrawTransaction({
+          : await buildShieldStrategyWithdrawTransaction({
               amount: parsedAmount,
               walletAddress,
             })
@@ -429,13 +429,13 @@ export function Page({ products }: PageProps) {
           <ShieldOverviewCard
             isLoading={isLoadingVault}
             status={status}
-            vault={vault}
+            strategy={strategy}
           />
 
           <ShieldPositionPanel
             onOpenAction={openActionDialog}
             onSignIn={() => setShowAuthFlow(true)}
-            vault={vault}
+            strategy={strategy}
             wallet={wallet}
             walletAddress={walletAddress}
           />
@@ -445,9 +445,9 @@ export function Page({ products }: PageProps) {
           <RoundProgressCard
             product={roundProduct}
             status={status}
-            vault={vault}
+            strategy={strategy}
           />
-          <ShieldPolicyCard vault={vault} />
+          <ShieldPolicyCard strategy={strategy} />
         </div>
       </section>
 
@@ -469,7 +469,7 @@ export function Page({ products }: PageProps) {
         onSubmit={handleSubmit}
         open={dialogAction !== undefined}
         status={status}
-        vault={vault}
+        strategy={strategy}
         withdrawQuote={withdrawQuote}
       />
     </main>
@@ -484,7 +484,7 @@ function ShieldProductHeader() {
       </div>
       <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
         Earn Predict LP returns with a built-in downside hedge. Users hold
-        cSHIELD vault shares while the vault manages PLP supply, hedge spend,
+        cSHIELD strategy shares while the strategy manages PLP supply, hedge spend,
         settlement, and roll-forward.
       </p>
     </div>
@@ -494,66 +494,66 @@ function ShieldProductHeader() {
 function ShieldOverviewCard({
   isLoading,
   status,
-  vault,
+  strategy,
 }: {
   isLoading: boolean
   status: string
-  vault?: ShieldVaultState
+  strategy?: ShieldStrategyState
 }) {
   return (
     <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
         <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Vault Overview
+          Strategy Overview
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col px-4 pt-2 pb-4">
         <div className="space-y-2.5">
           <VaultOverviewRow
-            label="Vault NAV"
-            value={vault ? formatDusdc(vault.nav) : isLoading ? "--" : "Setup"}
+            label="Strategy NAV"
+            value={strategy ? formatDusdc(strategy.nav) : isLoading ? "--" : "Setup"}
           />
           <VaultOverviewRow
             label="Cash reserve"
-            value={vault ? formatDusdc(vault.cash) : "--"}
+            value={strategy ? formatDusdc(strategy.cash) : "--"}
           />
           <VaultOverviewRow
             label="PLP deployed"
-            value={vault ? formatDusdc(vault.plpCostBasis) : "--"}
+            value={strategy ? formatDusdc(strategy.plpCostBasis) : "--"}
           />
           <VaultOverviewRow
             label="PLP balance"
             value={
-              vault
-                ? formatDecimalUnits(vault.plpAmount, PREDICT_QUOTE_DECIMALS, 4)
+              strategy
+                ? formatDecimalUnits(strategy.plpAmount, PREDICT_QUOTE_DECIMALS, 4)
                 : "--"
             }
           />
           <VaultOverviewRow
             label="cSHIELD Supply"
-            value={vault ? formatShares(vault.shareSupply) : "--"}
+            value={strategy ? formatShares(strategy.shareSupply) : "--"}
           />
           <VaultOverviewRow
             label="cSHIELD Price"
             value={
-              vault
-                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+              strategy
+                ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
                 : "--"
             }
           />
           <VaultOverviewRow label="Status" value={status} />
         </div>
 
-        <CapitalStack vault={vault} />
+        <CapitalStack strategy={strategy} />
       </CardContent>
     </Card>
   )
 }
 
-function CapitalStack({ vault }: { vault?: ShieldVaultState }) {
-  const plpAllocation = vault?.policy.maxPlpAllocationBps ?? 0
-  const hedgeBudget = vault?.policy.hedgeBudgetBps ?? 0
-  const reserve = vault?.policy.reserveBps ?? 0
+function CapitalStack({ strategy }: { strategy?: ShieldStrategyState }) {
+  const plpAllocation = strategy?.policy.maxPlpAllocationBps ?? 0
+  const hedgeBudget = strategy?.policy.hedgeBudgetBps ?? 0
+  const reserve = strategy?.policy.reserveBps ?? 0
 
   return (
     <div className="mt-4 rounded-md border border-border/35 bg-muted/25 p-3">
@@ -582,15 +582,15 @@ function CapitalStack({ vault }: { vault?: ShieldVaultState }) {
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <AllocationItem
           label="PLP cap"
-          value={vault ? formatBps(vault.policy.maxPlpAllocationBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.maxPlpAllocationBps) : "--"}
         />
         <AllocationItem
           label="Hedge budget"
-          value={vault ? formatBps(vault.policy.hedgeBudgetBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.hedgeBudgetBps) : "--"}
         />
         <AllocationItem
           label="Reserve"
-          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.reserveBps) : "--"}
         />
       </div>
     </div>
@@ -613,17 +613,17 @@ function AllocationItem({ label, value }: { label: string; value: string }) {
 function ShieldPositionPanel({
   onOpenAction,
   onSignIn,
-  vault,
+  strategy,
   wallet,
   walletAddress,
 }: {
   onOpenAction: (action: ShieldAction) => void
   onSignIn: () => void
-  vault?: ShieldVaultState
+  strategy?: ShieldStrategyState
   wallet?: ShieldWalletState
   walletAddress?: string
 }) {
-  const walletValue = getUserValue(wallet, vault)
+  const walletValue = getUserValue(wallet, strategy)
 
   return (
     <Card className="h-full gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -687,15 +687,15 @@ function ShieldPositionPanel({
 function RoundProgressCard({
   product,
   status,
-  vault,
+  strategy,
 }: {
   product?: ShieldProduct
   status: string
-  vault?: ShieldVaultState
+  strategy?: ShieldStrategyState
 }) {
-  const round = vault?.activeRound
-  const activeStep = getRoundStage(vault)
-  const roundCopy = getRoundStateCopy(vault)
+  const round = strategy?.activeRound
+  const activeStep = getRoundStage(strategy)
+  const roundCopy = getRoundStateCopy(strategy)
 
   return (
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -730,7 +730,7 @@ function RoundProgressCard({
         </div>
 
         <div className="space-y-2 rounded-md border border-border/35 bg-muted/15 p-3">
-          <RoundDetailRow label="Vault state" value={status} />
+          <RoundDetailRow label="Strategy state" value={status} />
           <RoundDetailRow
             label="Downside trigger"
             value={round ? `Below ${formatUsd(round.strikeUsd, 0)}` : "--"}
@@ -777,34 +777,34 @@ function RoundProgressCard({
   )
 }
 
-function ShieldPolicyCard({ vault }: { vault?: ShieldVaultState }) {
+function ShieldPolicyCard({ strategy }: { strategy?: ShieldStrategyState }) {
   return (
     <Card className="gap-0 rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardHeader className="px-4 pt-4 pb-3 [.border-b]:pb-3">
         <CardTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
-          Vault Policy
+          Strategy Policy
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 px-4 pt-2 pb-4">
         <PolicyRow
           label="Hedge budget"
-          value={vault ? formatBps(vault.policy.hedgeBudgetBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.hedgeBudgetBps) : "--"}
         />
         <PolicyRow
           label="Reserve"
-          value={vault ? formatBps(vault.policy.reserveBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.reserveBps) : "--"}
         />
         <PolicyRow
           label="PLP allocation cap"
-          value={vault ? formatBps(vault.policy.maxPlpAllocationBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.maxPlpAllocationBps) : "--"}
         />
         <PolicyRow
           label="Strike band"
-          value={vault ? formatBps(vault.policy.strikeBandBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.strikeBandBps) : "--"}
         />
         <PolicyRow
           label="Max hedge ask"
-          value={vault ? formatBps(vault.policy.maxHedgeAskBps) : "--"}
+          value={strategy ? formatBps(strategy.policy.maxHedgeAskBps) : "--"}
         />
       </CardContent>
     </Card>
@@ -829,7 +829,7 @@ function ShieldActionDialog({
   onSubmit,
   open,
   status,
-  vault,
+  strategy,
   withdrawQuote,
 }: {
   action: ShieldAction
@@ -849,7 +849,7 @@ function ShieldActionDialog({
   onSubmit: () => void
   open: boolean
   status: string
-  vault?: ShieldVaultState
+  strategy?: ShieldStrategyState
   withdrawQuote?: bigint
 }) {
   const isDeposit = action === "deposit"
@@ -927,16 +927,16 @@ function ShieldActionDialog({
           <PanelRow
             label="cSHIELD price"
             value={
-              vault
-                ? `${sharePriceFormatter.format(vault.sharePrice)} DUSDC`
+              strategy
+                ? `${sharePriceFormatter.format(strategy.sharePrice)} DUSDC`
                 : "--"
             }
           />
-          <PanelRow label="Vault status" value={status} />
+          <PanelRow label="Strategy status" value={status} />
           {isDeposit ? (
             <PanelRow
               label="Round access"
-              value={status === "Open" ? "Open vault" : "Next open round"}
+              value={status === "Open" ? "Open strategy" : "Next open round"}
             />
           ) : null}
         </div>

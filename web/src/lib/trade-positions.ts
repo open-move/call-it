@@ -259,22 +259,26 @@ export function getPositionSummariesFromActivity(
 
 export function filterPositions(
   summaries: ManagerPositionSummary[],
-  { expiryMs, oracleId }: FilterPositionsOptions
+  filter?: FilterPositionsOptions
 ): Position[] {
   return summaries
     .filter(
       (summary) =>
-        summary.oracle_id === oracleId &&
-        summary.expiry === expiryMs &&
+        (!filter ||
+          (summary.oracle_id === filter.oracleId &&
+            summary.expiry === filter.expiryMs)) &&
         summary.open_quantity > 0
     )
     .map((summary) => ({
       averageEntryPrice: toNullablePrice(summary.average_entry_price),
+      expiryMs: summary.expiry,
       id: `${summary.manager_id}:${summary.oracle_id}:${summary.strike}:${summary.is_up ? "up" : "down"}`,
       lastActivityAt: summary.last_activity_at,
+      managerId: summary.manager_id,
       markPrice: toNullablePrice(summary.mark_price),
       markValueUsd:
         summary.mark_value === null ? null : toQuoteAmount(summary.mark_value),
+      oracleId: summary.oracle_id,
       openCostBasisUsd: toQuoteAmount(summary.open_cost_basis),
       openQuantity: toQuoteAmount(summary.open_quantity),
       realizedPnlUsd: toQuoteAmount(summary.realized_pnl),

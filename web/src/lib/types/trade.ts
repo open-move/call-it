@@ -65,7 +65,10 @@ export interface Redemption {
 }
 
 export interface Position {
+  expiryMs: number
   id: string
+  managerId: string
+  oracleId: string
   strikePriceUsd: number
   side: "above" | "below"
   openQuantity: number
@@ -80,7 +83,10 @@ export interface Position {
 }
 
 export interface RangePosition {
+  expiryMs: number
   id: string
+  managerId: string
+  oracleId: string
   lowerStrikePriceUsd: number
   higherStrikePriceUsd: number
   openQuantity: number

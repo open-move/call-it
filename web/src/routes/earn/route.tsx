@@ -27,11 +27,11 @@ function Earn() {
   const { performance, supplies, summary, withdrawals } = Route.useLoaderData()
 
   return (
-      <EarnPage
-        performance={performance}
-        supplies={supplies}
-        summary={summary}
-        withdrawals={withdrawals}
-      />
+    <EarnPage
+      performance={performance}
+      supplies={supplies}
+      summary={summary}
+      withdrawals={withdrawals}
+    />
   )
 }
