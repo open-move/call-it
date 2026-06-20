@@ -59,7 +59,7 @@ import type {
   TicketMode,
 } from "@/lib/market-detail/types"
 
-export interface OrderTicketProps {
+export interface TradingTicketProps {
   initialHigherStrikePriceUsd?: number
   initialLowerStrikePriceUsd?: number
   initialMode?: TicketMode
@@ -70,7 +70,7 @@ export interface OrderTicketProps {
   tradeIntent?: PositionTradeIntent
 }
 
-export function OrderTicket(props: OrderTicketProps) {
+export function TradingTicket(props: TradingTicketProps) {
   const [isClient, setIsClient] = useState(false)
 
   useEffect(() => {
@@ -78,13 +78,13 @@ export function OrderTicket(props: OrderTicketProps) {
   }, [])
 
   if (!isClient) {
-    return <OrderTicketFallback {...props} />
+    return <TradingTicketFallback {...props} />
   }
 
-  return <OrderTicketClient {...props} />
+  return <TradingTicketClient {...props} />
 }
 
-function OrderTicketFallback(_props: OrderTicketProps) {
+function TradingTicketFallback(_props: TradingTicketProps) {
   return (
     <TicketCard>
       <Button className="w-full" disabled type="button">
@@ -94,7 +94,7 @@ function OrderTicketFallback(_props: OrderTicketProps) {
   )
 }
 
-function OrderTicketClient({
+function TradingTicketClient({
   initialHigherStrikePriceUsd,
   initialLowerStrikePriceUsd,
   initialMode = "binary",
@@ -103,7 +103,7 @@ function OrderTicketClient({
   onStrikeChange,
   selectedStrikePriceUsd,
   tradeIntent,
-}: OrderTicketProps) {
+}: TradingTicketProps) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
@@ -251,10 +251,11 @@ function OrderTicketClient({
   }, [walletAddress])
 
   useEffect(() => {
-    setTicketStrikePriceUsd(selectedStrikePriceUsd)
     setTicketMode(initialMode)
     setContractSide(initialSide)
-    setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
+  }, [initialMode, initialSide, market.oracleId])
+
+  useEffect(() => {
     const defaults = getRangeStrikeDefaults(market, selectedStrikePriceUsd)
 
     setRangeStrikes({
@@ -270,11 +271,14 @@ function OrderTicketClient({
   }, [
     initialHigherStrikePriceUsd,
     initialLowerStrikePriceUsd,
-    initialMode,
-    initialSide,
-    market,
+    market.oracleId,
     selectedStrikePriceUsd,
   ])
+
+  useEffect(() => {
+    setTicketStrikePriceUsd(selectedStrikePriceUsd)
+    setCustomStrike(formatStrikeInput(selectedStrikePriceUsd))
+  }, [market.oracleId, selectedStrikePriceUsd])
 
   function applyStrike(nextStrikePriceUsd: number) {
     const normalizedStrikePriceUsd = normalizeStrikePrice(

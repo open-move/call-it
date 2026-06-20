@@ -25,11 +25,6 @@ import {
   formatSignedDusdc,
 } from "@/lib/portfolio/format"
 import {
-  type ChartInterval,
-  type ChartMode,
-  type PortfolioSummary,
-  type RealizedPnlPoint,
-  type ExposureTone,
   chartIntervals,
   axisTick,
   getDisplayRealizedPnlPoints,
@@ -41,6 +36,13 @@ import {
   getRealizedPnlTicks,
   fullDateFormatter,
   shortDateFormatter,
+} from "@/lib/portfolio/helpers"
+import type {
+  ChartInterval,
+  ChartMode,
+  ExposureTone,
+  PortfolioSummary,
+  RealizedPnlPoint,
 } from "@/lib/portfolio/helpers"
 import { cn } from "@/lib/utils"
 
@@ -103,7 +105,11 @@ function ExposurePanel({ summary }: { summary: PortfolioSummary }) {
   const segments = [
     { label: "Up", tone: "up" as const, value: summary.upCostBasisUsd },
     { label: "Down", tone: "down" as const, value: summary.downCostBasisUsd },
-    { label: "Range", tone: "range" as const, value: summary.rangeCostBasisUsd },
+    {
+      label: "Range",
+      tone: "range" as const,
+      value: summary.rangeCostBasisUsd,
+    },
   ]
 
   if (total <= 0) {

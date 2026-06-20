@@ -5,11 +5,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatRelativeTime } from "@/lib/format"
 import { formatQuoteAmount, formatAddress } from "@/lib/earn/format"
-import {
-  type LpActivity,
-  getAccountUrl,
-  getTransactionUrl,
-} from "@/lib/earn/activity"
+import { getAccountUrl, getTransactionUrl } from "@/lib/earn/activity"
+import type { LpActivity } from "@/lib/earn/activity"
 import { cn } from "@/lib/utils"
 
 export function ActivityCard({ activity }: { activity: LpActivity[] }) {

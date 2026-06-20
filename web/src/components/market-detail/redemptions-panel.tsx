@@ -2,9 +2,9 @@ import {
   formatCompactDusdc,
   formatPriceCents,
   formatQuantity,
-  formatRelativeTime,
   getRedemptionContract,
 } from "@/lib/market-detail/helpers"
+import { formatRelativeTime } from "@/lib/format"
 import type { RedemptionActivityRow } from "@/lib/types/trade"
 import { ActivityTransactionLink } from "@/components/shared/activity/activity-table"
 
@@ -22,18 +22,13 @@ export function RedemptionsPanel({
   walletAddress?: string
 }) {
   if (!walletAddress) {
-    return (
-      <EmptyState message="Connect wallet to view your redeem activity." />
-    )
+    return <EmptyState message="Connect wallet to view your redeem activity." />
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col px-3 py-3">
       {redemptions.length > 0 ? (
-        <RedemptionsTable
-          assetSymbol={assetSymbol}
-          redemptions={redemptions}
-        />
+        <RedemptionsTable assetSymbol={assetSymbol} redemptions={redemptions} />
       ) : (
         <EmptyState message="No redeems for this market from your wallet." />
       )}

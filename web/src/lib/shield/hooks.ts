@@ -24,7 +24,6 @@ import {
   buildShieldStrategyWithdrawTransaction,
 } from "@/services/shield-transactions"
 import {
-  type ShieldAction,
   getDepositQuote,
   getInvalidReason,
   getRoundProduct,
@@ -32,6 +31,7 @@ import {
   getVaultStatus,
   getWithdrawQuote,
 } from "./helpers"
+import type { ShieldAction } from "./helpers"
 
 export function useShieldAction(products: ShieldProduct[]) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
@@ -210,9 +210,7 @@ export function useShieldAction(products: ShieldProduct[]) {
       refreshRoute()
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
-      setMessage(
-        formatPredictTradeError(error, "Shield transaction failed")
-      )
+      setMessage(formatPredictTradeError(error, "Shield transaction failed"))
       setMessageTone("error")
     } finally {
       setIsSubmitting(false)

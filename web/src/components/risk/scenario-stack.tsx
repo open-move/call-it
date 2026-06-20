@@ -7,10 +7,10 @@ import {
   scenarioGroups,
 } from "@/lib/risk/helpers"
 import type {
+  RiskScenarioGroup,
   RiskScenarioId,
   RiskScenarioRow,
 } from "@/lib/risk/types"
-import type { RiskScenarioGroup } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
 
 function ScenarioStackRow({
@@ -85,10 +85,10 @@ export function ScenarioStack({
             <Button
               className={cn(
                 "h-7 px-2.5 text-[11px] shadow-none",
-                selectedGroup === (group.id as RiskScenarioGroup) && "bg-primary/10 text-primary"
+                selectedGroup === group.id && "bg-primary/10 text-primary"
               )}
               key={group.id}
-              onClick={() => onGroupChange(group.id as RiskScenarioGroup)}
+              onClick={() => onGroupChange(group.id)}
               size="xs"
               type="button"
               variant="ghost"

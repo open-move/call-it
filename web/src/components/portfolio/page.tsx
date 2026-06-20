@@ -3,9 +3,11 @@ import { useEffect, useState } from "react"
 
 import { formatDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
-import { getManagerDusdcBalance } from "@/lib/portfolio/helpers"
+import {
+  coinBalanceToAmount,
+  getManagerDusdcBalance,
+} from "@/lib/portfolio/helpers"
 import type { OracleInfo, VaultSummary } from "@/lib/types/predict"
-import { coinBalanceToAmount } from "@/lib/portfolio/helpers"
 import { usePortfolio } from "@/lib/portfolio/hooks"
 import { AccountCard } from "./account-card"
 import { ConnectPortfolioCard } from "./connect-card"

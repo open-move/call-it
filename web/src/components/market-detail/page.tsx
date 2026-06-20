@@ -19,7 +19,7 @@ import { ActivityTabs } from "./activity-tabs"
 import { ChartPanel } from "./chart-panel"
 import { ExpiryStrip } from "./expiry-strip"
 import { Header } from "./header"
-import { OrderTicket } from "./order-ticket"
+import { TradingTicket } from "./trading-ticket"
 import { Trades } from "./trades"
 
 export interface PageProps {
@@ -113,7 +113,7 @@ export function Page({
         </section>
 
         <aside className="h-full min-w-0 xl:sticky xl:top-[4.25rem] xl:self-start">
-          <OrderTicket
+          <TradingTicket
             initialHigherStrikePriceUsd={initialHigherStrikePriceUsd}
             initialLowerStrikePriceUsd={initialLowerStrikePriceUsd}
             initialMode={initialMode}

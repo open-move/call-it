@@ -25,11 +25,6 @@ import {
 } from "@/services/predict-client"
 import { getShieldPositions } from "@/services/shield-client"
 import {
-  type PortfolioPosition,
-  type PortfolioState,
-  type PortfolioTab,
-  type RedeemState,
-  type TradingAccountModalMode,
   REALIZED_ACTIVITY_LIMIT,
   getFilteredPositions,
   getManagerDusdcBalance,
@@ -38,10 +33,21 @@ import {
   getPortfolioRedeemParams,
   getPortfolioSummary,
   getRealizedPnlChartData,
+  getPositionLifecycleActionLabel,
   getReservedPositionIds,
 } from "./helpers"
+import type {
+  PortfolioPosition,
+  PortfolioState,
+  PortfolioTab,
+  RedeemState,
+  TradingAccountModalMode,
+} from "./helpers"
 
-export function usePortfolio(oracles: OracleInfo[], vaultSummary: VaultSummary) {
+export function usePortfolio(
+  oracles: OracleInfo[],
+  vaultSummary: VaultSummary
+) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const predictAccount = usePredictAccount()
   const refreshRoute = useAppRouteRefresh()
@@ -395,6 +401,8 @@ export function usePortfolio(oracles: OracleInfo[], vaultSummary: VaultSummary) 
   }
 
   async function handleRedeemPosition(position: PortfolioPosition) {
+    const actionLabel = getPositionLifecycleActionLabel(position)
+
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -423,7 +431,7 @@ export function usePortfolio(oracles: OracleInfo[], vaultSummary: VaultSummary) 
 
     if (!params) {
       setRedeemState({
-        errorMessage: "This position is not redeemable yet.",
+        errorMessage: `Could not prepare ${actionLabel.toLowerCase()}.`,
         positionId: position.id,
       })
       return
@@ -452,7 +460,10 @@ export function usePortfolio(oracles: OracleInfo[], vaultSummary: VaultSummary) 
       window.setTimeout(refreshRoute, 1_500)
     } catch (error) {
       setRedeemState({
-        errorMessage: formatPredictLifecycleError(error, "Redeem failed."),
+        errorMessage: formatPredictLifecycleError(
+          error,
+          `${actionLabel} failed.`
+        ),
         positionId: position.id,
       })
     }

@@ -1,17 +1,14 @@
 import { useState } from "react"
 
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  getChartValue,
-  getWorstScenario,
-} from "@/lib/risk/helpers"
+import { getChartValue, getWorstScenario } from "@/lib/risk/helpers"
 import type { ChartMetric } from "@/lib/risk/helpers"
 import type {
+  RiskModel,
   RiskScenarioGroup,
   RiskScenarioId,
   RiskScenarioRow,
 } from "@/lib/risk/types"
-import type { RiskModel } from "@/lib/risk/types"
 import { RiskRail } from "./risk-rail"
 import { ScenarioChartPanel } from "./scenario-chart"
 import { ScenarioComparison } from "./scenario-comparison"

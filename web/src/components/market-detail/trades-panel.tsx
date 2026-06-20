@@ -2,9 +2,9 @@ import {
   formatCompactDusdc,
   formatPriceCents,
   formatQuantity,
-  formatRelativeTime,
   getActivityTradeContract,
 } from "@/lib/market-detail/helpers"
+import { formatRelativeTime } from "@/lib/format"
 import type { TradeActivityRow } from "@/lib/types/trade"
 import { ActivityTransactionLink } from "@/components/shared/activity/activity-table"
 

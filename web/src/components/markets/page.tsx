@@ -3,7 +3,6 @@ import { useState } from "react"
 import { useAppSearchParams } from "@/lib/hooks/router"
 import type { PredictionActivity, TradeMarket } from "@/lib/types/trade"
 import {
-  type MarketSort,
   defaultSort,
   expiryTabs,
   filterMarketsByAsset,
@@ -17,6 +16,7 @@ import {
   getTopMarkets,
   sortMarkets,
 } from "@/lib/markets/helpers"
+import type { MarketSort } from "@/lib/markets/helpers"
 import { FeaturedMarkets } from "./featured-markets"
 import { Table } from "./table"
 import { MarketSearchControls, Toolbar } from "./header"

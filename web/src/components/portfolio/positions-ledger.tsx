@@ -1,14 +1,15 @@
+import { useNavigate } from "@tanstack/react-router"
 import { SearchIcon } from "lucide-react"
 
 import { ActivityTabsFrame } from "@/components/shared/activity/activity-tabs-frame"
 import { PositionTable } from "@/components/shared/activity/position-table"
 import { Input } from "@/components/ui/input"
 import {
-  type PortfolioPosition,
-  type PortfolioTab,
+  getPortfolioMarketSearch,
   getTabCount,
   portfolioTabs,
 } from "@/lib/portfolio/helpers"
+import type { PortfolioPosition, PortfolioTab } from "@/lib/portfolio/helpers"
 import { ActivityTable, getPortfolioPositionTableRows } from "./activity-table"
 
 export function PositionsLedger({
@@ -32,6 +33,7 @@ export function PositionsLedger({
   searchQuery: string
   totalPositions: PortfolioPosition[]
 }) {
+  const navigate = useNavigate()
   const searchInput = (
     <div className="relative w-full lg:w-72">
       <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -63,6 +65,13 @@ export function PositionsLedger({
                 isLoading={isLoading}
                 loadingMessage="Loading portfolio positions."
                 rows={getPortfolioPositionTableRows({
+                  onAddPosition: (position) => {
+                    void navigate({
+                      params: { oracleId: position.oracleId },
+                      search: getPortfolioMarketSearch(position),
+                      to: "/markets/$oracleId",
+                    })
+                  },
                   onLifecyclePosition: onRedeemPosition,
                   positions,
                   redeemingPositionId,

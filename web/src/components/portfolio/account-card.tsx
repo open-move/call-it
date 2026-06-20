@@ -1,7 +1,10 @@
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { formatSignedDusdc } from "@/lib/portfolio/format"
-import { DusdcValue, SignedDusdcValue } from "@/lib/portfolio/format"
+import {
+  DusdcValue,
+  SignedDusdcValue,
+  formatSignedDusdc,
+} from "@/lib/portfolio/format"
 import { getPnlClassName } from "@/lib/portfolio/helpers"
 import type { PortfolioSummary } from "@/lib/portfolio/helpers"
 import { cn } from "@/lib/utils"

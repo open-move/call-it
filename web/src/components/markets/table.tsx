@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button"
 import type { TradeMarket } from "@/lib/types/trade"
 import { cn } from "@/lib/utils"
 
-import { MarketRow } from "./market-row"
+import { Row as MarketRow } from "./market-row"
 
 export interface TableProps {
   markets: TradeMarket[]

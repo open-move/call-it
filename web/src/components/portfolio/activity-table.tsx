@@ -3,7 +3,7 @@ import {
   ActivityNotice,
   ActivityTableHeader,
 } from "@/components/shared/activity/activity-table"
-import { Input } from "@/components/ui/input"
+import type { PositionTableRow } from "@/components/shared/activity/position-table"
 import { formatExpiryDistance, formatRelativeTime } from "@/lib/format"
 import {
   formatDusdc,
@@ -11,19 +11,14 @@ import {
   formatSignedDusdc,
 } from "@/lib/portfolio/format"
 import {
-  type PortfolioPosition,
-  type PortfolioTab,
-  getPnlClassName,
-  getPositionTypeClassName,
-} from "@/lib/portfolio/helpers"
-import {
   canAddToPortfolioPosition,
   canLifecyclePortfolioPosition,
-  getPortfolioMarketUrl,
+  getPnlClassName,
+  getPositionTypeClassName,
   getPositionLifecycleActionLabel,
   getPortfolioPositionTone,
 } from "@/lib/portfolio/helpers"
-import type { PositionTableRow } from "@/components/shared/activity/position-table"
+import type { PortfolioPosition } from "@/lib/portfolio/helpers"
 import { cn } from "@/lib/utils"
 
 function PositionTypeTag({ position }: { position: PortfolioPosition }) {
@@ -100,10 +95,12 @@ function MobileStat({
 }
 
 export function getPortfolioPositionTableRows({
+  onAddPosition,
   onLifecyclePosition,
   positions,
   redeemingPositionId,
 }: {
+  onAddPosition: (position: PortfolioPosition) => void
   onLifecyclePosition: (position: PortfolioPosition) => void
   positions: PortfolioPosition[]
   redeemingPositionId?: string
@@ -117,9 +114,7 @@ export function getPortfolioPositionTableRows({
           ? [
               {
                 label: "Add to position",
-                onSelect: () => {
-                  window.location.assign(getPortfolioMarketUrl(position))
-                },
+                onSelect: () => onAddPosition(position),
               },
             ]
           : []),

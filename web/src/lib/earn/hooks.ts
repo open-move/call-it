@@ -17,18 +17,14 @@ import {
 import { formatPredictTradeError } from "@/services/predict-quotes"
 import type { VaultSummary } from "@/lib/types/predict"
 import {
-  type EarnAction,
-  type WalletBalances,
   getEstimatedOutput,
   getEstimatedWithdrawAmount,
   getEarnInvalidReason,
   getMaxWithdrawShares,
   minBigInt,
 } from "./quote"
-import {
-  formatTokenAmount,
-  formatWalletAmount,
-} from "./format"
+import type { EarnAction, WalletBalances } from "./quote"
+import { formatTokenAmount, formatWalletAmount } from "./format"
 
 export function useEarnAction(summary: VaultSummary) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
@@ -236,7 +232,7 @@ export function useEarnAction(summary: VaultSummary) {
     estimatedOutput,
     invalidReason,
     message: errorMessage ?? statusMessage,
-    messageTone: errorMessage ? "error" as const : "muted" as const,
+    messageTone: errorMessage ? ("error" as const) : ("muted" as const),
     dusdcBalanceValue,
     plpBalanceValue,
     plpValueLabel,

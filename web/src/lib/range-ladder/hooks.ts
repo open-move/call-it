@@ -24,7 +24,6 @@ import {
   buildRangeLadderStrategyWithdrawTransaction,
 } from "@/services/range-ladder-transactions"
 import {
-  type RangeLadderAction,
   getDepositQuote,
   getInvalidReason,
   getNextLadder,
@@ -33,6 +32,7 @@ import {
   getVaultStatus,
   getWithdrawQuote,
 } from "./helpers"
+import type { RangeLadderAction } from "./helpers"
 
 export function useRangeLadderAction(products: RangeLadderProduct[]) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()

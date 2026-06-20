@@ -6,7 +6,11 @@ import {
   PREDICT_PRICE_SCALE as PRICE_SCALE,
   QUOTE_SCALE,
 } from "@/lib/config"
-import { formatExpiryDistance, formatRelativeTime, formatUsd } from "@/lib/format"
+import {
+  formatExpiryDistance,
+  formatRelativeTime,
+  formatUsd,
+} from "@/lib/format"
 import type {
   DirectionalPositionMintEvent,
   DirectionalPositionRedeemEvent,
@@ -33,6 +37,19 @@ export interface MarketManageSearch {
   side?: MarketSide
   strike: number
 }
+
+export type PortfolioMarketSearch =
+  | {
+      mode?: undefined
+      side?: MarketSide
+      strike: number
+    }
+  | {
+      higherStrike?: number
+      lowerStrike?: number
+      mode: "range"
+      strike: number
+    }
 
 export type TradingAccountModalMode = "deposit" | "withdraw"
 
@@ -167,7 +184,10 @@ export function getOracleById(oracles: OracleInfo[]) {
   return new Map(oracles.map((oracle) => [oracle.oracle_id, oracle]))
 }
 
-export function getAssetSymbol(oracleById: Map<string, OracleInfo>, oracleId: string) {
+export function getAssetSymbol(
+  oracleById: Map<string, OracleInfo>,
+  oracleId: string
+) {
   return oracleById.get(oracleId)?.underlying_asset ?? "Market"
 }
 
@@ -684,26 +704,22 @@ export function canLifecyclePortfolioPosition(position: PortfolioPosition) {
   )
 }
 
-export function getPortfolioMarketUrl(position: PortfolioPosition) {
-  const params = new URLSearchParams({
-    strike: position.manageSearch.strike.toString(),
-  })
-
+export function getPortfolioMarketSearch(
+  position: PortfolioPosition
+): PortfolioMarketSearch {
   if (position.type === "RNG") {
-    params.set("mode", "range")
-
-    if (position.manageSearch.lowerStrike !== undefined) {
-      params.set("lowerStrike", position.manageSearch.lowerStrike.toString())
+    return {
+      higherStrike: position.manageSearch.higherStrike,
+      lowerStrike: position.manageSearch.lowerStrike,
+      mode: "range",
+      strike: position.manageSearch.strike,
     }
-
-    if (position.manageSearch.higherStrike !== undefined) {
-      params.set("higherStrike", position.manageSearch.higherStrike.toString())
-    }
-  } else if (position.manageSearch.side) {
-    params.set("side", position.manageSearch.side)
   }
 
-  return `/markets/${position.oracleId}?${params.toString()}`
+  return {
+    side: position.manageSearch.side,
+    strike: position.manageSearch.strike,
+  }
 }
 
 export function getPortfolioPositionTone(position: PortfolioPosition) {
@@ -748,11 +764,11 @@ export function getRealizedPnlTicks(domain: [number, number]) {
 }
 
 export function getDisplayRealizedPnlPoints(points: RealizedPnlPoint[]) {
-  const [firstPoint] = points
-
-  if (!firstPoint) {
+  if (points.length === 0) {
     return []
   }
+
+  const [firstPoint] = points
 
   const syntheticStart = {
     ...firstPoint,
@@ -766,7 +782,10 @@ export function getDisplayRealizedPnlPoints(points: RealizedPnlPoint[]) {
   return [syntheticStart, ...points]
 }
 
-export function getIntervalStartMs(interval: ChartInterval, nowMs = Date.now()) {
+export function getIntervalStartMs(
+  interval: ChartInterval,
+  nowMs = Date.now()
+) {
   if (interval === "1d") {
     return nowMs - 24 * 60 * 60_000
   }
