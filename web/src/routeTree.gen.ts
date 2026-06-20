@@ -18,7 +18,6 @@ import { Route as MarketsRouteRouteImport } from './routes/markets/route'
 import { Route as LeaderboardRouteRouteImport } from './routes/leaderboard/route'
 import { Route as EarnRouteRouteImport } from './routes/earn/route'
 import { Route as ArenaRouteRouteImport } from './routes/arena/route'
-import { Route as IndexRouteRouteImport } from './routes/index/route'
 import { Route as ShieldIndexRouteImport } from './routes/shield/index'
 import { Route as RangeLadderIndexRouteImport } from './routes/range-ladder/index'
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
@@ -69,11 +68,6 @@ const ArenaRouteRoute = ArenaRouteRouteImport.update({
   path: '/arena',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRouteRoute = IndexRouteRouteImport.update({
-  id: '/',
-  path: '',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ShieldIndexRoute = ShieldIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -96,7 +90,6 @@ const MarketsOracleIdRouteRoute = MarketsOracleIdRouteRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRouteRoute
   '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
@@ -112,7 +105,6 @@ export interface FileRoutesByFullPath {
   '/shield/': typeof ShieldIndexRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRouteRoute
   '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
@@ -126,7 +118,6 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRouteRoute
   '/arena': typeof ArenaRouteRoute
   '/earn': typeof EarnRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
@@ -144,7 +135,6 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/arena'
     | '/earn'
     | '/leaderboard'
@@ -160,7 +150,6 @@ export interface FileRouteTypes {
     | '/shield/'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/arena'
     | '/earn'
     | '/leaderboard'
@@ -173,7 +162,6 @@ export interface FileRouteTypes {
     | '/shield'
   id:
     | '__root__'
-    | '/'
     | '/arena'
     | '/earn'
     | '/leaderboard'
@@ -190,7 +178,6 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRouteRoute: typeof IndexRouteRoute
   ArenaRouteRoute: typeof ArenaRouteRoute
   EarnRouteRoute: typeof EarnRouteRoute
   LeaderboardRouteRoute: typeof LeaderboardRouteRoute
@@ -267,13 +254,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArenaRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/shield/': {
       id: '/shield/'
       path: '/'
@@ -343,7 +323,6 @@ const ShieldRouteRouteWithChildren = ShieldRouteRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRouteRoute: IndexRouteRoute,
   ArenaRouteRoute: ArenaRouteRoute,
   EarnRouteRoute: EarnRouteRoute,
   LeaderboardRouteRoute: LeaderboardRouteRoute,
