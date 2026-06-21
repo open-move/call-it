@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react"
 
 import { AllocationBar, type AllocationSegment } from "@/components/primitives/allocation-bar"
-import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { DataRow } from "@/components/primitives/data-row"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { Button } from "@/components/ui/button"
@@ -38,26 +37,15 @@ function allocationSegments(meta: StrategyMeta, state: StrategyState): Allocatio
   }))
 }
 
-function Hero({ meta, state }: { meta: StrategyMeta; state: StrategyState }) {
-  const status = getStrategyStatus(state)
+function Hero({ meta }: { meta: StrategyMeta }) {
   return (
-    <div className="rounded-lg bg-card p-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-base leading-none font-semibold tracking-[-0.01em] text-balance text-foreground">
-              {meta.name}
-            </h1>
-            <Badge tone={BadgeTone.Neutral}>{meta.shareSymbol}</Badge>
-          </div>
-          <p className="max-w-2xl text-xs leading-5 text-pretty text-muted-foreground">
-            {meta.tagline}
-          </p>
-        </div>
-        <StatusIndicator className="shrink-0 text-xs" tone={getStrategyStatusTone(status)}>
-          {status}
-        </StatusIndicator>
-      </div>
+    <div className="mx-auto w-full max-w-5xl px-1 pt-1 pb-2">
+      <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
+        {meta.name}
+      </h1>
+      <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
+        {meta.tagline}
+      </p>
     </div>
   )
 }
@@ -65,7 +53,7 @@ function Hero({ meta, state }: { meta: StrategyMeta; state: StrategyState }) {
 function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyState }) {
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
-      <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">Strategy</h2>
+      <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">Overview</h2>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
         <div className="min-w-0">
@@ -275,7 +263,7 @@ export function StrategyDetail({ meta, state }: { meta: StrategyMeta; state?: St
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        <Hero meta={meta} state={state} />
+        <Hero meta={meta} />
         <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
           <PositionPanel meta={meta} state={state} />
           <OverviewCard meta={meta} state={state} />

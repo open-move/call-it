@@ -2,6 +2,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon } from "lucide-react"
 import { type ReactNode, useEffect, useState } from "react"
 
+import { AssetIcon } from "@/components/shared/market/asset-icon"
 import { TicketMessage } from "@/components/shared/ticket/ticket"
 import {
   Dialog,
@@ -13,6 +14,13 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { parseDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
@@ -63,13 +71,33 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 }
 
 export function LaunchCallDialog() {
+  const [isClient, setIsClient] = useState(false)
+
+  useEffect(() => {
+    setIsClient(true)
+  }, [])
+
+  // useDynamicContext throws "Store not initialized" during SSR, so render a
+  // static trigger until mounted, then the real (wallet-aware) dialog.
+  if (!isClient) {
+    return (
+      <Button disabled size="sm" type="button" variant="outline">
+        <PlusIcon className="size-3.5" />
+        Launch call
+      </Button>
+    )
+  }
+
+  return <LaunchCallDialogClient />
+}
+
+function LaunchCallDialogClient() {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
   const refreshRoute = useAppRouteRefresh()
   const [open, setOpen] = useState(false)
   const [direction, setDirection] = useState<LaunchDirection>("up")
   const [strike, setStrike] = useState("")
   const [bond, setBond] = useState("")
-  const [note, setNote] = useState("")
 
   const [markets, setMarkets] = useState<MarketSnapshot[]>([])
   const [marketsError, setMarketsError] = useState<string>()
@@ -92,6 +120,18 @@ export function LaunchCallDialog() {
   const assets = [
     ...new Set(launchableMarkets.map((market) => market.assetSymbol)),
   ]
+  const assetOptions = assets.map((symbol) => {
+    const sample = launchableMarkets.find(
+      (market) => market.assetSymbol === symbol
+    )
+
+    return {
+      iconUrl: sample?.assetIconUrl,
+      name: sample?.assetName ?? symbol,
+      spotUsd: sample?.currentPriceUsd ?? 0,
+      symbol,
+    }
+  })
   const assetMarkets = selectedAsset
     ? launchableMarkets
         .filter((market) => market.assetSymbol === selectedAsset)
@@ -148,6 +188,14 @@ export function LaunchCallDialog() {
     }
   }, [open, markets.length])
 
+  // Default the strike to the selected market's spot; the user can override.
+  useEffect(() => {
+    if (selectedMarket) {
+      setStrike(String(Math.round(selectedMarket.currentPriceUsd)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMarket?.oracleId])
+
   const isLaunchDisabled =
     isSubmitting ||
     !selectedMarket ||
@@ -171,6 +219,7 @@ export function LaunchCallDialog() {
   function handleSelectAsset(asset: string) {
     setSelectedAsset(asset)
     setSelectedOracleId(undefined)
+    setStrike("")
   }
 
   async function handleSubmit() {
@@ -263,7 +312,10 @@ export function LaunchCallDialog() {
         </DialogHeader>
 
         <div className="space-y-4">
-          <Field label="Asset">
+          <div className="space-y-1.5">
+            <span className="text-xs font-medium text-muted-foreground">
+              Asset
+            </span>
             {isLoadingMarkets ? (
               <div className="rounded-md border border-border/35 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
                 Loading markets…
@@ -275,67 +327,72 @@ export function LaunchCallDialog() {
                 No active markets available.
               </div>
             ) : (
-              <div aria-label="Asset" className="grid grid-cols-3 gap-2">
-                {assets.map((asset) => {
-                  const isSelected = asset === selectedAsset
-
-                  return (
-                    <Button
-                      aria-pressed={isSelected}
-                      className={cn(
-                        "border border-border/35 bg-muted/25 text-muted-foreground shadow-none hover:bg-muted/35 hover:text-foreground",
-                        isSelected &&
-                          "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15"
-                      )}
-                      key={asset}
-                      onClick={() => handleSelectAsset(asset)}
-                      size="sm"
-                      type="button"
-                      variant="ghost"
-                    >
-                      {asset}
-                    </Button>
-                  )
-                })}
-              </div>
+              <Select
+                onValueChange={(value) => handleSelectAsset(value as string)}
+                value={selectedAsset ?? null}
+              >
+                <SelectTrigger className="w-full border-border/35 bg-muted/25 shadow-none">
+                  <SelectValue placeholder="Select asset" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assetOptions.map((option) => (
+                    <SelectItem key={option.symbol} value={option.symbol}>
+                      <AssetIcon
+                        assetIconUrl={option.iconUrl}
+                        assetName={option.name}
+                        assetSymbol={option.symbol}
+                        className="size-5"
+                      />
+                      <span className="font-medium">{option.symbol}</span>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
+                        {usdFormatter.format(option.spotUsd)}
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-          </Field>
+          </div>
 
           {selectedAsset && assetMarkets.length > 0 && (
-            <Field label="Expiry">
-              <div className="grid max-h-44 gap-2 overflow-y-auto">
-                {assetMarkets.map((market) => {
-                  const isSelected = market.oracleId === selectedOracleId
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Expiry
+              </span>
+              <Select
+                onValueChange={(value) => setSelectedOracleId(value as string)}
+                value={selectedOracleId ?? null}
+              >
+                <SelectTrigger className="w-full border-border/35 bg-muted/25 shadow-none">
+                  <SelectValue placeholder="Select expiry">
+                    {(value) => {
+                      const market = assetMarkets.find(
+                        (option) => option.oracleId === value
+                      )
 
-                  return (
-                    <Button
-                      aria-pressed={isSelected}
-                      className={cn(
-                        "h-auto justify-between border border-border/35 bg-muted/25 px-3 py-2 text-left shadow-none hover:bg-muted/35",
-                        isSelected &&
-                          "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15"
-                      )}
-                      key={market.oracleId}
-                      onClick={() => setSelectedOracleId(market.oracleId)}
-                      type="button"
-                      variant="ghost"
-                    >
-                      <span className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-foreground">
-                          {formatExpiry(market.expiryMs)}
-                        </span>
-                        <span className="text-[11px] text-muted-foreground">
-                          {formatExpiryCountdown(market.expiryMs, nowMs)}
-                        </span>
+                      return market
+                        ? formatExpiry(market.expiryMs)
+                        : "Select expiry"
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {assetMarkets.map((market) => (
+                    <SelectItem key={market.oracleId} value={market.oracleId}>
+                      <span className="font-medium">
+                        {formatExpiry(market.expiryMs)}
                       </span>
-                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                      <span className="text-muted-foreground">
+                        {formatExpiryCountdown(market.expiryMs, nowMs)}
+                      </span>
+                      <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
                         {usdFormatter.format(market.currentPriceUsd)}
                       </span>
-                    </Button>
-                  )
-                })}
-              </div>
-            </Field>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           )}
 
           <Field label="Direction">
@@ -407,16 +464,6 @@ export function LaunchCallDialog() {
                 call.
               </p>
             </div>
-          </Field>
-
-          <Field label="Note (optional)">
-            <Input
-              className="border-border/35 bg-muted/25 text-sm shadow-none ring-0 placeholder:text-muted-foreground/65 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-              maxLength={140}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="Why this call?"
-              value={note}
-            />
           </Field>
 
           {(errorMessage || statusMessage) && (

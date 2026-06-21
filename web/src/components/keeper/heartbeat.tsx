@@ -1,4 +1,3 @@
-import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { StatusIndicator, StatusTone } from "@/components/primitives/status-indicator"
 import type { KeeperStatus } from "@/services/keeper-client"
 import { formatCount, formatSui } from "@/lib/keeper/helpers"
@@ -46,24 +45,15 @@ function StatCell({
 export function KeeperHeader({ status }: { status: KeeperStatus }) {
   const live = !status.dryRun
   return (
-    <div className="rounded-md bg-card px-4 py-3 shadow-none ring-0">
+    <div className="px-1 pt-1 pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-base leading-none font-semibold tracking-[-0.01em] text-balance text-foreground">
-              Settled-Redeem Keeper
-            </h1>
-            <Badge tone={live ? BadgeTone.Live : BadgeTone.Simulated}>
-              {live ? "Live" : "Dry run"}
-            </Badge>
-            <Badge tone={status.rewardVaultId ? BadgeTone.Live : BadgeTone.Neutral}>
-              {status.rewardVaultId ? "Tips on" : "Tips off"}
-            </Badge>
-          </div>
-          <p className="max-w-2xl text-xs leading-5 text-muted-foreground text-pretty">
-            Watches settled Predict oracles and redeems winning positions
-            permissionlessly via <span className="font-mono">redeem_permissionless</span>,
-            optionally earning a fixed tip from the reward vault.
+        <div className="min-w-0">
+          <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
+            Settled-Redeem Keeper
+          </h1>
+          <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
+            Anyone can run it. It finds settled markets, redeems the winning
+            positions owners left unclaimed, and earns a tip from the reward vault.
           </p>
         </div>
         <StatusIndicator

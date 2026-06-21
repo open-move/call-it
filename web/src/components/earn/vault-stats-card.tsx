@@ -27,7 +27,7 @@ export function VaultStatsCard({
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-        Strategy
+        Overview
       </h2>
 
       <div className="mt-4 grid grid-cols-2 gap-3">

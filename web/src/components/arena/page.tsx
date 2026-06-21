@@ -1,12 +1,15 @@
 import { Link } from "@tanstack/react-router"
 import { formatDistanceToNowStrict } from "date-fns"
-import { ActivityIcon, TrophyIcon } from "lucide-react"
+import {
+  ActivityIcon,
+  ArrowRightIcon,
+  MegaphoneIcon,
+  TrophyIcon,
+} from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import type {
   ArenaActivity,
   ArenaCall,
-  ArenaCreator,
   ArenaPageModel,
 } from "@/lib/arena/types"
 
@@ -19,12 +22,10 @@ import {
   formatCallTimestamp,
   formatPlp,
   getCallChance,
-  getWinRate,
   percentFormatter,
 } from "./atoms"
 import { CallActionDialog } from "./call-action-dialog"
 import { LaunchCallDialog } from "./launch-call-dialog"
-import { UsernameEditor } from "./username-editor"
 
 export interface ArenaPageProps {
   model: ArenaPageModel
@@ -37,10 +38,7 @@ export function Page({ model }: ArenaPageProps) {
         <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <CallsPanel calls={model.calls} />
 
-          <div className="grid gap-3">
-            <TopCreatorsPanel creators={model.creators} />
-            <ActivityPanel activity={model.activity} />
-          </div>
+          <ActivityPanel activity={model.activity} />
         </div>
       </section>
     </main>
@@ -51,33 +49,53 @@ function CallsPanel({ calls }: { calls: ArenaCall[] }) {
   return (
     <div className="min-w-0">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-            Calls
-          </h2>
-          <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-            {calls.length} calls
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <UsernameEditor />
-          <LaunchCallDialog />
-        </div>
+        <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+          Calls
+        </h2>
+        <LaunchCallDialog />
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {calls.map((call) => (
-          <CallCard call={call} key={call.id} />
-        ))}
+        {calls.length > 0 ? (
+          calls.map((call) => <CallCard call={call} key={call.id} />)
+        ) : (
+          <CallsEmptyState />
+        )}
       </div>
     </div>
   )
 }
 
-function CallCard({ call }: { call: ArenaCall }) {
+function CallsEmptyState() {
   return (
-    <article className="flex flex-col gap-3 rounded-lg bg-card p-4 transition-transform duration-200 ease-out hover:-translate-y-0.5">
+    <div className="col-span-full flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/50 bg-card/40 px-6 py-16 text-center">
+      <div className="flex size-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
+        <MegaphoneIcon className="size-5" />
+      </div>
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-foreground">No active calls</p>
+        <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
+          Launch a call to bond PLP on a market and let the arena back or fade it.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function PanelEmpty({ message }: { message: string }) {
+  return (
+    <div className="px-2 py-10 text-center text-xs text-muted-foreground">
+      {message}
+    </div>
+  )
+}
+
+function CallCard({ call }: { call: ArenaCall }) {
+  const isActive = call.status === "active"
+
+  return (
+    <article className="group flex flex-col gap-3 rounded-xl bg-card p-4 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg">
       <Link
-        className="flex flex-col gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+        className="flex flex-1 flex-col gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         params={{ callId: call.id }}
         to="/arena/$callId"
       >
@@ -100,21 +118,21 @@ function CallCard({ call }: { call: ArenaCall }) {
           <CallStatusBadge status={call.status} winState={call.winState} />
         </div>
 
-        <div>
-          <div className="flex min-w-0 items-start gap-1.5">
+        <div className="flex flex-1 flex-col">
+          <div className="flex min-w-0 items-start gap-2">
             <DirectionArrow direction={call.direction} />
-            <span className="min-w-0 text-sm font-semibold text-foreground">
+            <h3 className="min-w-0 text-sm leading-5 font-semibold text-balance text-foreground">
               {call.market}
-              {call.status === "active" ? (
+              {isActive ? (
                 <span className="font-normal text-muted-foreground">
                   {" "}
-                  in {formatDistanceToNowStrict(call.expiryMs)}
+                  · {formatDistanceToNowStrict(call.expiryMs)} left
                 </span>
               ) : null}
-            </span>
+            </h3>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            {call.status === "active" && call.fairUpProbability > 0 ? (
+            {isActive && call.fairUpProbability > 0 ? (
               <>
                 <span>
                   <span className="font-medium text-foreground tabular-nums">
@@ -139,105 +157,40 @@ function CallCard({ call }: { call: ArenaCall }) {
         <SentimentBar backers={call.backers} faders={call.faders} />
       </Link>
 
-      <div className="grid grid-cols-2 gap-2">
-        {call.status === "active" ? (
-          <>
-            <CallActionDialog call={call} mode="back" />
-            <CallActionDialog call={call} mode="fade" />
-          </>
-        ) : (
-          <>
-            <Button
-              className="bg-primary/10 text-primary shadow-none"
-              disabled
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Back
-            </Button>
-            <Button
-              className="bg-muted/40 text-foreground shadow-none"
-              disabled
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Fade
-            </Button>
-          </>
-        )}
-      </div>
+      {isActive ? (
+        <div className="grid grid-cols-2 gap-2">
+          <CallActionDialog call={call} mode="back" />
+          <CallActionDialog call={call} mode="fade" />
+        </div>
+      ) : (
+        <Link
+          className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-muted/30 text-xs font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+          params={{ callId: call.id }}
+          to="/arena/$callId"
+        >
+          View result
+          <ArrowRightIcon className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
+        </Link>
+      )}
     </article>
-  )
-}
-
-function TopCreatorsPanel({ creators }: { creators: ArenaCreator[] }) {
-  return (
-    <div className="rounded-lg bg-card">
-      <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
-        <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-          Top creators
-        </h2>
-        <TrophyIcon className="size-4 text-primary" />
-      </div>
-      <div className="px-2 py-2">
-        {creators.map((creator, index) => (
-          <CreatorRow creator={creator} key={creator.id} rank={index + 1} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CreatorRow({
-  creator,
-  rank,
-}: {
-  creator: ArenaCreator
-  rank: number
-}) {
-  return (
-    <Link
-      className="flex items-center gap-3 rounded-md px-2 py-2 transition-colors duration-150 outline-none hover:bg-muted/20 focus-visible:ring-2 focus-visible:ring-primary/30"
-      params={{ handle: creator.handle }}
-      to="/arena/creator/$handle"
-    >
-      <span className="w-4 text-center font-mono text-xs text-muted-foreground tabular-nums">
-        {rank}
-      </span>
-      <CreatorAvatar seed={creator.handle} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-foreground">
-          {creator.handle}
-        </div>
-        <div className="mt-0.5 truncate text-xs text-muted-foreground">
-          {creator.settledCount} settled · {formatPlp(creator.bondPlp)} bonded
-        </div>
-      </div>
-      <div className="text-right">
-        <div className="font-mono text-sm font-medium text-foreground tabular-nums">
-          {percentFormatter.format(getWinRate(creator))}
-        </div>
-        <div className="text-[10px] text-muted-foreground">win rate</div>
-      </div>
-    </Link>
   )
 }
 
 function ActivityPanel({ activity }: { activity: ArenaActivity[] }) {
   return (
-    <div className="rounded-lg bg-card">
-      <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+    <div className="flex h-[32rem] flex-col rounded-lg bg-card xl:sticky xl:top-[4.25rem]">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
         <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Recent activity
         </h2>
         <ActivityIcon className="size-4 text-muted-foreground" />
       </div>
-      <div className="px-2 py-2">
-        {activity.map((item) => (
-          <ActivityRow item={item} key={item.id} />
-        ))}
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+        {activity.length > 0 ? (
+          activity.map((item) => <ActivityRow item={item} key={item.id} />)
+        ) : (
+          <PanelEmpty message="No recent activity." />
+        )}
       </div>
     </div>
   )

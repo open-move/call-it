@@ -9,6 +9,7 @@ import type {
   ArenaCreator,
   ArenaDirection,
 } from "@/lib/arena/types"
+import { SUI_NETWORK } from "@/lib/config"
 import { cn } from "@/lib/utils"
 
 const compactNumberFormatter = new Intl.NumberFormat("en-US", {
@@ -92,23 +93,6 @@ function getStatusLabel(status: ArenaCallStatus) {
   }
 }
 
-const avatarGradients = [
-  "from-sky-500 to-primary",
-  "from-violet-500 to-fuchsia-400",
-  "from-emerald-500 to-teal-300",
-  "from-amber-500 to-orange-400",
-  "from-rose-500 to-pink-400",
-  "from-indigo-500 to-blue-400",
-]
-
-function getAvatarGradient(seed: string) {
-  const score = seed
-    .split("")
-    .reduce((total, char) => total + char.charCodeAt(0), 0)
-
-  return avatarGradients[score % avatarGradients.length]
-}
-
 export function CreatorAvatar({
   className,
   seed,
@@ -119,8 +103,7 @@ export function CreatorAvatar({
   return (
     <div
       className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-[10px] font-semibold text-white",
-        getAvatarGradient(seed),
+        "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-1 ring-inset ring-border/60",
         className
       )}
     >
@@ -210,7 +193,7 @@ export function CallStatusBadge({
 
 const activityDotClassName: Record<ArenaActivity["kind"], string> = {
   backed: "bg-primary",
-  claimed: "bg-amber-500",
+  claimed: "bg-warning",
   faded: "bg-outcome-down",
   launched: "bg-outcome-up",
   reclaimed: "bg-muted-foreground",
@@ -233,24 +216,87 @@ export function DetailStat({
   )
 }
 
+// Backend actors/labels are usually resolved usernames + market titles, but
+// unresolved ones arrive as raw addresses / object ids. Middle-truncate the
+// machine-looking values (long, no whitespace) and pass human labels through.
+function shortenHandle(value: string): string {
+  const trimmed = value.trim()
+
+  if (/\s/.test(trimmed) || trimmed.length <= 14) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, 6)}…${trimmed.slice(-4)}`
+}
+
+function isOnchainId(value: string): boolean {
+  return /^0x[0-9a-fA-F]{6,}$/.test(value.trim())
+}
+
+function explorerUrl(kind: "account" | "object", value: string): string {
+  return `https://suiscan.xyz/${SUI_NETWORK}/${kind}/${value.trim()}`
+}
+
+function ActivityActor({ value }: { value: string }) {
+  if (isOnchainId(value)) {
+    return (
+      <a
+        className="font-medium text-foreground transition-colors hover:text-primary hover:underline"
+        href={explorerUrl("account", value)}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {shortenHandle(value)}
+      </a>
+    )
+  }
+
+  return <span className="font-medium text-foreground">{shortenHandle(value)}</span>
+}
+
+function ActivityLabel({ value }: { value: string }) {
+  if (isOnchainId(value)) {
+    return (
+      <a
+        className="block truncate text-[11px] text-muted-foreground transition-colors hover:text-foreground hover:underline"
+        href={explorerUrl("object", value)}
+        rel="noreferrer"
+        target="_blank"
+      >
+        {shortenHandle(value)}
+      </a>
+    )
+  }
+
+  return (
+    <div className="truncate text-[11px] text-muted-foreground">
+      {shortenHandle(value)}
+    </div>
+  )
+}
+
 export function ActivityRow({ item }: { item: ArenaActivity }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-md px-2 py-2">
+    <div className="flex items-start gap-2.5 rounded-md px-2 py-1.5">
       <span
         aria-hidden="true"
         className={cn(
-          "size-1.5 shrink-0 rounded-full",
+          "mt-1.5 size-1.5 shrink-0 rounded-full",
           activityDotClassName[item.kind]
         )}
       />
-      <div className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">{item.actor}</span>{" "}
-        {item.kind}{" "}
-        <span className="text-foreground">{item.callLabel}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0 truncate text-xs">
+            <ActivityActor value={item.actor} />{" "}
+            <span className="text-muted-foreground">{item.kind}</span>
+          </div>
+          <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+            {formatCallTimestamp(item.timestamp)}
+          </span>
+        </div>
+        <ActivityLabel value={item.callLabel} />
       </div>
-      <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-        {formatCallTimestamp(item.timestamp)}
-      </span>
     </div>
   )
 }

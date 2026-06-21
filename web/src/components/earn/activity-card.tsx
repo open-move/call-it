@@ -23,7 +23,7 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
     <div className="rounded-lg bg-card">
       <div className="px-3 py-2.5">
         <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-          Strategy activity
+          Liquidity activity
         </h2>
       </div>
       <div>

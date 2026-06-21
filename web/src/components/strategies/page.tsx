@@ -166,13 +166,13 @@ export function Page() {
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="mx-auto max-w-5xl space-y-3">
         <div className="px-1 pt-1 pb-2">
-          <h1 className="font-mono text-[10px] tracking-[0.18em] text-primary uppercase">
+          <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
             Strategies
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
-            Choose direct PLP liquidity or a structured strategy vault — hedged
-            PLP, collars, strangles, and range ladders. Values are accounted in
-            DUSDC where applicable.
+          <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
+            Automated vaults that trade the book for you and settle each round
+            on-chain (hedged PLP, collars, strangles, ladders), or provide PLP
+            liquidity directly.
           </p>
         </div>
 
