@@ -361,14 +361,17 @@ function Hero() {
             : { filter: heroBlur, opacity: heroOpacity, scale: heroScale }
         }
       >
-        <h1 className="text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
+        <Eyebrow>The hub for prediction on Sui</Eyebrow>
+        <h1 className="mt-5 text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
           Make your call.
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground md:text-xl">
-          Predict where{" "}
-          <span className="font-mono font-medium text-primary">BTC</span> heads by
-          the close, back the sharpest callers in the Arena, or let a strategy
-          vault trade it for you — all on-chain and oracle-settled.
+          Call where the market heads, back the sharpest callers, or put your
+          capital to work — every side of{" "}
+          <span className="font-mono font-medium text-primary">
+            DeepBook Predict
+          </span>
+          , in one place. On-chain, oracle-settled, non-custodial.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta>Open app</PrimaryCta>
@@ -604,8 +607,9 @@ function Protocol() {
             Settled on DeepBook Predict.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
-            CallIt is a consumer front-end for DeepBook Predict on Sui. Markets,
-            premiums and settlement all live on-chain — so every outcome is
+            CallIt is the consumer hub for DeepBook Predict on Sui — one place to
+            trade, follow, provide liquidity, or keep the market running. Markets,
+            premiums and settlement all live on-chain, so every outcome is
             transparent and can't be quietly changed.
           </p>
         </Reveal>
