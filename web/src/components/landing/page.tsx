@@ -5,6 +5,7 @@ import {
   ArrowUpIcon,
   RadioTowerIcon,
   ShieldCheckIcon,
+  TrophyIcon,
   WalletIcon,
 } from "lucide-react"
 import { motion, useReducedMotion, useScroll, useTransform } from "motion/react"
@@ -24,10 +25,12 @@ import type { LandingStats } from "@/lib/landing/use-landing-stats"
 import { cn } from "@/lib/utils"
 
 const tickerItems = [
-  "Max loss = your premium",
   "Settled by on-chain oracle",
+  "Non-custodial",
   "No borrowing",
   "No liquidation",
+  "Back the sharpest callers",
+  "Automated strategy vaults",
   "BTC close markets",
 ]
 
@@ -39,13 +42,13 @@ const steps = [
   },
   {
     n: "02",
-    title: "Risk a fixed premium",
-    copy: "Choose your amount. That premium is the most you can lose.",
+    title: "Set your premium",
+    copy: "Choose your amount — your cost and payout are fixed upfront.",
   },
   {
     n: "03",
     title: "Settle and claim",
-    copy: "The oracle settles at expiry. Winners claim their payout.",
+    copy: "The oracle settles at expiry, and you claim on-chain.",
   },
 ]
 
@@ -138,8 +141,7 @@ function TradeTicketMock() {
         <TicketSection>
           <TicketRow label="Price" value="0.62 DUSDC" />
           <TicketRow label="Premium" value="50.00 DUSDC" />
-          <TicketRow label="Max loss" value="50.00 DUSDC" />
-          <TicketRow label="Potential profit" value="31.00 DUSDC" />
+          <TicketRow label="Potential payout" value="81.00 DUSDC" />
         </TicketSection>
       </div>
 
@@ -194,57 +196,63 @@ function StrategyOverviewMock() {
   )
 }
 
-function MockStat({ label, value }: { label: string; value: string }) {
+function ArenaCallMock() {
   return (
-    <div className="min-w-0">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 truncate font-mono text-sm font-medium text-foreground tabular-nums">
-        {value}
-      </div>
-    </div>
-  )
-}
-
-function RiskStressMock() {
-  return (
-    <div className={cn(mockFrameClassName, "sm:p-5")}>
-      <div className="text-xs text-muted-foreground">
-        Stress test · BTC −20% gap
-      </div>
-      <p className="mt-1 text-xs leading-5 text-pretty text-muted-foreground">
-        Worst modeled outcome for open positions before settlement.
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <span className="font-mono text-4xl leading-none font-semibold tracking-tight text-outcome-down tabular-nums">
-          −14.2%
-        </span>
-        <span className="text-sm text-muted-foreground">
-          modeled drawdown →{" "}
-          <span className="font-mono font-medium text-foreground tabular-nums">
-            892 DUSDC
-          </span>{" "}
-          liability
-        </span>
-      </div>
-
-      <div className="mt-4 max-w-md">
-        <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-          <span>Calm</span>
-          <span>Severe</span>
+    <div className={mockFrameClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-400 text-[10px] font-semibold text-white">
+            GL
+          </span>
+          <span className="truncate text-sm font-medium text-foreground">
+            glyphdesk
+          </span>
+          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
+            <TrophyIcon className="size-3 text-primary/70" />
+            <span className="font-medium text-foreground tabular-nums">68%</span>
+          </span>
         </div>
-        <div className="relative mt-1.5 h-1.5 rounded-full bg-gradient-to-r from-outcome-up/40 via-chart-4/55 to-outcome-down/70">
-          <span
-            className="absolute top-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground ring-2 ring-card"
-            style={{ left: "72%" }}
+        <Badge tone={BadgeTone.Live}>Live</Badge>
+      </div>
+
+      <div className="mt-4 flex items-start gap-2">
+        <ArrowUpIcon className="mt-0.5 size-4 shrink-0 text-outcome-up" />
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-foreground">
+            BTC above $105,000
+          </div>
+          <div className="font-mono text-xs text-muted-foreground">
+            Closes in 3h 42m
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2.5">
+        <span className="text-[11px] font-medium text-foreground tabular-nums">
+          24
+        </span>
+        <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted/40">
+          <div className="h-full bg-primary" style={{ width: "73%" }} />
+          <div
+            className="h-full bg-muted-foreground/35"
+            style={{ width: "27%" }}
           />
         </div>
+        <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
+          9
+        </span>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-3 border-t border-border/40 pt-4">
-        <MockStat label="Strategy NAV" value="6.29" />
-        <MockStat label="Withdrawable" value="1.40" />
-        <MockStat label="Max payout" value="12.8K" />
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div aria-hidden="true" className={buttonVariants({ className: "w-full" })}>
+          Back
+        </div>
+        <div
+          aria-hidden="true"
+          className={buttonVariants({ className: "w-full", variant: "outline" })}
+        >
+          Fade
+        </div>
       </div>
     </div>
   )
@@ -354,12 +362,13 @@ function Hero() {
         }
       >
         <h1 className="text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
-          Take a side on the close.
+          Make your call.
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground md:text-xl">
-          Call the next{" "}
-          <span className="font-mono font-medium text-primary">BTC</span> close.
-          Risk only the premium — no borrowing, no liquidation.
+          Predict where{" "}
+          <span className="font-mono font-medium text-primary">BTC</span> heads by
+          the close, back the sharpest callers in the Arena, or let a strategy
+          vault trade it for you — all on-chain and oracle-settled.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta>Open app</PrimaryCta>
@@ -492,7 +501,7 @@ function FeatureBlock({
   linkLabel: string
   reverse?: boolean
   title: string
-  to: "/markets" | "/strategies" | "/risk"
+  to: "/markets" | "/strategies" | "/arena"
 }) {
   return (
     <section>
@@ -531,7 +540,7 @@ function HowItWorks() {
         <Reveal className="max-w-xl">
           <Eyebrow>How it works</Eyebrow>
           <h2 className="mt-4 text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
-            Three steps, no leverage.
+            Three steps, fully on-chain.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground md:text-lg">
             From your first call to final settlement, the whole flow runs
@@ -580,9 +589,9 @@ function Protocol() {
       title: "Non-custodial",
     },
     {
-      copy: "Your loss is the premium you pay. No borrowing, no liquidation.",
+      copy: "Your premium and payout are fixed before you trade. No borrowing, no liquidation.",
       icon: ShieldCheckIcon,
-      title: "Capped downside",
+      title: "Fixed terms",
     },
   ]
 
@@ -628,7 +637,7 @@ function CtaBand() {
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-[32rem] w-[44rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.05] blur-[140px]" />
       <Reveal className="relative mx-auto max-w-2xl">
         <h2 className="text-3xl leading-[1.02] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
-          Take a side. Cap the downside.
+          Make your first call.
         </h2>
         <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
           Open the app and call your first market on testnet.
@@ -650,7 +659,7 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Live BTC markets — pick a side on the next close and risk a fixed premium. That premium is the most you can lose."
+        copy="Live BTC markets — call the next close as a simple Yes/No, or in Pro with Up/Down, strikes and expiries. Your premium and payout are set before you confirm."
         eyebrow="Trade"
         linkLabel="Open the markets"
         title="Pick a market. Take a side."
@@ -673,13 +682,13 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Model every open position against market shocks and see the worst-case drawdown before you're exposed. Per-trade loss is always capped at the premium you paid — no borrowing, no liquidation."
-        eyebrow="Risk console"
-        linkLabel="Open the risk console"
-        title="Stress-test before you're exposed."
-        to="/risk"
+        copy="In the Arena, creators bond capital and call the market in the open. Follow their track record, then back the calls you believe in — or fade the ones you don't."
+        eyebrow="Arena"
+        linkLabel="Enter the Arena"
+        title="Back the sharpest callers."
+        to="/arena"
       >
-        <RiskStressMock />
+        <ArenaCallMock />
       </FeatureBlock>
       <SectionDivider />
 
