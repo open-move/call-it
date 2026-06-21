@@ -1,0 +1,11 @@
+services:
+  keeper:
+    build: .
+    command: ["watch"]
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - keeper-data:/app/data
+
+volumes:
+  keeper-data:

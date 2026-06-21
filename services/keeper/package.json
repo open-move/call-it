@@ -1,0 +1,30 @@
+{
+  "name": "@callit/keeper",
+  "packageManager": "bun@1.2.10",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "start": "tsx src/index.ts watch",
+    "scan": "tsx src/index.ts scan",
+    "once": "tsx src/index.ts once",
+    "status": "tsx src/index.ts status",
+    "reconcile": "tsx src/index.ts reconcile",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@mysten/sui": "^2.19.0",
+    "better-sqlite3": "^12.5.0",
+    "drizzle-orm": "^0.45.1",
+    "pino": "^10.1.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.0.0",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^6.0.0"
+  }
+}
