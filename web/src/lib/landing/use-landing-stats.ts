@@ -1,5 +1,3 @@
-import { useEffect, useState } from "react"
-
 import { QUOTE_SCALE } from "@/lib/config"
 import { getPredictOracles, getPredictVaultSummary } from "@/services/predict-client"
 
@@ -14,8 +12,7 @@ export interface LandingStats {
   activeMarkets: number
 }
 
-export type LandingStatsState =
-  | { status: "loading" }
+export type LandingStatsResult =
   | { status: "ready"; stats: LandingStats }
   | { status: "error" }
 
@@ -29,56 +26,34 @@ export function formatCompactDusdc(value: number) {
 }
 
 /**
- * Fetches the public, wallet-free Predict reads that back the landing stats
- * band. Runs client-side so the landing paints instantly and never blocks on a
- * slow testnet RPC; on failure the band falls back to an em dash rather than
- * fabricated numbers.
+ * Loads the public, wallet-free Predict reads behind the landing stats band.
+ * Called from the route loader so the numbers are in the server-rendered HTML
+ * (no client-side fetch/skeleton). Returns "error" instead of throwing, so a
+ * slow/unavailable testnet RPC degrades to an em dash rather than breaking SSR.
  */
-export function useLandingStats(): LandingStatsState {
-  const [state, setState] = useState<LandingStatsState>({ status: "loading" })
+export async function loadLandingStats(): Promise<LandingStatsResult> {
+  const [summaryResult, oraclesResult] = await Promise.allSettled([
+    getPredictVaultSummary(),
+    getPredictOracles(),
+  ])
 
-  useEffect(() => {
-    let cancelled = false
+  if (summaryResult.status !== "fulfilled") {
+    return { status: "error" }
+  }
 
-    async function load() {
-      const [summaryResult, oraclesResult] = await Promise.allSettled([
-        getPredictVaultSummary(),
-        getPredictOracles(),
-      ])
+  const summary = summaryResult.value
+  const activeMarkets =
+    oraclesResult.status === "fulfilled"
+      ? oraclesResult.value.filter((oracle) => oracle.status === "active").length
+      : 0
 
-      if (cancelled) {
-        return
-      }
-
-      if (summaryResult.status !== "fulfilled") {
-        setState({ status: "error" })
-        return
-      }
-
-      const summary = summaryResult.value
-      const activeMarkets =
-        oraclesResult.status === "fulfilled"
-          ? oraclesResult.value.filter((oracle) => oracle.status === "active")
-              .length
-          : 0
-
-      setState({
-        status: "ready",
-        stats: {
-          activeMarkets,
-          maxPayout: summary.total_max_payout / QUOTE_SCALE,
-          vaultValue: summary.vault_value / QUOTE_SCALE,
-          withdrawable: summary.available_withdrawal / QUOTE_SCALE,
-        },
-      })
-    }
-
-    void load()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  return state
+  return {
+    status: "ready",
+    stats: {
+      activeMarkets,
+      maxPayout: summary.total_max_payout / QUOTE_SCALE,
+      vaultValue: summary.vault_value / QUOTE_SCALE,
+      withdrawable: summary.available_withdrawal / QUOTE_SCALE,
+    },
+  }
 }

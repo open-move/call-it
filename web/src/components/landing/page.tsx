@@ -17,11 +17,11 @@ import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { DataRow } from "@/components/primitives/data-row"
 import { TicketRow, TicketSection } from "@/components/shared/ticket/ticket"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  formatCompactDusdc,
-  useLandingStats,
+import { formatCompactDusdc } from "@/lib/landing/use-landing-stats"
+import type {
+  LandingStats,
+  LandingStatsResult,
 } from "@/lib/landing/use-landing-stats"
-import type { LandingStats } from "@/lib/landing/use-landing-stats"
 import { cn } from "@/lib/utils"
 
 const tickerItems = [
@@ -43,7 +43,7 @@ const steps = [
   {
     n: "02",
     title: "Set your premium",
-    copy: "Choose your amount — your cost and payout are fixed upfront.",
+    copy: "Choose your amount. Your cost and payout are fixed upfront.",
   },
   {
     n: "03",
@@ -113,7 +113,7 @@ function TradeTicketMock() {
             </div>
           </div>
         </div>
-        <Badge tone={BadgeTone.Live}>Live</Badge>
+        <Badge tone={BadgeTone.Neutral}>Preview</Badge>
       </div>
 
       <div aria-label="Direction" className="mt-4 grid grid-cols-2 gap-2">
@@ -159,7 +159,7 @@ function EarnPoolMock() {
         <h3 className="text-sm font-medium tracking-[-0.01em] text-foreground">
           DeepBook Predict · PLP
         </h3>
-        <Badge tone={BadgeTone.Live}>Live</Badge>
+        <Badge tone={BadgeTone.Neutral}>Preview</Badge>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -199,7 +199,7 @@ function KeeperStatusMock() {
             Keeper network
           </h3>
         </div>
-        <Badge tone={BadgeTone.Live}>Online</Badge>
+        <Badge tone={BadgeTone.Neutral}>Preview</Badge>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -239,7 +239,7 @@ function StrategyOverviewMock() {
         <h3 className="text-sm font-medium tracking-[-0.01em] text-foreground">
           Tail Hedge PLP
         </h3>
-        <Badge tone={BadgeTone.Live}>Live</Badge>
+        <Badge tone={BadgeTone.Neutral}>Preview</Badge>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
@@ -286,7 +286,7 @@ function ArenaCallMock() {
             <span className="font-medium text-foreground tabular-nums">68%</span>
           </span>
         </div>
-        <Badge tone={BadgeTone.Live}>Live</Badge>
+        <Badge tone={BadgeTone.Neutral}>Preview</Badge>
       </div>
 
       <div className="mt-4 flex items-start gap-2">
@@ -355,17 +355,26 @@ function HeroMarquee() {
 }
 
 function ScrollCue() {
+  // Only a hero affordance: fade out (and stop capturing clicks) once the user
+  // has scrolled past the first viewport, instead of floating over every section.
+  const { scrollY } = useScroll()
+  const opacity = useTransform(scrollY, [0, 280], [1, 0])
+  const pointerEvents = useTransform(opacity, (value) =>
+    value < 0.1 ? "none" : "auto"
+  )
+
   return (
-    <button
+    <motion.button
       className="group fixed right-4 bottom-28 z-30 inline-flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground transition-colors duration-150 hover:text-foreground sm:right-8 sm:bottom-16"
       onClick={() =>
         window.scrollBy({ behavior: "smooth", top: window.innerHeight })
       }
+      style={{ opacity, pointerEvents }}
       type="button"
     >
       Scroll down
       <ArrowDownIcon className="size-4 animate-bounce motion-reduce:animate-none" />
-    </button>
+    </motion.button>
   )
 }
 
@@ -377,7 +386,7 @@ function Hero() {
   const heroBlur = useTransform(scrollY, [0, 520], ["blur(0px)", "blur(3px)"])
 
   return (
-    <section className="relative flex min-h-[92vh] items-center justify-center overflow-hidden bg-background">
+    <section className="relative flex min-h-[92dvh] items-center justify-center overflow-hidden bg-background">
       <div aria-hidden="true" className="landing-grid" />
       <div aria-hidden="true" className="landing-stars" />
       <div aria-hidden="true" className="landing-stars landing-stars-b" />
@@ -441,11 +450,11 @@ function Hero() {
         </h1>
         <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground md:text-xl">
           Call where the market heads, back the sharpest callers, or put your
-          capital to work — every side of{" "}
+          capital to work. Every side of{" "}
           <span className="font-mono font-medium text-primary">
             DeepBook Predict
           </span>
-          , in one place. On-chain, oracle-settled, non-custodial.
+          , in one place.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta>Open app</PrimaryCta>
@@ -504,19 +513,16 @@ const statDefs: StatDef[] = [
   },
 ]
 
-function StatsBand() {
-  const state = useLandingStats()
-
+function StatsBand({ stats }: { stats: LandingStatsResult }) {
   return (
     <section>
       <div className="mx-auto max-w-[80rem] px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
         <Reveal className="max-w-xl">
-          <Eyebrow>Live on testnet</Eyebrow>
-          <h2 className="mt-4 text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
+          <h2 className="text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
             Backed by real liquidity.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground md:text-lg">
-            Vault value, open exposure and active markets — read live from
+            Vault value, open exposure and active markets, read live from
             DeepBook Predict on Sui testnet.
           </p>
         </Reveal>
@@ -536,22 +542,17 @@ function StatsBand() {
                 {def.label}
               </dt>
               <dd className="mt-3 font-mono text-3xl leading-none font-semibold tracking-tight text-foreground tabular-nums md:text-4xl">
-                {state.status === "ready" ? (
+                {stats.status === "ready" ? (
                   <>
-                    {def.render(state.stats)}
+                    {def.render(stats.stats)}
                     {def.unit ? (
                       <span className="ml-1.5 text-base font-medium text-muted-foreground">
                         {def.unit}
                       </span>
                     ) : null}
                   </>
-                ) : state.status === "error" ? (
-                  <span className="text-muted-foreground">—</span>
                 ) : (
-                  <span
-                    aria-hidden="true"
-                    className="inline-block h-8 w-24 animate-pulse rounded bg-muted/60 align-middle"
-                  />
+                  <span className="text-muted-foreground">—</span>
                 )}
               </dd>
             </div>
@@ -615,8 +616,7 @@ function HowItWorks() {
     <section>
       <div className="mx-auto max-w-[80rem] px-4 py-24 sm:px-6 lg:px-8 lg:py-32">
         <Reveal className="max-w-xl">
-          <Eyebrow>How it works</Eyebrow>
-          <h2 className="mt-4 text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
+          <h2 className="text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
             Three steps, fully on-chain.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground md:text-lg">
@@ -656,7 +656,7 @@ function HowItWorks() {
 function Protocol() {
   const points = [
     {
-      copy: "Outcomes resolve automatically against a public price oracle — no desk, no discretion.",
+      copy: "Outcomes resolve automatically against a public price oracle. No desk, no discretion.",
       icon: RadioTowerIcon,
       title: "Oracle-settled",
     },
@@ -676,12 +676,11 @@ function Protocol() {
     <section>
       <div className="mx-auto grid max-w-[80rem] gap-10 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-32">
         <Reveal>
-          <Eyebrow>Backed by the protocol</Eyebrow>
-          <h2 className="mt-4 text-2xl leading-[1.1] font-semibold tracking-tight text-balance text-foreground md:text-4xl">
+          <h2 className="text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
             Settled on DeepBook Predict.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
-            CallIt is the consumer hub for DeepBook Predict on Sui — one place to
+            CallIt is the consumer hub for DeepBook Predict on Sui. One place to
             trade, follow, provide liquidity, or keep the market running. Markets,
             premiums and settlement all live on-chain, so every outcome is
             transparent and can't be quietly changed.
@@ -728,16 +727,16 @@ function CtaBand() {
   )
 }
 
-export function Page() {
+export function Page({ stats }: { stats: LandingStatsResult }) {
   return (
     <main className="min-w-0">
       <Hero />
       <SectionDivider />
-      <StatsBand />
+      <StatsBand stats={stats} />
       <SectionDivider />
 
       <FeatureBlock
-        copy="Live BTC markets — call the next close as a simple Yes/No, or in Pro with Up/Down, strikes and expiries. Your premium and payout are set before you confirm."
+        copy="Live BTC markets. Call the next close as a simple Yes/No, or in Pro with Up/Down, strikes and expiries. Your premium and payout are set before you confirm."
         eyebrow="Trade"
         linkLabel="Open the markets"
         title="Pick a market. Take a side."
@@ -748,7 +747,7 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="In the Arena, creators bond capital and call the market in the open. Follow their track record, then back the calls you believe in — or fade the ones you don't."
+        copy="In the Arena, creators bond capital and call the market in the open. Follow their track record, then back the calls you believe in, or fade the ones you don't."
         eyebrow="Arena"
         linkLabel="Enter the Arena"
         reverse
@@ -763,7 +762,7 @@ export function Page() {
         copy="Supply DUSDC to the DeepBook Predict pool and earn from every trade that crosses the book. It's the liquidity every call settles against."
         eyebrow="Earn"
         linkLabel="Open Earn"
-        title="Or provide the liquidity."
+        title="Provide the liquidity."
         to="/earn"
       >
         <EarnPoolMock />
@@ -771,11 +770,11 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Don't want to manage positions yourself? Deposit into automated strategy vaults — covered PLP, ladders, collars — that trade the book for you and settle each round on-chain."
+        copy="Don't want to manage positions yourself? Deposit into automated strategy vaults (covered PLP, ladders, collars) that trade the book for you and settle each round on-chain."
         eyebrow="Strategies"
         linkLabel="Explore strategies"
         reverse
-        title="Or let a vault run it."
+        title="Let a vault run it."
         to="/strategies"
       >
         <StrategyOverviewMock />
@@ -786,7 +785,7 @@ export function Page() {
         copy="Run a keeper: settle resolved positions permissionlessly and earn rewards from the keeper vault. The infrastructure layer, open to anyone."
         eyebrow="Keeper"
         linkLabel="Open the Keeper"
-        title="Or keep the market running."
+        title="Keep the market running."
         to="/keeper"
       >
         <KeeperStatusMock />
