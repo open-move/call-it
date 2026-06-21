@@ -8,24 +8,26 @@
 #
 # Bring up from the repo root:  docker-compose up -d --build
 #
-# Per-service env comes from each service's .env (gitignored). backend/.env is
-# written by `cd services/operator && bun run sync-config`; operator/.env by
-# `bun run deploy`. keeper/.env is optional here (copy services/keeper/.env.example
-# and set SUI_KEEPER_REDEEM_KEY + KEEPER_REWARD_* to run it for real).
+# DB credentials come from POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB (with
+# local defaults) so they can be overridden via the deploy platform's env. Other
+# per-service env comes from each service's .env (gitignored, optional) or the
+# platform's injected env. The operator's deployment manifest is baked into its
+# image (no bind-mount), so a contract redeploy needs an image rebuild.
 services:
   postgres:
     image: postgres:18
     environment:
-      POSTGRES_DB: callit_backend
-      POSTGRES_PASSWORD: callit
-      POSTGRES_USER: callit
+      POSTGRES_DB: ${POSTGRES_DB:-callit_backend}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-callit}
+      POSTGRES_USER: ${POSTGRES_USER:-callit}
     healthcheck:
       interval: 5s
       retries: 10
-      test: ["CMD-SHELL", "pg_isready -U callit -d callit_backend"]
+      test:
+        ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-callit} -d ${POSTGRES_DB:-callit_backend}"]
       timeout: 5s
     ports:
-      - "5439:5432"
+      - "${POSTGRES_PORT:-5439}:5432"
     volumes:
       # postgres:18 stores data under a versioned subdir; mount the parent.
       - callit-postgres:/var/lib/postgresql
@@ -36,10 +38,13 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    env_file: ./services/backend/.env
-    # Override DATABASE_URL to reach postgres over the compose network.
+    env_file:
+      - path: ./services/backend/.env
+        required: false
+    # Reach postgres over the compose network; credentials come from the same
+    # POSTGRES_* env so the two stay in sync (set them in your deploy platform).
     environment:
-      DATABASE_URL: postgres://callit:callit@postgres:5432/callit_backend
+      DATABASE_URL: postgres://${POSTGRES_USER:-callit}:${POSTGRES_PASSWORD:-callit}@postgres:5432/${POSTGRES_DB:-callit_backend}
     ports:
       - "8799:8080"
     restart: unless-stopped
@@ -50,10 +55,6 @@ services:
     env_file:
       - path: ./services/operator/.env
         required: false
-    # Mount the live deployment manifest so a redeploy is picked up without a
-    # rebuild (the runner reads /app/deployment.<network>.json).
-    volumes:
-      - ./services/operator/deployment.testnet.json:/app/deployment.testnet.json:ro
     restart: unless-stopped
 
   keeper:
