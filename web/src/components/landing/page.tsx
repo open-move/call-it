@@ -272,6 +272,21 @@ function HeroMarquee() {
   )
 }
 
+function ScrollCue() {
+  return (
+    <button
+      className="group fixed right-4 bottom-28 z-30 inline-flex items-center gap-2 text-xs font-medium tracking-wide text-muted-foreground transition-colors duration-150 hover:text-foreground sm:right-8 sm:bottom-16"
+      onClick={() =>
+        window.scrollBy({ behavior: "smooth", top: window.innerHeight })
+      }
+      type="button"
+    >
+      Scroll down
+      <ArrowDownIcon className="size-4 animate-bounce motion-reduce:animate-none" />
+    </button>
+  )
+}
+
 function Hero() {
   const reduce = useReducedMotion()
   const { scrollY } = useScroll()
@@ -673,6 +688,7 @@ export function Page() {
       <Protocol />
       <SectionDivider />
       <CtaBand />
+      <ScrollCue />
     </main>
   )
 }
