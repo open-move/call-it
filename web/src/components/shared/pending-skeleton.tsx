@@ -226,19 +226,19 @@ export function MarketDetailSkeleton() {
               <div className="border-b border-border/40">
                 <div className="flex min-w-0 flex-col gap-3 px-3 py-2.5">
                   <div className="flex min-w-0 items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <PulsingBlock className="size-5 rounded-full" />
-                      <PulsingBlock className="h-4 w-36 rounded" />
-                      <PulsingBlock className="size-3 rounded" />
+                    <div className="flex items-center gap-2.5">
+                      <Skeleton className="size-5 rounded-full" />
+                      <Skeleton className="h-3.5 w-40" />
+                      <Skeleton className="size-3.5" />
                     </div>
-                    <PulsingBlock className="h-4 w-16 rounded" />
+                    <Skeleton className="h-4 w-14" />
                   </div>
                   <div className="overflow-x-auto pb-1">
-                    <div className="flex min-w-150 items-end gap-6">
-                      {Array.from({ length: 6 }).map((_, i) => (
+                    <div className="flex min-w-128 items-end gap-6">
+                      {Array.from({ length: 4 }).map((_, i) => (
                         <div key={i} className="min-w-0 space-y-1">
-                          <PulsingBlock className="h-2.5 w-10 rounded" />
-                          <PulsingBlock className="h-3.5 w-14 rounded" />
+                          <Skeleton className="h-2.5 w-10" />
+                          <Skeleton className="h-3 w-14" />
                         </div>
                       ))}
                     </div>
@@ -248,13 +248,13 @@ export function MarketDetailSkeleton() {
 
               <div className="border-b border-border/30 bg-background/25 px-3 py-2">
                 <div className="flex min-w-0 gap-1.5 overflow-x-auto">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: 5 }).map((_, i) => (
                     <div
                       key={i}
                       className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-border/45 bg-muted/30 px-2.5"
                     >
-                      <PulsingBlock className="size-1.5 rounded-full" />
-                      <PulsingBlock className="h-2.5 w-12 rounded" />
+                      <Skeleton className="size-1.5 rounded-full" />
+                      <Skeleton className="h-2.5 w-24" />
                     </div>
                   ))}
                 </div>
@@ -263,8 +263,8 @@ export function MarketDetailSkeleton() {
               <div className="relative min-h-0 w-full flex-1">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="flex flex-col items-center gap-3">
-                    <PulsingBlock className="h-32 w-72 rounded-md" />
-                    <PulsingBlock className="h-3 w-48 rounded" />
+                    <Skeleton className="h-32 w-72" />
+                    <Skeleton className="h-3 w-48" />
                   </div>
                 </div>
               </div>
@@ -273,28 +273,28 @@ export function MarketDetailSkeleton() {
 
           <div className="h-[22rem] min-w-0 xl:h-[min(34rem,calc(100vh-9rem))]">
             <div className="flex h-full w-full flex-col gap-4 rounded-lg border-0 bg-card py-0 shadow-none ring-0">
-              <div className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-2.5">
-                <PulsingBlock className="h-3.5 w-12 rounded" />
+              <div className="px-3 py-2.5 pb-0">
+                <Skeleton className="h-3.5 w-12" />
               </div>
-              <div className="min-h-0 flex-1 overflow-auto">
-                <div className="min-w-[24rem]">
-                  <div className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem] gap-2 px-2 pb-1">
-                    {Array.from({ length: 3 }).map((_, i) => (
-                      <PulsingBlock key={i} className="h-2.5 rounded" />
-                    ))}
+              <div className="min-h-0 flex-1 overflow-y-auto px-0 pt-0 pb-2.5">
+                <div className="space-y-0.5 px-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_1.25rem] gap-x-1 px-2 pb-1">
+                    <Skeleton className="h-2.5 w-10" />
+                    <Skeleton className="mx-auto h-2.5 w-8" />
+                    <Skeleton className="ml-auto h-2.5 w-10" />
+                    <div />
                   </div>
-                  <div className="space-y-px">
-                    {Array.from({ length: 10 }).map((_, i) => (
-                      <div
-                        key={i}
-                        className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem] gap-2 px-2 py-1.5"
-                      >
-                        <PulsingBlock className="h-2.5 w-3/4 rounded" />
-                        <PulsingBlock className="h-2.5 rounded" />
-                        <PulsingBlock className="h-2.5 rounded" />
-                      </div>
-                    ))}
-                  </div>
+                  {Array.from({ length: 11 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[minmax(0,1fr)_3rem_4.75rem_1.25rem] items-center gap-x-1 px-2 py-1"
+                    >
+                      <Skeleton className="h-2.5 w-3/4" />
+                      <Skeleton className="mx-auto h-2.5 w-8" />
+                      <Skeleton className="ml-auto h-2.5 w-10" />
+                      <Skeleton className="ml-auto size-3 rounded-sm" />
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -302,32 +302,32 @@ export function MarketDetailSkeleton() {
 
           <div className="h-[24rem] min-w-0 xl:col-span-2">
             <div className="flex h-full flex-col rounded-lg border-0 bg-card py-0 shadow-none ring-0">
-              <div className="flex h-11 shrink-0 items-center justify-between gap-3 border-b border-border/45 px-3">
-                <div className="flex h-full w-full items-center gap-6 overflow-x-auto">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <PulsingBlock
-                      key={i}
-                      className="h-4 w-16 shrink-0 rounded"
-                    />
-                  ))}
-                </div>
+              <div className="flex h-11 shrink-0 items-center gap-5 border-b border-border/45 px-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-3.5 w-14 shrink-0" />
+                ))}
               </div>
               <div className="min-h-0 flex-1 overflow-auto px-3 py-3">
-                <div className="min-w-[54rem]">
-                  <div className="grid grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem] gap-4 bg-muted/45 px-3 py-2">
+                <div className="min-w-[56rem]">
+                  <div className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem] gap-4 bg-muted/45 px-3 py-2">
                     {Array.from({ length: 6 }).map((_, i) => (
-                      <PulsingBlock key={i} className="h-2.5 rounded" />
-                    ))}
-                  </div>
-                  <div className="space-y-0">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <PulsingRow
+                      <Skeleton
                         key={i}
-                        count={6}
-                        columns="grid-cols-[minmax(13rem,1.8fr)_5.25rem_7rem_6.5rem_minmax(7rem,1fr)_5.5rem]"
+                        className={cn("h-2.5", i === 0 ? "w-16" : "ml-auto w-12")}
                       />
                     ))}
                   </div>
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div
+                      key={i}
+                      className="grid grid-cols-[minmax(13rem,1.8fr)_7rem_5.25rem_6.5rem_6.5rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2"
+                    >
+                      <Skeleton className="h-3 w-40" />
+                      {Array.from({ length: 5 }).map((__, j) => (
+                        <Skeleton key={j} className="ml-auto h-3 w-12" />
+                      ))}
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
@@ -339,36 +339,40 @@ export function MarketDetailSkeleton() {
             <div className="w-full overflow-hidden rounded-md bg-muted/25 p-0">
               <div className="grid grid-cols-2 gap-0">
                 {Array.from({ length: 2 }).map((_, i) => (
-                  <PulsingBlock key={i} className="h-9 rounded-none" />
+                  <Skeleton key={i} className="h-9 rounded-none" />
                 ))}
               </div>
             </div>
             <div className="flex w-full flex-1 flex-col gap-3 rounded-md border-0 bg-card px-3 py-3 shadow-none ring-0">
+              {/* direction buttons */}
               <div className="grid grid-cols-2 gap-2">
                 {Array.from({ length: 2 }).map((_, i) => (
-                  <PulsingBlock key={i} className="h-18 rounded-md" />
+                  <Skeleton key={i} className="h-8" />
                 ))}
               </div>
+              {/* strike input */}
               <div className="space-y-2">
-                {Array.from({ length: 2 }).map((_, i) => (
-                  <div key={i} className="space-y-1.5">
-                    <PulsingBlock className="h-2.5 w-20 rounded" />
-                    <PulsingBlock className="h-9 w-full rounded-md" />
-                  </div>
-                ))}
+                <Skeleton className="h-3 w-20" />
+                <Skeleton className="h-9 w-full" />
               </div>
-              <div className="space-y-2 rounded-md bg-muted p-2.5">
-                {Array.from({ length: 3 }).map((_, i) => (
+              {/* contracts input */}
+              <div className="space-y-2">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="h-9 w-full" />
+              </div>
+              {/* preview rows */}
+              <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 p-2.5">
+                {Array.from({ length: 4 }).map((_, i) => (
                   <div
                     key={i}
                     className="flex items-center justify-between gap-4"
                   >
-                    <PulsingBlock className="h-2.5 w-12 rounded" />
-                    <PulsingBlock className="h-3 w-16 rounded" />
+                    <Skeleton className="h-2.5 w-16" />
+                    <Skeleton className="h-2.5 w-20" />
                   </div>
                 ))}
               </div>
-              <PulsingBlock className="h-10 w-full rounded-md" />
+              <Skeleton className="h-9 w-full" />
             </div>
           </div>
         </aside>

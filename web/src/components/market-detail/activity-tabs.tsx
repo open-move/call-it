@@ -109,6 +109,11 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   })
   const [confirmState, setConfirmState] = useState<PositionConfirmState>({})
   const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
+  // Control the active tab. Uncontrolled base-ui Tabs re-sync their selected
+  // value against tabs that register in a layout effect; after the SSR->client
+  // swap that can leave the default panel unmounted (tab highlighted, body
+  // blank) until a manual click. An explicit value renders the panel at once.
+  const [activeTab, setActiveTab] = useState<ActivityTabValue>("positions")
   const walletAddress = primaryWallet?.address
   const managerId = predictAccount.managerId
   const publicActivityVersion = `${trades.length}:${redemptions.length}`
@@ -372,7 +377,8 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   return (
     <ActivityTabsFrame
       cardClassName="xl:col-span-2"
-      defaultValue="positions"
+      onValueChange={setActiveTab}
+      value={activeTab}
       tabs={[
         {
           ...positionsTab,

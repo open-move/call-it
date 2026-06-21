@@ -184,7 +184,6 @@ function TradingTicketClient({
             ? "Quoting"
             : "--"
   const premiumValue = quotedQuote ? formatDusdc(quotedQuote.mintCost) : "--"
-  const maxLossValue = premiumValue
   const potentialProfitValue =
     quotedQuote && selectedQuantity
       ? formatDusdc(
@@ -582,18 +581,13 @@ function TradingTicketClient({
           <span className="text-xs font-medium text-muted-foreground">
             Contracts
           </span>
-          <div className="relative">
-            <Input
-              className="border-border/35 bg-muted/25 pr-24 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-              inputMode="decimal"
-              onChange={(event) => setSize(event.target.value)}
-              placeholder="0.00"
-              value={size}
-            />
-            <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-              Contracts
-            </span>
-          </div>
+          <Input
+            className="border-border/35 bg-muted/25 font-mono text-xs shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:bg-muted/30 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
+            inputMode="decimal"
+            onChange={(event) => setSize(event.target.value)}
+            placeholder="0.00"
+            value={size}
+          />
         </label>
 
         <TicketSection>
@@ -601,8 +595,7 @@ function TradingTicketClient({
             <>
               <TicketRow label="Price" value={quotePriceValue} />
               <TicketRow label="Chance" value={chance} />
-              <TicketRow label="Premium" value={premiumValue} />
-              <TicketRow label="Max loss" value={maxLossValue} />
+              <TicketRow label="Premium / Max loss" value={premiumValue} />
               <TicketRow
                 label="Potential profit"
                 value={potentialProfitValue}
@@ -618,8 +611,7 @@ function TradingTicketClient({
                 )}-${formatStrikeValue(rangeStrikes.higher, market.tickSizeUsd)}`}
               />
               <TicketRow label="Price" value={quotePriceValue} />
-              <TicketRow label="Premium" value={premiumValue} />
-              <TicketRow label="Max loss" value={maxLossValue} />
+              <TicketRow label="Premium / Max loss" value={premiumValue} />
               <TicketRow
                 label="Potential profit"
                 value={potentialProfitValue}
