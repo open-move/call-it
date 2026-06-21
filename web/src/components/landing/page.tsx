@@ -51,7 +51,7 @@ const steps = [
 
 function Eyebrow({ children }: { children: string }) {
   return (
-    <span className="font-mono text-[11px] tracking-[0.22em] text-primary uppercase">
+    <span className="font-mono text-[11px] tracking-[0.18em] text-primary uppercase">
       {children}
     </span>
   )
@@ -212,7 +212,7 @@ function RiskStressMock() {
         Stress test · BTC −20% gap
       </div>
       <p className="mt-1 text-xs leading-5 text-pretty text-muted-foreground">
-        Worst modeled close for open positions before settlement.
+        Worst modeled outcome for open positions before settlement.
       </p>
 
       <div className="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
@@ -356,7 +356,7 @@ function Hero() {
         <h1 className="text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
           Take a side on the close.
         </h1>
-        <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground">
+        <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-pretty text-muted-foreground md:text-xl">
           Call the next{" "}
           <span className="font-mono font-medium text-primary">BTC</span> close.
           Risk only the premium — no borrowing, no liquidation.
