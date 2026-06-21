@@ -48,7 +48,6 @@ const ERoundAlreadySettled: u64 = 22;
 const ERoundNotSettled: u64 = 23;
 const EWrongBaseVault: u64 = 24;
 const EWrongStrategyKeeperCap: u64 = 25;
-const ERoundPositionMissing: u64 = 26;
 const EInvalidPlpAllocation: u64 = 27;
 const EPlpAllocated: u64 = 28;
 
@@ -320,10 +319,11 @@ fun assert_valid_strikes(strategy_policy: &Policy, oracle: &OracleSVI, down_stri
 fun assert_leg_ask_within_ceiling(strategy_policy: &Policy, ask_cost: u64, quantity: u64) { assert!((ask_cost as u128) * (BPS_DENOMINATOR as u128) <= (quantity as u128) * (policy::max_leg_ask_bps(strategy_policy) as u128), ELegAskAboveCeiling); }
 fun assert_position(manager: &PredictManager, key: MarketKey, expected_quantity: u64) { assert!(manager.position(key) == expected_quantity, EPositionChanged); }
 fun mint_leg<Quote>(predict: &mut Predict, manager: &mut PredictManager, oracle: &OracleSVI, key: MarketKey, quantity: u64, clock: &Clock, ctx: &mut TxContext, strategy_policy: &Policy) { let balance_before = manager.balance<Quote>(); predict.mint<Quote>(manager, oracle, key, quantity, clock, ctx); let balance_after = manager.balance<Quote>(); assert!(balance_after <= balance_before, EExceededPremiumBudget); assert_leg_ask_within_ceiling(strategy_policy, balance_before - balance_after, quantity); }
-fun redeem_or_assert_swept<Quote>(predict: &mut Predict, manager: &mut PredictManager, oracle: &OracleSVI, key: MarketKey, quantity: u64, expected_payout: u64, clock: &Clock, ctx: &mut TxContext) { let remaining = manager.position(key); if (remaining > 0) { assert!(remaining >= quantity, ERoundPositionMissing); let before = manager.balance<Quote>(); predict.redeem_permissionless<Quote>(manager, oracle, key, quantity, clock, ctx); let after = manager.balance<Quote>(); assert!((after as u128) >= (before as u128) + (expected_payout as u128), ESettledPayoutMissing); } else { assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing); }; }
+fun redeem_or_assert_swept<Quote>(predict: &mut Predict, manager: &mut PredictManager, oracle: &OracleSVI, key: MarketKey, quantity: u64, expected_payout: u64, clock: &Clock, ctx: &mut TxContext) { let remaining = manager.position(key); if (remaining > 0) { let redeem_quantity = if (remaining > quantity) { quantity } else { remaining }; let redeem_expected_payout = proportional_payout(expected_payout, redeem_quantity, quantity); let before = manager.balance<Quote>(); predict.redeem_permissionless<Quote>(manager, oracle, key, redeem_quantity, clock, ctx); let after = manager.balance<Quote>(); assert!((after as u128) >= (before as u128) + (redeem_expected_payout as u128), ESettledPayoutMissing); }; assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing); }
 fun settled_down_payout(round: &Round, oracle: &OracleSVI): u64 { let settlement = option::destroy_some(oracle.settlement_price()); if (settlement <= round.down_strike) { round.down_quantity } else { 0 } }
 fun settled_up_payout(round: &Round, oracle: &OracleSVI): u64 { let settlement = option::destroy_some(oracle.settlement_price()); if (settlement > round.up_strike) { round.up_quantity } else { 0 } }
 fun bps_amount(amount: u64, bps: u16): u64 { ((amount as u128) * (bps as u128) / (BPS_DENOMINATOR as u128)) as u64 }
+fun proportional_payout(total_payout: u64, redeem_quantity: u64, total_quantity: u64): u64 { ((total_payout as u128) * (redeem_quantity as u128) / (total_quantity as u128)) as u64 }
 
 #[test_only]
 public fun set_active_round_predict_id_for_testing<Quote>(strategy: &mut Strategy<Quote>, predict_id: ID) { let round = option::borrow_mut(&mut strategy.active_round); round.predict_id = predict_id; }

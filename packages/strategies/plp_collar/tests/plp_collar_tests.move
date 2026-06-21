@@ -436,6 +436,34 @@ fun settle_sweeps_after_permissionless_redeems() {
 }
 
 #[test]
+fun settle_tolerates_partial_permissionless_redeem() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
+    redeem_up_partial_permissionless(&mut test, &env, OTHER);
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
+        let round = option::destroy_some(strategy.active_round());
+        assert!(strategy::round_settled(&round));
+        assert_eq!(manager.position(up_key), 0);
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert!(strategy.cash_value() >= UP_QUANTITY);
+        return_shared(strategy);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test]
 fun settle_sweeps_post_start_manager_balance() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -693,6 +721,22 @@ fun redeem_both_permissionless(test: &mut Scenario, env: &Env, sender: address) 
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
         predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, down_key, DOWN_QUANTITY, &clock, test.ctx());
         predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, up_key, UP_QUANTITY, &clock, test.ctx());
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    }
+}
+
+fun redeem_up_partial_permissionless(test: &mut Scenario, env: &Env, sender: address) {
+    test.next_tx(sender);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let clock = test.take_shared<Clock>();
+        let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
+        predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, up_key, UP_QUANTITY / 2, &clock, test.ctx());
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);

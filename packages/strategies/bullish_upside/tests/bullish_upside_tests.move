@@ -489,6 +489,51 @@ fun settle_sweeps_payout_after_permissionless_redeem() {
 }
 
 #[test]
+fun settle_tolerates_partial_permissionless_redeem() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, STRIKE, QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, STRIKE + 1);
+
+    test.next_tx(OTHER);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let clock = test.take_shared<Clock>();
+        let key = market_key::new(env.oracle_id, EXPIRY_MS, STRIKE, true);
+
+        predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, key, QUANTITY / 2, &clock, test.ctx());
+
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    };
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let key = market_key::new(env.oracle_id, EXPIRY_MS, STRIKE, true);
+        let round = option::destroy_some(strategy.active_round());
+
+        assert!(strategy::round_settled(&round));
+        assert_eq!(manager.position(key), 0);
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert!(strategy.cash_value() >= 9_000_000_000 + QUANTITY);
+
+        return_shared(strategy);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test]
 fun settle_sweeps_post_start_manager_balance() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);

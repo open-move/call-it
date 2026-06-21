@@ -46,7 +46,6 @@ const ESettledPayoutMissing: u64 = 20;
 const EInvalidPlpAllocation: u64 = 21;
 const EPlpAllocated: u64 = 23;
 const EManagerNotDedicated: u64 = 24;
-const ERoundPositionMissing: u64 = 25;
 const ERoundAlreadySettled: u64 = 26;
 const ERoundNotSettled: u64 = 27;
 const EWrongPredict: u64 = 28;
@@ -369,14 +368,14 @@ public fun settle_round<Quote>(
     let expected_payout = settled_payout(&round, oracle);
 
     if (remaining > 0) {
-        assert!(remaining >= round.hedge_quantity, ERoundPositionMissing);
+        let redeem_quantity = if (remaining > round.hedge_quantity) { round.hedge_quantity } else { remaining };
+        let redeem_expected_payout = proportional_payout(expected_payout, redeem_quantity, round.hedge_quantity);
         let manager_balance_before_redeem = manager.balance<Quote>();
-        predict.redeem_permissionless<Quote>(manager, oracle, key, round.hedge_quantity, clock, ctx);
+        predict.redeem_permissionless<Quote>(manager, oracle, key, redeem_quantity, clock, ctx);
         let manager_balance_after_redeem = manager.balance<Quote>();
-        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (expected_payout as u128), ESettledPayoutMissing);
-    } else {
-        assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
+        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (redeem_expected_payout as u128), ESettledPayoutMissing);
     };
+    assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
 
     let payout_swept = manager.balance<Quote>();
     if (payout_swept > 0) {
@@ -563,6 +562,10 @@ fun settled_payout(round: &Round, oracle: &OracleSVI): u64 {
     } else {
         0
     }
+}
+
+fun proportional_payout(total_payout: u64, redeem_quantity: u64, total_quantity: u64): u64 {
+    ((total_payout as u128) * (redeem_quantity as u128) / (total_quantity as u128)) as u64
 }
 
 #[test_only]

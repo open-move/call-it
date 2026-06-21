@@ -47,7 +47,6 @@ const ERoundAlreadySettled: u64 = 22;
 const ERoundNotSettled: u64 = 23;
 const EWrongBaseVault: u64 = 24;
 const EWrongStrategyKeeperCap: u64 = 25;
-const ERoundPositionMissing: u64 = 26;
 
 public struct Round has copy, drop, store {
     predict_id: ID,
@@ -537,14 +536,14 @@ fun redeem_or_assert_swept<Quote>(
 ) {
     let remaining = manager.position(key);
     if (remaining > 0) {
-        assert!(remaining >= quantity, ERoundPositionMissing);
+        let redeem_quantity = if (remaining > quantity) { quantity } else { remaining };
+        let redeem_expected_payout = proportional_payout(expected_payout, redeem_quantity, quantity);
         let manager_balance_before_redeem = manager.balance<Quote>();
-        predict.redeem_permissionless<Quote>(manager, oracle, key, quantity, clock, ctx);
+        predict.redeem_permissionless<Quote>(manager, oracle, key, redeem_quantity, clock, ctx);
         let manager_balance_after_redeem = manager.balance<Quote>();
-        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (expected_payout as u128), ESettledPayoutMissing);
-    } else {
-        assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
+        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (redeem_expected_payout as u128), ESettledPayoutMissing);
     };
+    assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
 }
 
 fun settled_down_payout(round: &Round, oracle: &OracleSVI): u64 {
@@ -567,6 +566,10 @@ fun settled_up_payout(round: &Round, oracle: &OracleSVI): u64 {
 
 fun bps_amount(amount: u64, bps: u16): u64 {
     ((amount as u128) * (bps as u128) / (BPS_DENOMINATOR as u128)) as u64
+}
+
+fun proportional_payout(total_payout: u64, redeem_quantity: u64, total_quantity: u64): u64 {
+    ((total_payout as u128) * (redeem_quantity as u128) / (total_quantity as u128)) as u64
 }
 
 #[test_only]
