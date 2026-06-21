@@ -10,6 +10,8 @@ import { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519"
 import { Transaction } from "@mysten/sui/transactions"
 import type { SuiClientTypes } from "@mysten/sui/client"
 
+import { logger } from "./logger.ts"
+
 const execFileAsync = promisify(execFile)
 
 const TESTNET_CHAIN_ID = "4c78adac"
@@ -181,7 +183,7 @@ async function executeTransaction(
     throw new Error(`${label} failed: ${finalResult.FailedTransaction.status.error?.message ?? "transaction failed"}`)
   }
 
-  console.log(`[deploy] ${label} digest=${finalResult.Transaction.digest}`)
+  logger.info({ digest: finalResult.Transaction.digest, label }, "executed")
 
   return finalResult.Transaction
 }
@@ -302,7 +304,7 @@ async function publishPackage({
     ? await ownedObjectByType({ client, owner: deployer.toSuiAddress(), type: treasuryType })
     : undefined
 
-  console.log(`[deploy] ${label} package=${packageId}`)
+  logger.info({ label, packageId }, "package published")
 
   return { packageId, treasuryCapId, upgradeCapId } satisfies PublishResult
 }
@@ -521,11 +523,14 @@ async function createRangeLadderStrategy({
   )
 }
 
-async function writeOperatorEnv(record: DeploymentRecord, operatorSecretKey: string, envPath: string) {
+// On-chain ids live in deployment.<network>.json (the runtime's source of
+// truth). The generated .env only carries the operator secret, network/RPC,
+// Predict-protocol pointers, and strategy tuning.
+async function writeOperatorEnv(network: Network, operatorSecretKey: string, envPath: string) {
   const contents = [
     `SUI_KEEPER_KEY=${operatorSecretKey}`,
     `SUI_RPC_URL=${optionalEnv("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443")}`,
-    `SUI_NETWORK=${record.network}`,
+    `SUI_NETWORK=${network}`,
     "POLL_SECONDS=60",
     "DRY_RUN=false",
     "",
@@ -540,21 +545,10 @@ async function writeOperatorEnv(record: DeploymentRecord, operatorSecretKey: str
     "PREDICT_ROUND_ENTRY_MIN_MS_TO_EXPIRY=4500000",
     "PREDICT_ROUND_ENTRY_MAX_MS_TO_EXPIRY=5400000",
     "",
-    `BASE_VAULT_PACKAGE_ID=${record.baseVault.packageId}`,
-    `BASE_VAULT_ID=${record.baseVault.vaultId}`,
-    "",
-    `HEDGED_PLP_STRATEGY_PACKAGE_ID=${record.hedgedPlp.packageId}`,
-    `HEDGED_PLP_STRATEGY_ID=${record.hedgedPlp.strategyId}`,
-    `HEDGED_PLP_KEEPER_CAP_ID=${record.hedgedPlp.keeperCapId}`,
-    `HEDGED_PLP_MANAGER_ID=${record.hedgedPlp.managerId}`,
     "HEDGED_PLP_ENABLED=true",
     "HEDGED_PLP_STRIKE_SPOT_BPS=9900",
     "HEDGED_PLP_HEDGE_QUANTITY_BPS_OF_NAV=250",
     "",
-    `RANGE_LADDER_STRATEGY_PACKAGE_ID=${record.rangeLadder.packageId}`,
-    `RANGE_LADDER_STRATEGY_ID=${record.rangeLadder.strategyId}`,
-    `RANGE_LADDER_KEEPER_CAP_ID=${record.rangeLadder.keeperCapId}`,
-    `RANGE_LADDER_MANAGER_ID=${record.rangeLadder.managerId}`,
     "RANGE_LADDER_ENABLED=true",
     "RANGE_RUNG_COUNT=2",
     "RANGE_RUNG_WIDTH_BPS=25",
@@ -584,9 +578,7 @@ async function main() {
   const client = new SuiGrpcClient({ baseUrl: suiRpcUrl, network })
   const tmp = await mkdtemp(path.join(os.tmpdir(), "callit-deploy-"))
 
-  console.log(`[deploy] deployer=${deployerAddress}`)
-  console.log(`[deploy] operator=${operatorAddress}`)
-  console.log(`[deploy] temp=${tmp}`)
+  logger.info({ deployer: deployerAddress, operator: operatorAddress, temp: tmp }, "deploy starting")
 
   try {
     await execFileAsync("cp", ["-R", path.join(repoRoot, "packages"), tmp])
@@ -720,11 +712,12 @@ async function main() {
     const envPath = path.join(import.meta.dir, "../.env")
 
     await writeFile(deploymentPath, `${JSON.stringify(record, null, 2)}\n`)
-    await writeOperatorEnv(record, operatorSecretKey, envPath)
+    await writeOperatorEnv(network, operatorSecretKey, envPath)
 
-    console.log(`[deploy] wrote ${deploymentPath}`)
-    console.log(`[deploy] wrote ${envPath}`)
-    console.log("[deploy] start operator: cd operator && bun run start")
+    logger.info(
+      { deploymentPath, envPath, start: "cd services/operator && bun run start" },
+      "deploy complete"
+    )
   } finally {
     if (process.env.KEEP_DEPLOY_TMP !== "true") {
       await rm(tmp, { recursive: true, force: true })
@@ -732,7 +725,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error))
+main().catch((error: unknown) => {
+  logger.error({ error: error instanceof Error ? error.message : String(error) }, "deploy failed")
   process.exit(1)
 })
