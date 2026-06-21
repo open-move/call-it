@@ -1,0 +1,8 @@
+# Generated from testnet deployment.
+[published.testnet]
+chain-id = "4c78adac"
+published-at = "0xa90a078564d244eaf9b6563630eafaf1e023e8d6ab8da0b6a9f695d0e8fa4d0f"
+original-id = "0xa90a078564d244eaf9b6563630eafaf1e023e8d6ab8da0b6a9f695d0e8fa4d0f"
+version = 1
+toolchain-version = "1.73.1"
+build-config = { flavor = "sui", edition = "2024" }

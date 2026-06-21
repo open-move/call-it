@@ -481,7 +481,7 @@ fun start_round_aborts_if_manager_not_empty() {
 }
 
 #[test]
-fun settle_preserves_post_start_manager_deposit() {
+fun settle_sweeps_post_start_manager_deposit() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
@@ -497,7 +497,52 @@ fun settle_preserves_post_start_manager_deposit() {
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
 
         assert!(strategy.has_active_round());
-        assert_eq!(manager.balance<TEST_QUOTE>(), MANAGER_BASELINE);
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert!(strategy.cash_value() >= MANAGER_BASELINE);
+
+        return_shared(strategy);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test]
+fun settle_sweeps_permissionless_redeem_plus_extra_balance() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, STRIKE, HEDGE_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, STRIKE - 1);
+
+    test.next_tx(OTHER);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let clock = test.take_shared<Clock>();
+        let key = market_key::new(env.oracle_id, EXPIRY_MS, STRIKE, false);
+
+        predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, key, HEDGE_QUANTITY, &clock, test.ctx());
+
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    };
+    seed_manager_balance(&mut test, env.manager_id, MANAGER_BASELINE);
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let round = option::destroy_some(strategy.active_round());
+
+        assert!(strategy::round_settled(&round));
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert!(strategy.cash_value() >= HEDGE_QUANTITY + MANAGER_BASELINE);
 
         return_shared(strategy);
         return_shared(manager);
@@ -559,8 +604,52 @@ fun settle_round_requires_round_predict() {
     abort
 }
 
-#[test, expected_failure(abort_code = 25)]
-fun settle_aborts_if_recorded_hedge_position_is_missing() {
+#[test]
+fun settle_sweeps_payout_after_permissionless_redeem() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, STRIKE, HEDGE_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, STRIKE - 1);
+
+    test.next_tx(OTHER);
+    {
+        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
+        let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
+        let clock = test.take_shared<Clock>();
+        let key = market_key::new(env.oracle_id, EXPIRY_MS, STRIKE, false);
+
+        predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, key, HEDGE_QUANTITY, &clock, test.ctx());
+
+        return_shared(predict);
+        return_shared(manager);
+        return_shared(oracle);
+        return_shared(clock);
+    };
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let key = market_key::new(env.oracle_id, EXPIRY_MS, STRIKE, false);
+        let round = option::destroy_some(strategy.active_round());
+
+        assert!(strategy::round_settled(&round));
+        assert_eq!(manager.position(key), 0);
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+
+        return_shared(strategy);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure(abort_code = 20)]
+fun settle_aborts_if_redeemed_payout_is_missing() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);

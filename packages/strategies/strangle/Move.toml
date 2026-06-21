@@ -1,0 +1,14 @@
+[package]
+name = "strangle_strategy"
+edition = "2024"
+
+[dependencies]
+base_vault = { local = "../../base_vault" }
+deepbook_predict = { git = "https://github.com/MystenLabs/deepbookv3.git", subdir = "packages/predict", rev = "c9ee19690222f6a67c4365ca13df5df1c70cb545" }
+
+[dep-replacements.testnet.deepbook_predict]
+git = "https://github.com/MystenLabs/deepbookv3.git"
+subdir = "packages/predict"
+rev = "c9ee19690222f6a67c4365ca13df5df1c70cb545"
+published-at = "0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138"
+original-id = "0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138"

@@ -1,5 +1,5 @@
-/// Managed Range Ladder strategy using true DeepBook Predict RangeKey positions.
-module range_ladder_strategy::strategy;
+/// Managed two-leg binary strangle strategy backed by the CallIt Base Vault.
+module strangle_strategy::strategy;
 
 use std::option::{Self, Option};
 use sui::{
@@ -10,16 +10,15 @@ use sui::{
     object::{Self, ID, UID},
 };
 
+use base_vault::base_vault::{Self, BASE_VAULT, BaseVault};
 use deepbook_predict::{
+    market_key::{Self, MarketKey},
     oracle::{Self, OracleSVI},
     predict::{Predict},
     predict_manager::PredictManager,
-    range_key::{Self, RangeKey},
 };
-
-use base_vault::base_vault::{Self, BASE_VAULT, BaseVault};
-use range_ladder_strategy::policy::{Self, Policy, Position, Rung};
-use range_ladder_strategy::rladder::RLADDER;
+use strangle_strategy::policy::{Self, Policy};
+use strangle_strategy::strangle::STRANGLE;
 
 const BPS_DENOMINATOR: u64 = 10_000;
 
@@ -38,22 +37,31 @@ const EInvalidPremiumBudget: u64 = 12;
 const ECashLow: u64 = 13;
 const EZeroDeposit: u64 = 14;
 const EZeroShares: u64 = 15;
-const ERangeAskAboveCeiling: u64 = 16;
+const ELegAskAboveCeiling: u64 = 16;
 const EExceededPremiumBudget: u64 = 17;
 const EPositionChanged: u64 = 18;
-const EInvalidRangePayout: u64 = 19;
-const EWrongBaseVault: u64 = 20;
-const EWrongStrategyKeeperCap: u64 = 21;
+const ESettledPayoutMissing: u64 = 19;
+const EInvalidStrangleStrike: u64 = 20;
+const EZeroQuantity: u64 = 21;
+const ERoundAlreadySettled: u64 = 22;
+const ERoundNotSettled: u64 = 23;
+const EWrongBaseVault: u64 = 24;
+const EWrongStrategyKeeperCap: u64 = 25;
+const ERoundPositionMissing: u64 = 26;
 
 public struct Round has copy, drop, store {
     predict_id: ID,
     oracle_id: ID,
-    positions: vector<Position>,
+    down_strike: u64,
+    up_strike: u64,
+    down_quantity: u64,
+    up_quantity: u64,
+    settled: bool,
 }
 
 public struct Strategy<phantom Quote> has key {
     id: UID,
-    treasury: TreasuryCap<RLADDER>,
+    treasury: TreasuryCap<STRANGLE>,
     base_vault_id: ID,
     base_shares: Balance<BASE_VAULT>,
     cash: Balance<Quote>,
@@ -103,10 +111,11 @@ public struct RoundStarted has copy, drop {
     manager_id: ID,
     oracle_id: ID,
     premium_budget_amount: u64,
-    total_premium_spent: u64,
+    premium_spent: u64,
     refund_amount: u64,
     reserve_amount: u64,
-    range_count: u64,
+    down_ask_cost: u64,
+    up_ask_cost: u64,
 }
 
 public struct RoundSettled has copy, drop {
@@ -114,12 +123,18 @@ public struct RoundSettled has copy, drop {
     predict_id: ID,
     manager_id: ID,
     oracle_id: ID,
-    payout_swept: u64,
+    manager_balance_swept: u64,
     nav_after_settle: u64,
 }
 
+public struct RoundRealized has copy, drop {
+    strategy_id: ID,
+    oracle_id: ID,
+    nav_after_realize: u64,
+}
+
 public fun create_strategy<Quote>(
-    treasury: TreasuryCap<RLADDER>,
+    treasury: TreasuryCap<STRANGLE>,
     base: &BaseVault<Quote>,
     manager: &PredictManager,
     policy: Policy,
@@ -163,7 +178,7 @@ public fun deposit<Quote>(
     base: &mut BaseVault<Quote>,
     funds: Coin<Quote>,
     ctx: &mut TxContext,
-): Coin<RLADDER> {
+): Coin<STRANGLE> {
     assert!(!strategy.paused, EPaused);
     assert_base_vault(strategy, base);
     assert!(option::is_none(&strategy.active_round), ERoundAlreadyActive);
@@ -194,7 +209,7 @@ public fun deposit<Quote>(
 public fun withdraw<Quote>(
     strategy: &mut Strategy<Quote>,
     base: &mut BaseVault<Quote>,
-    shares: Coin<RLADDER>,
+    shares: Coin<STRANGLE>,
     ctx: &mut TxContext,
 ): Coin<Quote> {
     assert_base_vault(strategy, base);
@@ -230,7 +245,10 @@ public fun start_round<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    rungs: vector<Rung>,
+    down_strike: u64,
+    down_quantity: u64,
+    up_strike: u64,
+    up_quantity: u64,
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
@@ -242,7 +260,8 @@ public fun start_round<Quote>(
     assert!(manager.owner() == ctx.sender(), ENotManagerOwner);
     assert!(manager.balance<Quote>() == 0, EManagerNotDedicated);
     assert!(oracle.status(clock) == oracle::status_active(), EOracleNotActive);
-    policy::assert_valid_rungs(&strategy.policy, &rungs);
+    assert!(down_quantity > 0 && up_quantity > 0, EZeroQuantity);
+    assert_valid_strangle_strikes(&strategy.policy, oracle, down_strike, up_strike);
 
     redeem_all_base_shares(strategy, base, ctx);
 
@@ -253,26 +272,48 @@ public fun start_round<Quote>(
     assert!(premium_budget_amount > 0, EInvalidPremiumBudget);
     assert!(strategy.cash.value() >= premium_budget_amount + reserve_amount, ECashLow);
 
+    let down_key = market_key::new(oracle.id(), oracle.expiry(), down_strike, false);
+    let up_key = market_key::new(oracle.id(), oracle.expiry(), up_strike, true);
+    assert_position(manager, down_key, 0);
+    assert_position(manager, up_key, 0);
+    let (down_ask_cost, _) = predict.get_trade_amounts(oracle, down_key, down_quantity, clock);
+    let (up_ask_cost, _) = predict.get_trade_amounts(oracle, up_key, up_quantity, clock);
+    assert_leg_ask_within_ceiling(&strategy.policy, down_ask_cost, down_quantity);
+    assert_leg_ask_within_ceiling(&strategy.policy, up_ask_cost, up_quantity);
+
     let manager_balance_before = manager.balance<Quote>();
     let premium_coin = strategy.cash.split(premium_budget_amount).into_coin(ctx);
     manager.deposit<Quote>(premium_coin, ctx);
+    let manager_balance_after_deposit = manager.balance<Quote>();
 
-    let positions = mint_ranges<Quote>(predict, manager, oracle, rungs, clock, ctx, &strategy.policy);
+    let down_balance_before = manager.balance<Quote>();
+    predict.mint<Quote>(manager, oracle, down_key, down_quantity, clock, ctx);
+    let down_balance_after = manager.balance<Quote>();
+    assert!(down_balance_after <= down_balance_before, EExceededPremiumBudget);
+    assert_leg_ask_within_ceiling(&strategy.policy, down_balance_before - down_balance_after, down_quantity);
+
+    let up_balance_before = manager.balance<Quote>();
+    predict.mint<Quote>(manager, oracle, up_key, up_quantity, clock, ctx);
     let manager_balance_after_mint = manager.balance<Quote>();
+    assert!(manager_balance_after_mint <= up_balance_before, EExceededPremiumBudget);
+    assert_leg_ask_within_ceiling(&strategy.policy, up_balance_before - manager_balance_after_mint, up_quantity);
     assert!(manager_balance_after_mint >= manager_balance_before, EExceededPremiumBudget);
-    let total_premium_spent = premium_budget_amount - (manager_balance_after_mint - manager_balance_before);
-    assert!(total_premium_spent <= premium_budget_amount, EExceededPremiumBudget);
+    let premium_spent = manager_balance_after_deposit - manager_balance_after_mint;
+    assert!(premium_spent <= premium_budget_amount, EExceededPremiumBudget);
 
     let refund_amount = manager_balance_after_mint - manager_balance_before;
     if (refund_amount > 0) {
         strategy.cash.join(manager.withdraw<Quote>(refund_amount, ctx).into_balance());
     };
 
-    let range_count = positions.length();
     strategy.active_round = option::some(Round {
         predict_id: object::id(predict),
         oracle_id: oracle.id(),
-        positions,
+        down_strike,
+        up_strike,
+        down_quantity,
+        up_quantity,
+        settled: false,
     });
 
     event::emit(RoundStarted {
@@ -281,16 +322,16 @@ public fun start_round<Quote>(
         manager_id: strategy.manager_id,
         oracle_id: oracle.id(),
         premium_budget_amount,
-        total_premium_spent,
+        premium_spent,
         refund_amount,
         reserve_amount,
-        range_count,
+        down_ask_cost,
+        up_ask_cost,
     });
 }
 
 public fun settle_round<Quote>(
     strategy: &mut Strategy<Quote>,
-    base: &mut BaseVault<Quote>,
     cap: &StrategyKeeperCap,
     predict: &mut Predict,
     manager: &mut PredictManager,
@@ -298,41 +339,63 @@ public fun settle_round<Quote>(
     clock: &Clock,
     ctx: &mut TxContext,
 ) {
-    assert_base_vault(strategy, base);
     assert_strategy_keeper_cap(strategy, cap);
     assert!(option::is_some(&strategy.active_round), ENoActiveRound);
     assert!(object::id(manager) == strategy.manager_id, EWrongManager);
     assert!(manager.owner() == ctx.sender(), ENotManagerOwner);
     assert!(oracle.is_settled(), EOracleNotSettled);
 
-    let round = option::extract(&mut strategy.active_round);
+    let round = *option::borrow(&strategy.active_round);
+    assert!(!round.settled, ERoundAlreadySettled);
     assert!(object::id(predict) == round.predict_id, EWrongPredict);
     assert!(oracle.id() == round.oracle_id, EWrongOracle);
 
-    let manager_balance_before = manager.balance<Quote>();
-    round.positions.do!(|position| {
-        let key = position.position_key();
-        let quantity = position.position_quantity();
-        assert_range_position(manager, key, quantity);
-        predict.redeem_range<Quote>(manager, oracle, key, quantity, clock, ctx);
-    });
+    let down_key = market_key::new(round.oracle_id, oracle.expiry(), round.down_strike, false);
+    let up_key = market_key::new(round.oracle_id, oracle.expiry(), round.up_strike, true);
+    let down_payout = settled_down_payout(&round, oracle);
+    let up_payout = settled_up_payout(&round, oracle);
+    redeem_or_assert_swept<Quote>(predict, manager, oracle, down_key, round.down_quantity, down_payout, clock, ctx);
+    redeem_or_assert_swept<Quote>(predict, manager, oracle, up_key, round.up_quantity, up_payout, clock, ctx);
 
-    let manager_balance_after = manager.balance<Quote>();
-    assert!(manager_balance_after >= manager_balance_before, EInvalidRangePayout);
-    let payout_swept = manager_balance_after;
-    if (payout_swept > 0) {
-        strategy.cash.join(manager.withdraw<Quote>(payout_swept, ctx).into_balance());
+    let manager_balance_swept = manager.balance<Quote>();
+    if (manager_balance_swept > 0) {
+        let proceeds = manager.withdraw<Quote>(manager_balance_swept, ctx);
+        strategy.cash.join(proceeds.into_balance());
     };
 
-    deposit_all_cash_to_base(strategy, base, ctx);
+    let round_mut = option::borrow_mut(&mut strategy.active_round);
+    round_mut.settled = true;
 
     event::emit(RoundSettled {
         strategy_id: strategy.id.to_inner(),
         predict_id: round.predict_id,
         manager_id: strategy.manager_id,
         oracle_id: round.oracle_id,
-        payout_swept,
-        nav_after_settle: strategy.nav(base),
+        manager_balance_swept,
+        nav_after_settle: strategy.active_nav(),
+    });
+}
+
+public fun realize_round<Quote>(
+    strategy: &mut Strategy<Quote>,
+    base: &mut BaseVault<Quote>,
+    cap: &StrategyKeeperCap,
+    predict: &mut Predict,
+    ctx: &mut TxContext,
+) {
+    assert_base_vault(strategy, base);
+    assert_strategy_keeper_cap(strategy, cap);
+    assert!(option::is_some(&strategy.active_round), ENoActiveRound);
+    let round = option::extract(&mut strategy.active_round);
+    assert!(round.settled, ERoundNotSettled);
+    assert!(object::id(predict) == round.predict_id, EWrongPredict);
+
+    deposit_all_cash_to_base(strategy, base, ctx);
+
+    event::emit(RoundRealized {
+        strategy_id: strategy.id.to_inner(),
+        oracle_id: round.oracle_id,
+        nav_after_realize: strategy.nav(base),
     });
 }
 
@@ -399,9 +462,15 @@ public fun round_predict_id(round: &Round): ID { round.predict_id }
 
 public fun round_oracle_id(round: &Round): ID { round.oracle_id }
 
-public fun round_positions(round: &Round): vector<Position> { round.positions }
+public fun round_down_strike(round: &Round): u64 { round.down_strike }
 
-public fun round_position_count(round: &Round): u64 { round.positions.length() }
+public fun round_up_strike(round: &Round): u64 { round.up_strike }
+
+public fun round_down_quantity(round: &Round): u64 { round.down_quantity }
+
+public fun round_up_quantity(round: &Round): u64 { round.up_quantity }
+
+public fun round_settled(round: &Round): bool { round.settled }
 
 public(package) fun assert_strategy_admin_cap<Quote>(strategy: &Strategy<Quote>, cap: &StrategyAdminCap) {
     assert!(cap.strategy_id == strategy.id.to_inner(), EWrongStrategyAdminCap);
@@ -439,39 +508,61 @@ fun deposit_all_cash_to_base<Quote>(
     };
 }
 
-fun mint_ranges<Quote>(
+fun assert_valid_strangle_strikes(strategy_policy: &Policy, oracle: &OracleSVI, down_strike: u64, up_strike: u64) {
+    let spot = oracle.spot_price();
+    let band = bps_amount(spot, policy::strike_band_bps(strategy_policy));
+    let spot_u128 = spot as u128;
+    let band_u128 = band as u128;
+    assert!((down_strike as u128) < spot_u128 && (up_strike as u128) > spot_u128 && down_strike < up_strike, EInvalidStrangleStrike);
+    assert!((down_strike as u128) + band_u128 >= spot_u128 && (up_strike as u128) <= spot_u128 + band_u128, EInvalidStrangleStrike);
+}
+
+fun assert_leg_ask_within_ceiling(strategy_policy: &Policy, ask_cost: u64, quantity: u64) {
+    assert!((ask_cost as u128) * (BPS_DENOMINATOR as u128) <= (quantity as u128) * (policy::max_leg_ask_bps(strategy_policy) as u128), ELegAskAboveCeiling);
+}
+
+fun assert_position(manager: &PredictManager, key: MarketKey, expected_quantity: u64) {
+    assert!(manager.position(key) == expected_quantity, EPositionChanged);
+}
+
+fun redeem_or_assert_swept<Quote>(
     predict: &mut Predict,
     manager: &mut PredictManager,
     oracle: &OracleSVI,
-    rungs: vector<Rung>,
+    key: MarketKey,
+    quantity: u64,
+    expected_payout: u64,
     clock: &Clock,
     ctx: &mut TxContext,
-    strategy_policy: &Policy,
-): vector<Position> {
-    let mut minted = vector[];
-    rungs.do!(|rung| {
-        let key = range_key::new(oracle.id(), oracle.expiry(), rung.lower_strike(), rung.higher_strike());
-        assert_range_position(manager, key, 0);
-        let (ask_cost, _) = predict.get_range_trade_amounts(oracle, key, rung.quantity(), clock);
-        assert_range_ask_within_ceiling(strategy_policy, ask_cost, rung.quantity());
-
-        let balance_before = manager.balance<Quote>();
-        predict.mint_range<Quote>(manager, oracle, key, rung.quantity(), clock, ctx);
-        let balance_after = manager.balance<Quote>();
-        assert!(balance_after <= balance_before, EExceededPremiumBudget);
-        let cost = balance_before - balance_after;
-        assert_range_ask_within_ceiling(strategy_policy, cost, rung.quantity());
-        minted.push_back(policy::new_position(key, rung.quantity(), cost));
-    });
-    minted
+) {
+    let remaining = manager.position(key);
+    if (remaining > 0) {
+        assert!(remaining >= quantity, ERoundPositionMissing);
+        let manager_balance_before_redeem = manager.balance<Quote>();
+        predict.redeem_permissionless<Quote>(manager, oracle, key, quantity, clock, ctx);
+        let manager_balance_after_redeem = manager.balance<Quote>();
+        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (expected_payout as u128), ESettledPayoutMissing);
+    } else {
+        assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
+    };
 }
 
-fun assert_range_position(manager: &PredictManager, key: RangeKey, expected_quantity: u64) {
-    assert!(manager.range_position(key) == expected_quantity, EPositionChanged);
+fun settled_down_payout(round: &Round, oracle: &OracleSVI): u64 {
+    let settlement = option::destroy_some(oracle.settlement_price());
+    if (settlement <= round.down_strike) {
+        round.down_quantity
+    } else {
+        0
+    }
 }
 
-fun assert_range_ask_within_ceiling(strategy_policy: &Policy, ask_cost: u64, quantity: u64) {
-    assert!((ask_cost as u128) * (BPS_DENOMINATOR as u128) <= (quantity as u128) * (policy::max_range_ask_bps(strategy_policy) as u128), ERangeAskAboveCeiling);
+fun settled_up_payout(round: &Round, oracle: &OracleSVI): u64 {
+    let settlement = option::destroy_some(oracle.settlement_price());
+    if (settlement > round.up_strike) {
+        round.up_quantity
+    } else {
+        0
+    }
 }
 
 fun bps_amount(amount: u64, bps: u16): u64 {

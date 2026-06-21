@@ -366,19 +366,21 @@ public fun settle_round<Quote>(
 
     let key = market_key::new(round.oracle_id, oracle.expiry(), round.strike, false);
     let remaining = manager.position(key);
-    assert!(remaining >= round.hedge_quantity, ERoundPositionMissing);
-    let manager_balance_before_redeem = manager.balance<Quote>();
-    predict.redeem_permissionless<Quote>(manager, oracle, key, round.hedge_quantity, clock, ctx);
-
     let expected_payout = settled_payout(&round, oracle);
-    let manager_balance_after_redeem = manager.balance<Quote>();
-    assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (expected_payout as u128), ESettledPayoutMissing);
 
-    let mut payout_swept = 0;
-    if (expected_payout > 0) {
-        let proceeds = manager.withdraw<Quote>(expected_payout, ctx);
-        payout_swept = proceeds.value();
-        strategy.cash.join(proceeds.into_balance());
+    if (remaining > 0) {
+        assert!(remaining >= round.hedge_quantity, ERoundPositionMissing);
+        let manager_balance_before_redeem = manager.balance<Quote>();
+        predict.redeem_permissionless<Quote>(manager, oracle, key, round.hedge_quantity, clock, ctx);
+        let manager_balance_after_redeem = manager.balance<Quote>();
+        assert!((manager_balance_after_redeem as u128) >= (manager_balance_before_redeem as u128) + (expected_payout as u128), ESettledPayoutMissing);
+    } else {
+        assert!(manager.balance<Quote>() >= expected_payout, ESettledPayoutMissing);
+    };
+
+    let payout_swept = manager.balance<Quote>();
+    if (payout_swept > 0) {
+        strategy.cash.join(manager.withdraw<Quote>(payout_swept, ctx).into_balance());
     };
 
     let round_mut = option::borrow_mut(&mut strategy.active_round);
