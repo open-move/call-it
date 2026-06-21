@@ -4,11 +4,12 @@ import type { Config } from "./config.ts"
 import { openDatabase, runMigrations } from "./db/database.ts"
 import { Repository } from "./db/repo.ts"
 import { arenaPipeline } from "./ingest/arena.ts"
-import { scanPipeline } from "./ingest/events.ts"
+import { backfillRange, runPipelineStream } from "./ingest/events.ts"
 import type { PipelineDefinition } from "./ingest/events.ts"
 import { logger, toLogFields } from "./logger.ts"
 import { createSuiClient } from "./sui/client.ts"
 import type { SuiClient } from "./sui/client.ts"
+import { getLatestCheckpoint } from "./sui/checkpoint.ts"
 
 const VALID_COMMANDS = new Set(["serve", "ingest", "once", "status"])
 
@@ -24,7 +25,7 @@ async function main(): Promise<void> {
   const repo = new Repository(database)
 
   if (command === "status") {
-    await runStatus(config, repo)
+    await runStatus(repo)
     await database.pool.end()
     return
   }
@@ -39,12 +40,12 @@ async function main(): Promise<void> {
   }
 
   if (command === "once") {
-    await ingestOnce(config, client, repo, pipelines)
+    await ingestOnce(client, repo, pipelines)
     await database.pool.end()
     return
   }
 
-  // serve: run the HTTP API and a background ingest loop together.
+  // serve: run the HTTP API and the background ingest streams together.
   await serve(config, client, repo, pipelines)
 }
 
@@ -52,18 +53,29 @@ function buildPipelines(config: Config): PipelineDefinition[] {
   return [arenaPipeline(config)]
 }
 
+// One-shot backfill: catch each pipeline up from its cursor to the current tip,
+// then exit. No live stream.
 async function ingestOnce(
-  config: Config,
   client: SuiClient,
   repo: Repository,
   pipelines: PipelineDefinition[]
 ): Promise<void> {
+  const tip = await getLatestCheckpoint(client)
   for (const pipeline of pipelines) {
-    const result = await scanPipeline(config, client, repo, pipeline)
-    logger.info(toLogFields(result), "ingest scan complete")
+    const cursor = (await repo.getCursor(pipeline.name)) ?? tip
+    if (cursor === tip) {
+      // Fresh pipeline: anchor at the tip rather than backfilling from genesis.
+      await repo.setCursor(pipeline.name, tip)
+    }
+    await backfillRange(client, repo, pipeline, cursor + 1n, tip)
+    logger.info(
+      toLogFields({ cursor: (await repo.getCursor(pipeline.name))?.toString() ?? null, pipeline: pipeline.name }),
+      "ingest once complete"
+    )
   }
 }
 
+// Run every pipeline's live checkpoint stream concurrently until a stop signal.
 async function ingestForever(
   config: Config,
   client: SuiClient,
@@ -71,17 +83,19 @@ async function ingestForever(
   pipelines: PipelineDefinition[]
 ): Promise<void> {
   const control = installSignalHandlers()
-  while (!control.stopping) {
-    try {
-      await ingestOnce(config, client, repo, pipelines)
-    } catch (error) {
-      logger.error(
-        { error: error instanceof Error ? error.message : String(error) },
-        "ingest tick failed"
-      )
-    }
-    await sleep(config.ingestPollSeconds * 1000, () => control.stopping)
-  }
+  await Promise.all(
+    pipelines.map((pipeline) =>
+      runPipelineStream(config, client, repo, pipeline, () => control.stopping).catch((error: unknown) => {
+        logger.error(
+          toLogFields({
+            error: error instanceof Error ? error.message : String(error),
+            pipeline: pipeline.name,
+          }),
+          "pipeline stream crashed"
+        )
+      })
+    )
+  )
   logger.info("ingest stopped")
 }
 
@@ -96,7 +110,7 @@ async function serve(
     logger.info({ port: config.port }, "api listening")
   })
 
-  // Background ingest loop runs alongside the API in the same process.
+  // Background ingest streams run alongside the API in the same process.
   void ingestForever(config, client, repo, pipelines).catch((error: unknown) => {
     logger.error(
       { error: error instanceof Error ? error.message : String(error) },
@@ -105,10 +119,11 @@ async function serve(
   })
 }
 
-async function runStatus(config: Config, repo: Repository): Promise<void> {
+async function runStatus(repo: Repository): Promise<void> {
+  const arenaCursor = await repo.getCursor("arena")
   logger.info(
     toLogFields({
-      arenaCursor: (await repo.getCursor("arena"))?.toString() ?? null,
+      arenaCursor: arenaCursor === null ? null : arenaCursor.toString(),
       counts: await repo.counts(),
       summary: await repo.summary(),
     }),
@@ -128,15 +143,6 @@ function installSignalHandlers(): SignalControl {
   process.on("SIGINT", stop)
   process.on("SIGTERM", stop)
   return control
-}
-
-async function sleep(ms: number, shouldStop: () => boolean): Promise<void> {
-  const interval = 250
-  let elapsed = 0
-  while (elapsed < ms && !shouldStop()) {
-    await new Promise((resolve) => setTimeout(resolve, Math.min(interval, ms - elapsed)))
-    elapsed += interval
-  }
 }
 
 main().catch((error: unknown) => {

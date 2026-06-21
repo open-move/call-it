@@ -152,6 +152,80 @@ function TradeTicketMock() {
   )
 }
 
+function EarnPoolMock() {
+  return (
+    <div className={mockFrameClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-sm font-medium tracking-[-0.01em] text-foreground">
+          DeepBook Predict · PLP
+        </h3>
+        <Badge tone={BadgeTone.Live}>Live</Badge>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">Pool TVL</div>
+          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            128.4K DUSDC
+          </div>
+        </div>
+        <div className="min-w-0 text-right">
+          <div className="text-xs text-muted-foreground">PLP price</div>
+          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            1.043
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <DataRow label="Your liquidity" mono value="500.00 DUSDC" />
+        <DataRow label="Fees earned" mono value="+12.84 DUSDC" />
+        <DataRow label="Pool share" mono value="0.39%" />
+      </div>
+    </div>
+  )
+}
+
+function KeeperStatusMock() {
+  return (
+    <div className={mockFrameClassName}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="relative flex size-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-outcome-up/60 motion-reduce:animate-none" />
+            <span className="relative inline-flex size-2 rounded-full bg-outcome-up" />
+          </span>
+          <h3 className="text-sm font-medium tracking-[-0.01em] text-foreground">
+            Keeper network
+          </h3>
+        </div>
+        <Badge tone={BadgeTone.Live}>Online</Badge>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-muted-foreground">Redeemable now</div>
+          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            7
+          </div>
+        </div>
+        <div className="min-w-0 text-right">
+          <div className="text-xs text-muted-foreground">Settled today</div>
+          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            142
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <DataRow label="Reward / settle" mono value="0.10 DUSDC" />
+        <DataRow label="Reward vault" mono value="36.20 DUSDC" />
+        <DataRow label="Last heartbeat" mono value="3s ago" />
+      </div>
+    </div>
+  )
+}
+
 function StrategyOverviewMock() {
   const segments = [
     { label: "PLP", pct: 0.6, tone: "primary" },
@@ -504,7 +578,7 @@ function FeatureBlock({
   linkLabel: string
   reverse?: boolean
   title: string
-  to: "/markets" | "/strategies" | "/arena"
+  to: "/markets" | "/strategies" | "/arena" | "/earn" | "/keeper"
 }) {
   return (
     <section>
@@ -674,11 +748,34 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Don't want to call every market yourself? Put DUSDC to work in vault strategies — from plain liquidity to a hedged note."
+        copy="In the Arena, creators bond capital and call the market in the open. Follow their track record, then back the calls you believe in — or fade the ones you don't."
+        eyebrow="Arena"
+        linkLabel="Enter the Arena"
+        reverse
+        title="Back the sharpest callers."
+        to="/arena"
+      >
+        <ArenaCallMock />
+      </FeatureBlock>
+      <SectionDivider />
+
+      <FeatureBlock
+        copy="Supply DUSDC to the DeepBook Predict pool and earn from every trade that crosses the book. It's the liquidity every call settles against."
         eyebrow="Earn"
+        linkLabel="Open Earn"
+        title="Or provide the liquidity."
+        to="/earn"
+      >
+        <EarnPoolMock />
+      </FeatureBlock>
+      <SectionDivider />
+
+      <FeatureBlock
+        copy="Don't want to manage positions yourself? Deposit into automated strategy vaults — covered PLP, ladders, collars — that trade the book for you and settle each round on-chain."
+        eyebrow="Strategies"
         linkLabel="Explore strategies"
         reverse
-        title="Or put your capital to work."
+        title="Or let a vault run it."
         to="/strategies"
       >
         <StrategyOverviewMock />
@@ -686,13 +783,13 @@ export function Page() {
       <SectionDivider />
 
       <FeatureBlock
-        copy="In the Arena, creators bond capital and call the market in the open. Follow their track record, then back the calls you believe in — or fade the ones you don't."
-        eyebrow="Arena"
-        linkLabel="Enter the Arena"
-        title="Back the sharpest callers."
-        to="/arena"
+        copy="Run a keeper: settle resolved positions permissionlessly and earn rewards from the keeper vault. The infrastructure layer, open to anyone."
+        eyebrow="Keeper"
+        linkLabel="Open the Keeper"
+        title="Or keep the market running."
+        to="/keeper"
       >
-        <ArenaCallMock />
+        <KeeperStatusMock />
       </FeatureBlock>
       <SectionDivider />
 

@@ -60,6 +60,23 @@ export function chooseDownsideStrike(grid: StrikeGrid, spot: bigint, strikeSpotB
   return strike
 }
 
+/// Pick an upside (strictly above spot) strike on the oracle grid, targeting
+/// `strikeSpotBps` of spot (expects `strikeSpotBps > 10_000`).
+export function chooseUpsideStrike(grid: StrikeGrid, spot: bigint, strikeSpotBps: number): bigint {
+  const targetStrike = (spot * BigInt(Math.trunc(strikeSpotBps))) / 10_000n
+  let strike = ceilToGrid(targetStrike, grid.minStrike, grid.tickSize)
+
+  if (strike <= spot) {
+    strike = ceilToGrid(spot + grid.tickSize, grid.minStrike, grid.tickSize)
+  }
+
+  if (strike <= 0n) {
+    throw new Error("computed strike is outside oracle grid")
+  }
+
+  return strike
+}
+
 /// Build symmetric range rungs around spot. Each rung `i` widens by
 /// `rungWidthBps * i`; total quantity is split evenly across rungs.
 export function planRungs(grid: StrikeGrid, spot: bigint, nav: bigint, params: RungParams): RungPlan[] {

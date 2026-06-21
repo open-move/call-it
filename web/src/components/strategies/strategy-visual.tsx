@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import type { StrategyKey } from "@/lib/strategies/hooks"
+import type { StrategyStatsKey } from "@/lib/strategies/hooks"
 
 function VisualFrame({ children }: { children: ReactNode }) {
   return (
@@ -8,6 +8,34 @@ function VisualFrame({ children }: { children: ReactNode }) {
       <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background-image:radial-gradient(var(--muted-foreground)_0.5px,transparent_0.5px)] [background-size:7px_7px]" />
       {children}
     </div>
+  )
+}
+
+function VisualSvg({ children }: { children: ReactNode }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="relative h-full w-full"
+      preserveAspectRatio="none"
+      viewBox="0 0 200 96"
+    >
+      {children}
+    </svg>
+  )
+}
+
+function StrikeLine({ x }: { x: number }) {
+  return (
+    <line
+      className="text-border"
+      stroke="currentColor"
+      strokeDasharray="3 4"
+      strokeOpacity="0.7"
+      x1={x}
+      x2={x}
+      y1="12"
+      y2="84"
+    />
   )
 }
 
@@ -53,21 +81,8 @@ function LiquidityVisual() {
 function TailHedgeVisual() {
   return (
     <VisualFrame>
-      <svg
-        aria-hidden="true"
-        className="relative h-full w-full"
-        preserveAspectRatio="none"
-        viewBox="0 0 200 96"
-      >
-        <line
-          className="text-border"
-          stroke="currentColor"
-          strokeDasharray="3 4"
-          x1="80"
-          x2="80"
-          y1="10"
-          y2="86"
-        />
+      <VisualSvg>
+        <StrikeLine x={80} />
         <path
           className="text-outcome-down"
           d="M10 66 H80"
@@ -83,7 +98,7 @@ function TailHedgeVisual() {
           strokeWidth="2.5"
         />
         <circle className="text-primary" cx="80" cy="66" fill="currentColor" r="3" />
-      </svg>
+      </VisualSvg>
       <span className="absolute bottom-2 left-3 font-mono text-[9px] tracking-[0.12em] text-outcome-down uppercase">
         Floor
       </span>
@@ -94,15 +109,113 @@ function TailHedgeVisual() {
   )
 }
 
+function CollarVisual() {
+  return (
+    <VisualFrame>
+      <VisualSvg>
+        <StrikeLine x={64} />
+        <StrikeLine x={136} />
+        <path
+          className="text-outcome-down"
+          d="M12 64 H64"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          className="text-primary"
+          d="M64 64 L136 32"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          className="text-outcome-up"
+          d="M136 32 H188"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <circle className="text-primary" cx="64" cy="64" fill="currentColor" r="3" />
+        <circle className="text-primary" cx="136" cy="32" fill="currentColor" r="3" />
+      </VisualSvg>
+      <span className="absolute bottom-2 left-3 font-mono text-[9px] tracking-[0.12em] text-outcome-down uppercase">
+        Floor
+      </span>
+      <span className="absolute top-2 right-3 font-mono text-[9px] tracking-[0.12em] text-outcome-up uppercase">
+        Cap
+      </span>
+    </VisualFrame>
+  )
+}
+
+function StrangleVisual() {
+  return (
+    <VisualFrame>
+      <VisualSvg>
+        <StrikeLine x={64} />
+        <StrikeLine x={136} />
+        <path
+          className="text-outcome-down"
+          d="M12 80 L64 46"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          className="text-primary"
+          d="M64 46 H136"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          className="text-outcome-down"
+          d="M136 46 L188 80"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+      </VisualSvg>
+      <span className="absolute top-2 left-1/2 -translate-x-1/2 font-mono text-[9px] tracking-[0.12em] text-primary uppercase">
+        Premium
+      </span>
+    </VisualFrame>
+  )
+}
+
+function BullishUpsideVisual() {
+  return (
+    <VisualFrame>
+      <VisualSvg>
+        <StrikeLine x={120} />
+        <path
+          className="text-primary"
+          d="M12 70 L120 38"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <path
+          className="text-outcome-up"
+          d="M120 38 H188"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <circle className="text-primary" cx="120" cy="38" fill="currentColor" r="3" />
+      </VisualSvg>
+      <span className="absolute top-2 right-3 font-mono text-[9px] tracking-[0.12em] text-outcome-up uppercase">
+        Cap
+      </span>
+    </VisualFrame>
+  )
+}
+
 function RangeLadderVisual() {
   return (
     <VisualFrame>
-      <svg
-        aria-hidden="true"
-        className="relative h-full w-full"
-        preserveAspectRatio="none"
-        viewBox="0 0 200 96"
-      >
+      <VisualSvg>
         <line
           className="text-border"
           stroke="currentColor"
@@ -143,18 +256,24 @@ function RangeLadderVisual() {
           x="20"
           y="58"
         />
-      </svg>
+      </VisualSvg>
     </VisualFrame>
   )
 }
 
-export function StrategyVisual({ strategyKey }: { strategyKey: StrategyKey }) {
+export function StrategyVisual({ strategyKey }: { strategyKey: StrategyStatsKey }) {
   switch (strategyKey) {
     case "earn":
       return <LiquidityVisual />
-    case "shield":
+    case "hedged-plp":
       return <TailHedgeVisual />
-    case "rangeLadder":
+    case "plp-collar":
+      return <CollarVisual />
+    case "strangle":
+      return <StrangleVisual />
+    case "bullish-upside":
+      return <BullishUpsideVisual />
+    case "range-ladder":
       return <RangeLadderVisual />
   }
 }

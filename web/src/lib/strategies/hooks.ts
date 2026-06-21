@@ -1,27 +1,23 @@
 import { useEffect, useState } from "react"
 
-import type {
-  AllocationSegment,
-  AllocationTone,
-} from "@/components/primitives/allocation-bar"
 import { StatusTone } from "@/components/primitives/status-indicator"
 import { QUOTE_SCALE } from "@/lib/config"
-import { getVaultStatus as getRangeLadderStatus } from "@/lib/range-ladder/helpers"
-import { getVaultStatus as getShieldStatus } from "@/lib/shield/helpers"
+import { getStrategyStatus } from "@/lib/strategies/format"
+import { STRATEGY_ORDER } from "@/lib/strategies/registry"
 import { getPredictVaultSummary } from "@/services/predict-client"
-import { getRangeLadderStrategyState } from "@/services/range-ladder-client"
-import { getHedgedPlpStrategyState } from "@/services/shield-client"
+import { getStrategyState } from "@/services/strategy-client"
+import type { StrategyKey } from "@/services/strategy-transactions"
 
-export type StrategyKey = "earn" | "shield" | "rangeLadder"
+/** Card identity on the landing surface: the PLP Earn vault plus each strategy. */
+export type StrategyStatsKey = "earn" | StrategyKey
 
 export interface StrategyStat {
   navUsd?: number
   sharePrice?: number
-  segments?: AllocationSegment[]
   status?: string
 }
 
-export type StrategyStats = Record<StrategyKey, StrategyStat>
+export type StrategyStats = Partial<Record<StrategyStatsKey, StrategyStat>>
 
 /** Single source of truth for status -> indicator tone across strategy UI. */
 export function getStrategyStatusTone(status?: string): StatusTone {
@@ -39,20 +35,6 @@ export function getStrategyStatusTone(status?: string): StatusTone {
   }
 }
 
-function normalize(parts: { label: string; weight: number; tone: AllocationTone }[]) {
-  const total = parts.reduce((sum, part) => sum + Math.max(0, part.weight), 0)
-
-  if (total <= 0) {
-    return undefined
-  }
-
-  return parts.map((part) => ({
-    label: part.label,
-    pct: Math.max(0, part.weight) / total,
-    tone: part.tone,
-  }))
-}
-
 /**
  * Lazily reads live stats for each strategy on the client. Cards render
  * immediately and fill in once resolved; any fetch failure falls back to
@@ -65,76 +47,36 @@ export function useStrategyStats() {
     let active = true
 
     async function load() {
-      const [earn, shield, range] = await Promise.all([
+      const [earn, ...vaultStates] = await Promise.all([
         getPredictVaultSummary().catch(() => undefined),
-        getHedgedPlpStrategyState().catch(() => undefined),
-        getRangeLadderStrategyState().catch(() => undefined),
+        ...STRATEGY_ORDER.map((key) =>
+          getStrategyState(key).catch(() => undefined)
+        ),
       ])
 
       if (!active) {
         return
       }
 
-      setStats({
+      const next: StrategyStats = {
         earn: {
           navUsd: earn ? earn.vault_value / QUOTE_SCALE : undefined,
           sharePrice: earn?.plp_share_price,
-          segments: earn
-            ? normalize([
-                { label: "Deployed", weight: earn.utilization, tone: "primary" },
-                {
-                  label: "Available",
-                  weight: 1 - earn.utilization,
-                  tone: "muted",
-                },
-              ])
-            : undefined,
           status: earn ? "Live" : undefined,
         },
-        shield: {
-          navUsd: shield ? Number(shield.nav) / QUOTE_SCALE : undefined,
-          sharePrice: shield?.sharePrice,
-          segments: shield
-            ? normalize([
-                {
-                  label: "PLP",
-                  weight: shield.policy.maxPlpAllocationBps,
-                  tone: "primary",
-                },
-                {
-                  label: "Hedge",
-                  weight: shield.policy.hedgeBudgetBps,
-                  tone: "down",
-                },
-                {
-                  label: "Reserve",
-                  weight: shield.policy.reserveBps,
-                  tone: "muted",
-                },
-              ])
-            : undefined,
-          status: shield ? getShieldStatus(shield) : undefined,
-        },
-        rangeLadder: {
-          navUsd: range ? Number(range.nav) / QUOTE_SCALE : undefined,
-          sharePrice: range?.sharePrice,
-          segments: range
-            ? normalize([
-                {
-                  label: "Premium",
-                  weight: range.policy.premiumBudgetBps,
-                  tone: "primary",
-                },
-                {
-                  label: "Reserve",
-                  weight: range.policy.reserveBps,
-                  tone: "muted",
-                },
-              ])
-            : undefined,
-          status: range ? getRangeLadderStatus(range) : undefined,
-        },
+      }
+
+      STRATEGY_ORDER.forEach((key, index) => {
+        const state = vaultStates[index]
+
+        next[key] = {
+          navUsd: state ? Number(state.nav) / QUOTE_SCALE : undefined,
+          sharePrice: state?.sharePrice,
+          status: state ? getStrategyStatus(state) : undefined,
+        }
       })
+
+      setStats(next)
     }
 
     void load()

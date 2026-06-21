@@ -76,7 +76,7 @@ const configSchema = z
     CLOCK_OBJECT_ID: envString("0x6"),
     KEEPER_DB_PATH: envString("./data/keeper.sqlite"),
     KEEPER_DRY_RUN: envBoolean(true),
-    KEEPER_HTTP_PORT: envPositiveInteger(4000),
+    KEEPER_HTTP_PORT: envPositiveInteger(8801),
     KEEPER_MAX_BATCH_SIZE: envPositiveInteger(10),
     KEEPER_MAX_CHECKPOINTS_PER_SCAN: envPositiveInteger(25),
     KEEPER_MIN_PAYOUT: envBigint(1n),

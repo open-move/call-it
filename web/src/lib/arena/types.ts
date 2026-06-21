@@ -2,11 +2,15 @@ export type ArenaCallStatus = "active" | "settled" | "bond_claimed"
 
 export type ArenaDirection = "up" | "down"
 
-export type ArenaDataMode = "live" | "mock"
-
 export interface ArenaCall {
   backers: number
   bondPlp: number
+  // Chain object ids + creator address from the live backend. Used to build
+  // back/fade/claim transactions and to gate the creator-only claim-bond action.
+  callId?: string
+  oracleId?: string
+  predictId?: string
+  creator?: string
   createdAt: string
   creatorAvatarSeed: string
   creatorHandle: string
@@ -52,6 +56,5 @@ export interface ArenaPageModel {
   activity: ArenaActivity[]
   calls: ArenaCall[]
   creators: ArenaCreator[]
-  dataMode: ArenaDataMode
   summary: ArenaSummary
 }

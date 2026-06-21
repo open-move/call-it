@@ -1,0 +1,77 @@
+# Full CallIt stack. DeepBook Predict is remote (composed at runtime, not run here).
+#
+# Host ports are chosen to avoid clashes with common local services:
+#   postgres       -> localhost:5439   (db: callit / callit / callit_backend)
+#   backend API    -> http://localhost:8799
+#   keeper status  -> http://localhost:8801
+#   operator       -> no server (round runner)
+#
+# Bring up from the repo root:  docker-compose up -d --build
+#
+# Per-service env comes from each service's .env (gitignored). backend/.env is
+# written by `cd services/operator && bun run sync-config`; operator/.env by
+# `bun run deploy`. keeper/.env is optional here (copy services/keeper/.env.example
+# and set SUI_KEEPER_REDEEM_KEY + KEEPER_REWARD_* to run it for real).
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: callit_backend
+      POSTGRES_PASSWORD: callit
+      POSTGRES_USER: callit
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U callit -d callit_backend"]
+      timeout: 5s
+    ports:
+      - "5439:5432"
+    volumes:
+      # postgres:18 stores data under a versioned subdir; mount the parent.
+      - callit-postgres:/var/lib/postgresql
+
+  backend:
+    build: ./services/backend
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: ./services/backend/.env
+    # Override DATABASE_URL to reach postgres over the compose network.
+    environment:
+      DATABASE_URL: postgres://callit:callit@postgres:5432/callit_backend
+    ports:
+      - "8799:8080"
+    restart: unless-stopped
+
+  operator:
+    build: ./services/operator
+    command: ["--watch", "--run-all"]
+    env_file:
+      - path: ./services/operator/.env
+        required: false
+    # Mount the live deployment manifest so a redeploy is picked up without a
+    # rebuild (the runner reads /app/deployment.<network>.json).
+    volumes:
+      - ./services/operator/deployment.testnet.json:/app/deployment.testnet.json:ro
+    restart: unless-stopped
+
+  keeper:
+    build: ./services/keeper
+    command: ["watch"]
+    env_file:
+      - path: ./services/keeper/.env
+        required: false
+    environment:
+      KEEPER_HTTP_PORT: "8801"
+      # Fresh DB watches forward from now; set KEEPER_START_CHECKPOINT in .env to backfill.
+      KEEPER_START_FROM_LATEST: "true"
+    ports:
+      - "8801:8801"
+    volumes:
+      - callit-keeper:/app/data
+    restart: unless-stopped
+
+volumes:
+  callit-keeper:
+  callit-postgres:

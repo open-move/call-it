@@ -1,3 +1,4 @@
+import { formatDistanceToNowStrict } from "date-fns"
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
 
 import { Badge, BadgeTone } from "@/components/primitives/badge"
@@ -28,6 +29,17 @@ export function formatPlp(value: number) {
   return `${formatCompactNumber(value)} PLP`
 }
 
+// Timestamps from the live backend are epoch-ms strings; mock data uses
+// pre-formatted strings ("12m ago"). Format the former, pass the latter
+// through — guarding against the NaN that would crash date-fns.
+export function formatCallTimestamp(value: string) {
+  const ms = Number(value)
+  if (Number.isFinite(ms) && ms > 0) {
+    return formatDistanceToNowStrict(ms, { addSuffix: true })
+  }
+  return value
+}
+
 export function formatDusdc(value: number) {
   return `${value.toFixed(2)} DUSDC`
 }
@@ -55,6 +67,15 @@ export function oppositeMarket(market: string) {
 
   if (market.includes(" below ")) {
     return market.replace(" below ", " above ")
+  }
+
+  // Default labels read "<asset> Up @ <strike>" / "... Down @ ...".
+  if (market.includes(" Up @ ")) {
+    return market.replace(" Up @ ", " Down @ ")
+  }
+
+  if (market.includes(" Down @ ")) {
+    return market.replace(" Down @ ", " Up @ ")
   }
 
   return market
@@ -228,7 +249,7 @@ export function ActivityRow({ item }: { item: ArenaActivity }) {
         <span className="text-foreground">{item.callLabel}</span>
       </div>
       <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
-        {item.timestamp}
+        {formatCallTimestamp(item.timestamp)}
       </span>
     </div>
   )

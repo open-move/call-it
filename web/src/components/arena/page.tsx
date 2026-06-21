@@ -16,6 +16,7 @@ import {
   CreatorAvatar,
   DirectionArrow,
   SentimentBar,
+  formatCallTimestamp,
   formatPlp,
   getCallChance,
   getWinRate,
@@ -23,6 +24,7 @@ import {
 } from "./atoms"
 import { CallActionDialog } from "./call-action-dialog"
 import { LaunchCallDialog } from "./launch-call-dialog"
+import { UsernameEditor } from "./username-editor"
 
 export interface ArenaPageProps {
   model: ArenaPageModel
@@ -51,13 +53,16 @@ function CallsPanel({ calls }: { calls: ArenaCall[] }) {
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-baseline gap-2">
           <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
-            Active calls
+            Calls
           </h2>
           <span className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
             {calls.length} calls
           </span>
         </div>
-        <LaunchCallDialog />
+        <div className="flex items-center gap-2">
+          <UsernameEditor />
+          <LaunchCallDialog />
+        </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
         {calls.map((call) => (
@@ -89,7 +94,7 @@ function CallCard({ call }: { call: ArenaCall }) {
               </span>
             </span>
             <span className="shrink-0 text-[11px] text-muted-foreground">
-              · {call.createdAt}
+              · {formatCallTimestamp(call.createdAt)}
             </span>
           </div>
           <CallStatusBadge status={call.status} winState={call.winState} />
@@ -109,7 +114,7 @@ function CallCard({ call }: { call: ArenaCall }) {
             </span>
           </div>
           <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            {call.status === "active" ? (
+            {call.status === "active" && call.fairUpProbability > 0 ? (
               <>
                 <span>
                   <span className="font-medium text-foreground tabular-nums">

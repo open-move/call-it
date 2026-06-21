@@ -11,6 +11,8 @@ import type { InferSelectModel } from "drizzle-orm"
 // ---------------------------------------------------------------------------
 
 export const ingestCursors = pgTable("ingest_cursors", {
+  // Last fully-committed checkpoint sequence number for this pipeline. The next
+  // run resumes from checkpoint + 1 (backfilling any gap on demand).
   checkpoint: bigint("checkpoint", { mode: "bigint" }).notNull(),
   pipeline: text("pipeline").primaryKey(),
   updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
@@ -45,6 +47,38 @@ export const metadata = pgTable("metadata", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   hash: text("hash").primaryKey(),
 })
+
+// ---------------------------------------------------------------------------
+// Identity (Dynamic -> backend user + linked wallets)
+// ---------------------------------------------------------------------------
+
+export const users = pgTable("users", {
+  avatarUrl: text("avatar_url"),
+  createdAt: bigint("created_at", { mode: "number" }).notNull(),
+  displayName: text("display_name"),
+  dynamicUserId: text("dynamic_user_id").notNull().unique(),
+  email: text("email").unique(),
+  id: text("id").primaryKey(),
+  updatedAt: bigint("updated_at", { mode: "number" }).notNull(),
+  username: text("username").unique(),
+})
+
+export const wallets = pgTable(
+  "wallets",
+  {
+    address: text("address").notNull().unique(),
+    chain: text("chain").notNull(),
+    id: text("id").primaryKey(),
+    isPrimary: boolean("is_primary").notNull().default(false),
+    linkedAt: bigint("linked_at", { mode: "number" }).notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+  },
+  (table) => ({
+    userIdx: index("wallets_user_idx").on(table.userId),
+  })
+)
 
 // ---------------------------------------------------------------------------
 // Arena raw event tables (one per event type: EventMeta header + fields)
@@ -189,3 +223,5 @@ export type ArenaCreatorRow = InferSelectModel<typeof arenaCreators>
 export type ArenaParticipationRow = InferSelectModel<typeof arenaParticipations>
 export type MetadataRow = InferSelectModel<typeof metadata>
 export type RawEventRow = InferSelectModel<typeof rawEvents>
+export type UserRow = InferSelectModel<typeof users>
+export type WalletRow = InferSelectModel<typeof wallets>

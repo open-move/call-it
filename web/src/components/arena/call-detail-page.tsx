@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input"
 import type { ArenaActivity, ArenaCall, ArenaCreator } from "@/lib/arena/types"
 import { cn } from "@/lib/utils"
 
+import { CallActionDialog } from "./call-action-dialog"
+import { SettlementActions } from "./settlement-actions"
 import {
   ActivityRow,
   CallStatusBadge,
@@ -16,6 +18,7 @@ import {
   DetailStat,
   DirectionArrow,
   SentimentBar,
+  formatCallTimestamp,
   formatDusdc,
   formatPlp,
   getCallChance,
@@ -120,12 +123,10 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
         />
       </TicketSection>
 
-      <Button className="w-full" disabled type="button">
-        {isBack ? "Back call" : "Fade call"}
-      </Button>
-      <p className="text-center text-[11px] text-muted-foreground">
-        {isBack ? "Backing" : "Fading"} goes live once Arena is deployed.
-      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <CallActionDialog call={call} mode="back" />
+        <CallActionDialog call={call} mode="fade" />
+      </div>
     </div>
   )
 }
@@ -174,7 +175,7 @@ export function CallDetailPage({
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {call.createdAt}
+                      {formatCallTimestamp(call.createdAt)}
                     </div>
                   </div>
                 </div>
@@ -268,8 +269,9 @@ export function CallDetailPage({
             </div>
           </div>
 
-          <aside className="lg:sticky lg:top-[4.25rem]">
+          <aside className="space-y-3 lg:sticky lg:top-[4.25rem]">
             <CallActionPanel call={call} />
+            <SettlementActions call={call} />
           </aside>
         </div>
       </div>

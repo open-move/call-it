@@ -1,13 +1,7 @@
 import { bcs } from "@mysten/sui/bcs"
 import type { SuiClientTypes } from "@mysten/sui/client"
 
-import {
-  BASE_VAULT_ID,
-  HEDGED_PLP_SHARE_ASSET,
-  HEDGED_PLP_STRATEGY_ID,
-  PREDICT_QUOTE_ASSET,
-  SHIELD_ORIGINAL_PACKAGE_ID,
-} from "@/lib/config"
+import { PREDICT_QUOTE_ASSET, SHIELD_ORIGINAL_PACKAGE_ID } from "@/lib/config"
 import {
   BalanceBcs,
   MarketKeyBcs,
@@ -16,58 +10,8 @@ import {
   normalizeMarketKey,
   readBcsBigInt,
   readBcsNumber,
-  toUsdPrice,
 } from "./owned-ticket-bcs"
 import { getSuiGrpcClient } from "./sui-client"
-
-const SupplyBcs = bcs.struct("Supply", {
-  value: bcs.U64,
-})
-
-const TreasuryCapBcs = bcs.struct("TreasuryCap", {
-  id: SuiUidBcs,
-  total_supply: SupplyBcs,
-})
-
-const BaseVaultBcs = bcs.struct("BaseVault", {
-  id: SuiUidBcs,
-  treasury: TreasuryCapBcs,
-  cash: BalanceBcs,
-  paused: bcs.Bool,
-})
-
-const HedgedPlpStrategyPolicyBcs = bcs.struct("Policy", {
-  hedge_budget_bps: bcs.U16,
-  strike_band_bps: bcs.U16,
-  reserve_bps: bcs.U16,
-  max_plp_allocation_bps: bcs.U16,
-  max_hedge_ask_bps: bcs.U64,
-})
-
-const HedgedPlpRoundBcs = bcs.struct("Round", {
-  predict_id: SuiIdBcs,
-  oracle_id: SuiIdBcs,
-  strike: bcs.U64,
-  hedge_quantity: bcs.U64,
-  settled: bcs.Bool,
-})
-
-const HedgedPlpStrategyBcs = bcs.struct("Strategy", {
-  id: SuiUidBcs,
-  treasury: TreasuryCapBcs,
-  base_vault_id: SuiIdBcs,
-  base_shares: BalanceBcs,
-  cash: BalanceBcs,
-  plp: BalanceBcs,
-  plp_cost_basis: bcs.U64,
-  manager_id: SuiIdBcs,
-  active_round: bcs.option(HedgedPlpRoundBcs),
-  policy: HedgedPlpStrategyPolicyBcs,
-  paused: bcs.Bool,
-})
-
-type HedgedPlpStrategyBcsValue = ReturnType<typeof HedgedPlpStrategyBcs.parse>
-type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
 
 const ShieldPolicyBcs = bcs.struct("ShieldPolicy", {
   id: SuiUidBcs,
@@ -92,153 +36,6 @@ export interface ShieldPositionRow {
   oracleId: string
   plpAmount: bigint
   policyId: string
-}
-
-export interface HedgedPlpStrategyState {
-  activeRound: {
-    hedgeQuantity: bigint
-    oracleId: string
-    predictId: string
-    settled: boolean
-    strike: bigint
-    strikeUsd: number
-  } | null
-  baseShares: bigint
-  baseVaultId: string
-  cash: bigint
-  managerId: string
-  nav: bigint
-  paused: boolean
-  plpAmount: bigint
-  plpCostBasis: bigint
-  policy: {
-    hedgeBudgetBps: number
-    maxHedgeAskBps: bigint
-    maxPlpAllocationBps: number
-    reserveBps: number
-    strikeBandBps: number
-  }
-  sharePrice: number
-  shareSupply: bigint
-  strategyId: string
-}
-
-export interface ShieldWalletState {
-  dusdcBalance: bigint
-  hedgedPlpShareBalance: bigint
-}
-
-function baseValueForShares(
-  base: BaseVaultBcsValue | undefined,
-  shares: bigint
-) {
-  if (shares <= 0n) {
-    return 0n
-  }
-
-  if (!base) {
-    return shares
-  }
-
-  const nav = readBcsBigInt(base.cash.value)
-  const supply = readBcsBigInt(base.treasury.total_supply.value)
-
-  if (supply <= 0n) {
-    throw new Error("Base Vault has shares to value but zero supply")
-  }
-
-  return (shares * nav) / supply
-}
-
-function normalizeHedgedPlpStrategy(
-  value: HedgedPlpStrategyBcsValue,
-  base?: BaseVaultBcsValue
-): HedgedPlpStrategyState {
-  const cash = readBcsBigInt(value.cash.value)
-  const baseShares = readBcsBigInt(value.base_shares.value)
-  const plpCostBasis = readBcsBigInt(value.plp_cost_basis)
-  const nav = cash + plpCostBasis + baseValueForShares(base, baseShares)
-  const shareSupply = readBcsBigInt(value.treasury.total_supply.value)
-  const activeRound = value.active_round
-
-  return {
-    activeRound: activeRound
-      ? {
-          hedgeQuantity: readBcsBigInt(activeRound.hedge_quantity),
-          oracleId: activeRound.oracle_id,
-          predictId: activeRound.predict_id,
-          settled: activeRound.settled,
-          strike: readBcsBigInt(activeRound.strike),
-          strikeUsd: toUsdPrice(readBcsBigInt(activeRound.strike)),
-        }
-      : null,
-    baseShares,
-    baseVaultId: value.base_vault_id,
-    cash,
-    managerId: value.manager_id,
-    nav,
-    paused: value.paused,
-    plpAmount: readBcsBigInt(value.plp.value),
-    plpCostBasis,
-    policy: {
-      hedgeBudgetBps: value.policy.hedge_budget_bps,
-      maxHedgeAskBps: readBcsBigInt(value.policy.max_hedge_ask_bps),
-      maxPlpAllocationBps: value.policy.max_plp_allocation_bps,
-      reserveBps: value.policy.reserve_bps,
-      strikeBandBps: value.policy.strike_band_bps,
-    },
-    sharePrice: shareSupply > 0n ? Number(nav) / Number(shareSupply) : 1,
-    shareSupply,
-    strategyId: value.id.id,
-  }
-}
-
-export async function getHedgedPlpStrategyState() {
-  const strategyId: string = HEDGED_PLP_STRATEGY_ID
-  const baseVaultId: string = BASE_VAULT_ID
-
-  if (!strategyId) {
-    return undefined
-  }
-
-  const [strategyObject, baseObject] = await Promise.all([
-    getSuiGrpcClient().getObject({
-      include: { content: true },
-      objectId: strategyId,
-    }),
-    baseVaultId
-      ? getSuiGrpcClient().getObject({
-          include: { content: true },
-          objectId: baseVaultId,
-        })
-      : undefined,
-  ])
-  const content = strategyObject.object.content
-
-  return normalizeHedgedPlpStrategy(
-    HedgedPlpStrategyBcs.parse(content),
-    baseObject?.object.content
-      ? BaseVaultBcs.parse(baseObject.object.content)
-      : undefined
-  )
-}
-
-export async function getShieldWalletState(owner: string) {
-  const [dusdcBalance, hedgedPlpShareBalance] = await Promise.all([
-    getSuiGrpcClient().getBalance({
-      coinType: PREDICT_QUOTE_ASSET,
-      owner,
-    }),
-    getSuiGrpcClient().getBalance({
-      coinType: HEDGED_PLP_SHARE_ASSET,
-      owner,
-    }),
-  ])
-
-  return {
-    dusdcBalance: BigInt(dusdcBalance.balance.balance),
-    hedgedPlpShareBalance: BigInt(hedgedPlpShareBalance.balance.balance),
-  } satisfies ShieldWalletState
 }
 
 function getShieldPolicyType() {

@@ -1,6 +1,12 @@
 import type { TickAction } from "./strategy/engine.ts"
 
-export type ProductSelection = "all" | "hedged_plp" | "range_ladder"
+export type ProductSelection =
+  | "all"
+  | "bullish_upside"
+  | "hedged_plp"
+  | "plp_collar"
+  | "range_ladder"
+  | "strangle"
 
 export interface CliOptions {
   action: TickAction
@@ -29,13 +35,15 @@ function parseProducts(argv: string[]): ProductSelection[] {
     return ["all"]
   }
 
-  const products: ProductSelection[] = []
-  if (argv.includes("--run-hedged-plp")) {
-    products.push("hedged_plp")
-  }
-  if (argv.includes("--run-range-ladder")) {
-    products.push("range_ladder")
-  }
+  const flags: ReadonlyArray<readonly [string, Exclude<ProductSelection, "all">]> = [
+    ["--run-hedged-plp", "hedged_plp"],
+    ["--run-range-ladder", "range_ladder"],
+    ["--run-bullish-upside", "bullish_upside"],
+    ["--run-plp-collar", "plp_collar"],
+    ["--run-strangle", "strangle"],
+  ]
+
+  const products = flags.filter(([flag]) => argv.includes(flag)).map(([, product]) => product)
 
   return products.length > 0 ? products : ["all"]
 }

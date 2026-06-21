@@ -1,11 +1,11 @@
+import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { ArrowDownIcon, ArrowUpIcon, PlusIcon } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useEffect, useState } from "react"
 
+import { TicketMessage } from "@/components/shared/ticket/ticket"
 import {
   Dialog,
-  DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -13,14 +13,45 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { parseDecimalUnits } from "@/lib/amounts"
+import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
+import {
+  getReadySuiTransactionSigner,
+  RECONNECT_SUI_WALLET_MESSAGE,
+} from "@/lib/dynamic/sui-wallet"
+import { useAppRouteRefresh } from "@/lib/hooks/router"
+import { formatExpiry, formatExpiryDistance } from "@/lib/format"
+import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
+import type { MarketSnapshot } from "@/lib/types/market"
 import { cn } from "@/lib/utils"
+import { executeLaunchCall } from "@/services/arena-transactions"
+import { formatPredictTradeError } from "@/services/predict-quotes"
 
 type LaunchDirection = "up" | "down"
+
+const MIN_BOND_DUSDC = 10
 
 const directions: { icon: typeof ArrowUpIcon; label: string; value: LaunchDirection }[] = [
   { icon: ArrowUpIcon, label: "Up", value: "up" },
   { icon: ArrowDownIcon, label: "Down", value: "down" },
 ]
+
+const usdFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 0,
+  style: "currency",
+  currency: "USD",
+})
+
+// Only active, future-expiry markets are launchable.
+function isLaunchableMarket(market: MarketSnapshot, nowMs: number) {
+  return market.status === "active" && market.expiryMs > nowMs
+}
+
+function formatExpiryCountdown(expiryMs: number, nowMs: number) {
+  const distance = formatExpiryDistance(expiryMs, nowMs)
+
+  return distance === "Expired" ? distance : `in ${distance}`
+}
 
 function Field({ children, label }: { children: ReactNode; label: string }) {
   return (
@@ -32,17 +63,190 @@ function Field({ children, label }: { children: ReactNode; label: string }) {
 }
 
 export function LaunchCallDialog() {
+  const { primaryWallet, setShowAuthFlow } = useDynamicContext()
+  const refreshRoute = useAppRouteRefresh()
+  const [open, setOpen] = useState(false)
   const [direction, setDirection] = useState<LaunchDirection>("up")
   const [strike, setStrike] = useState("")
   const [bond, setBond] = useState("")
   const [note, setNote] = useState("")
 
-  const bondAmount = Number(bond)
+  const [markets, setMarkets] = useState<MarketSnapshot[]>([])
+  const [marketsError, setMarketsError] = useState<string>()
+  const [isLoadingMarkets, setIsLoadingMarkets] = useState(false)
+  const [selectedAsset, setSelectedAsset] = useState<string>()
+  const [selectedOracleId, setSelectedOracleId] = useState<string>()
+
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string>()
+  const [statusKind, setStatusKind] = useState<"neutral" | "success">("neutral")
+  const [errorMessage, setErrorMessage] = useState<string>()
+
+  const walletAddress = primaryWallet?.address
+
+  // Filter to launchable markets, then derive the asset → expiry options.
+  const nowMs = Date.now()
+  const launchableMarkets = markets.filter((market) =>
+    isLaunchableMarket(market, nowMs)
+  )
+  const assets = [
+    ...new Set(launchableMarkets.map((market) => market.assetSymbol)),
+  ]
+  const assetMarkets = selectedAsset
+    ? launchableMarkets
+        .filter((market) => market.assetSymbol === selectedAsset)
+        .sort((first, second) => first.expiryMs - second.expiryMs)
+    : []
+  const selectedMarket = assetMarkets.find(
+    (market) => market.oracleId === selectedOracleId
+  )
+
+  const bondNumber = Number(bond)
   const bondBelowMin =
-    bond.trim() !== "" && (Number.isNaN(bondAmount) || bondAmount < 10)
+    bond.trim() !== "" &&
+    (Number.isNaN(bondNumber) || bondNumber < MIN_BOND_DUSDC)
+  const strikeNumber = Number(strike)
+  const hasStrike =
+    strike.trim() !== "" && !Number.isNaN(strikeNumber) && strikeNumber > 0
+  const bondUnits = parseDecimalUnits(bond, PREDICT_QUOTE_DECIMALS)
+
+  // Live oracle list comes from Predict; the dialog only loads it when opened.
+  useEffect(() => {
+    if (!open || markets.length > 0) {
+      return
+    }
+
+    let isStale = false
+    setIsLoadingMarkets(true)
+    setMarketsError(undefined)
+
+    loadActiveMarketSnapshots()
+      .then((nextMarkets) => {
+        if (isStale) {
+          return
+        }
+
+        setMarkets(nextMarkets)
+      })
+      .catch((error: unknown) => {
+        if (isStale) {
+          return
+        }
+
+        setMarketsError(
+          error instanceof Error ? error.message : "Failed to load markets."
+        )
+      })
+      .finally(() => {
+        if (!isStale) {
+          setIsLoadingMarkets(false)
+        }
+      })
+
+    return () => {
+      isStale = true
+    }
+  }, [open, markets.length])
+
+  const isLaunchDisabled =
+    isSubmitting ||
+    !selectedMarket ||
+    !hasStrike ||
+    !bondUnits ||
+    bondBelowMin ||
+    (!!walletAddress && bondNumber < MIN_BOND_DUSDC)
+
+  const actionLabel = !walletAddress
+    ? "Connect wallet"
+    : isSubmitting
+      ? "Launching"
+      : "Launch call"
+
+  function resetState() {
+    setStatusMessage(undefined)
+    setStatusKind("neutral")
+    setErrorMessage(undefined)
+  }
+
+  function handleSelectAsset(asset: string) {
+    setSelectedAsset(asset)
+    setSelectedOracleId(undefined)
+  }
+
+  async function handleSubmit() {
+    resetState()
+
+    if (!selectedMarket) {
+      setErrorMessage("Select a market to call.")
+      return
+    }
+
+    if (!walletAddress) {
+      setShowAuthFlow(true)
+      return
+    }
+
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setErrorMessage(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    if (!hasStrike) {
+      setErrorMessage("Enter a strike price.")
+      return
+    }
+
+    if (!bondUnits || bondNumber < MIN_BOND_DUSDC) {
+      setErrorMessage(`Bond must be at least ${MIN_BOND_DUSDC} DUSDC.`)
+      return
+    }
+
+    setIsSubmitting(true)
+    setStatusMessage("Launching call")
+
+    try {
+      await executeLaunchCall(
+        {
+          bondAmount: bondUnits,
+          isUp: direction === "up",
+          oracleId: selectedMarket.oracleId,
+          strikePriceUsd: strikeNumber,
+          walletAddress,
+        },
+        signer
+      )
+
+      setStatusMessage("Call launched")
+      setStatusKind("success")
+      refreshRoute()
+      window.setTimeout(() => {
+        setOpen(false)
+      }, 900)
+    } catch (error) {
+      setStatusMessage(undefined)
+      setStatusKind("neutral")
+      setErrorMessage(formatPredictTradeError(error, "Launch failed"))
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
-    <Dialog>
+    <Dialog
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen)
+
+        if (!nextOpen) {
+          resetState()
+          setSelectedAsset(undefined)
+          setSelectedOracleId(undefined)
+        }
+      }}
+      open={open}
+    >
       <DialogTrigger
         render={
           <Button size="sm" type="button" variant="outline">
@@ -51,24 +255,88 @@ export function LaunchCallDialog() {
           </Button>
         }
       />
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Launch a call</DialogTitle>
-          <DialogDescription>
-            Post a public call on a BTC market. Backers take your side, faders
-            take the other — settled on-chain.
-          </DialogDescription>
+      <DialogContent className="gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-lg">
+        <DialogHeader className="gap-1">
+          <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+            Launch a call
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          <Field label="Market">
-            <div className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/25 px-3 py-2 text-sm font-medium text-foreground">
-              <span className="flex size-5 items-center justify-center rounded-full bg-[#f7931a] text-[10px] font-bold text-black">
-                ₿
-              </span>
-              BTC
-            </div>
+          <Field label="Asset">
+            {isLoadingMarkets ? (
+              <div className="rounded-md border border-border/35 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                Loading markets…
+              </div>
+            ) : marketsError ? (
+              <TicketMessage kind="error">{marketsError}</TicketMessage>
+            ) : assets.length === 0 ? (
+              <div className="rounded-md border border-border/35 bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                No active markets available.
+              </div>
+            ) : (
+              <div aria-label="Asset" className="grid grid-cols-3 gap-2">
+                {assets.map((asset) => {
+                  const isSelected = asset === selectedAsset
+
+                  return (
+                    <Button
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "border border-border/35 bg-muted/25 text-muted-foreground shadow-none hover:bg-muted/35 hover:text-foreground",
+                        isSelected &&
+                          "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15"
+                      )}
+                      key={asset}
+                      onClick={() => handleSelectAsset(asset)}
+                      size="sm"
+                      type="button"
+                      variant="ghost"
+                    >
+                      {asset}
+                    </Button>
+                  )
+                })}
+              </div>
+            )}
           </Field>
+
+          {selectedAsset && assetMarkets.length > 0 && (
+            <Field label="Expiry">
+              <div className="grid max-h-44 gap-2 overflow-y-auto">
+                {assetMarkets.map((market) => {
+                  const isSelected = market.oracleId === selectedOracleId
+
+                  return (
+                    <Button
+                      aria-pressed={isSelected}
+                      className={cn(
+                        "h-auto justify-between border border-border/35 bg-muted/25 px-3 py-2 text-left shadow-none hover:bg-muted/35",
+                        isSelected &&
+                          "border-primary/35 bg-primary/10 text-primary hover:bg-primary/15"
+                      )}
+                      key={market.oracleId}
+                      onClick={() => setSelectedOracleId(market.oracleId)}
+                      type="button"
+                      variant="ghost"
+                    >
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-sm font-medium text-foreground">
+                          {formatExpiry(market.expiryMs)}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {formatExpiryCountdown(market.expiryMs, nowMs)}
+                        </span>
+                      </span>
+                      <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                        {usdFormatter.format(market.currentPriceUsd)}
+                      </span>
+                    </Button>
+                  )
+                })}
+              </div>
+            </Field>
+          )}
 
           <Field label="Direction">
             <div aria-label="Direction" className="grid grid-cols-2 gap-2">
@@ -135,7 +403,8 @@ export function LaunchCallDialog() {
                   bondBelowMin ? "text-warning" : "text-muted-foreground"
                 )}
               >
-                Minimum 10 DUSDC — supplied as PLP to bond your call.
+                Minimum {MIN_BOND_DUSDC} DUSDC — supplied as PLP to bond your
+                call.
               </p>
             </div>
           </Field>
@@ -149,24 +418,33 @@ export function LaunchCallDialog() {
               value={note}
             />
           </Field>
+
+          {(errorMessage || statusMessage) && (
+            <TicketMessage
+              kind={
+                errorMessage
+                  ? "error"
+                  : statusKind === "success"
+                    ? "success"
+                    : "neutral"
+              }
+            >
+              {errorMessage ?? statusMessage}
+            </TicketMessage>
+          )}
         </div>
 
         <DialogFooter>
-          <DialogClose
-            render={
-              <Button type="button" variant="ghost">
-                Cancel
-              </Button>
-            }
-          />
-          <Button disabled type="button">
-            Launch call
+          <Button
+            className="w-full active:scale-[0.98]"
+            disabled={isLaunchDisabled}
+            onClick={handleSubmit}
+            size="lg"
+            type="button"
+          >
+            {actionLabel}
           </Button>
         </DialogFooter>
-
-        <p className="text-center text-[11px] text-muted-foreground">
-          Launching goes live once Arena is deployed.
-        </p>
       </DialogContent>
     </Dialog>
   )

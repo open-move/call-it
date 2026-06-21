@@ -8,12 +8,13 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgres://callit:callit@postgres:5432/callit_backend
+    # Host ports chosen to avoid clashes with common local services.
     ports:
-      - "8080:8080"
+      - "8799:8080"
     restart: unless-stopped
 
   postgres:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: callit_backend
       POSTGRES_PASSWORD: callit
@@ -24,9 +25,10 @@ services:
       test: ["CMD-SHELL", "pg_isready -U callit -d callit_backend"]
       timeout: 5s
     ports:
-      - "5432:5432"
+      - "55432:5432"
     volumes:
-      - backend-postgres:/var/lib/postgresql/data
+      # postgres:18 stores data under a versioned subdir; mount the parent.
+      - backend-postgres:/var/lib/postgresql
 
 volumes:
   backend-postgres:

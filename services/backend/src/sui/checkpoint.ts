@@ -8,6 +8,13 @@ const safeNumberSchema = z
   .refine((value) => value <= BigInt(Number.MAX_SAFE_INTEGER), "value exceeds Number.MAX_SAFE_INTEGER")
   .transform((value) => Number(value))
 
+// The `Checkpoint` proto returned by `getCheckpoint` and pushed on the
+// `subscribeCheckpoints` stream. Derived from the SDK response type so the
+// backfill and live-tail paths share one decode helper without importing a
+// deep proto module path.
+type GetCheckpointResponse = Awaited<ReturnType<SuiClient["ledgerService"]["getCheckpoint"]>["response"]>
+export type CheckpointData = NonNullable<GetCheckpointResponse["checkpoint"]>
+
 // Header carried by every indexed event. `eventId` (`${digest}:${eventIndex}`)
 // is the dedup primary key for raw + projection inserts.
 export interface EventMeta {
@@ -37,38 +44,27 @@ export interface ReadCheckpointResult {
   timestampMs: number
 }
 
+// readMask paths shared by the backfill (`getCheckpoint`) and the live-tail
+// (`subscribeCheckpoints`) so both decode through `checkpointToEvents`.
+export const CHECKPOINT_READ_MASK_PATHS = [
+  "sequence_number",
+  "summary.timestamp",
+  "transactions.digest",
+  "transactions.transaction",
+  "transactions.events",
+] as const
+
 export async function getLatestCheckpoint(client: SuiClient): Promise<bigint> {
   const serviceInfo = await client.ledgerService.getServiceInfo({}).response
   return serviceInfo.checkpointHeight ?? 0n
 }
 
-// Read a checkpoint via gRPC and return every event in
-// (txIndex, eventIndex) order. Package filtering is left to the caller so a
-// single checkpoint read can feed multiple pipelines.
-export async function readCheckpoint(
-  client: SuiClient,
-  checkpoint: bigint
-): Promise<ReadCheckpointResult> {
-  const response = await client.ledgerService.getCheckpoint({
-    checkpointId: { oneofKind: "sequenceNumber", sequenceNumber: checkpoint },
-    readMask: {
-      paths: [
-        "sequence_number",
-        "summary.timestamp",
-        "transactions.digest",
-        "transactions.transaction",
-        "transactions.events",
-      ],
-    },
-  }).response
-
-  const checkpointData = response.checkpoint
-  if (checkpointData === undefined) {
-    throw new Error(`Checkpoint ${checkpoint.toString()} was not returned`)
-  }
-
+// Map a checkpoint proto -> every event in (txIndex, eventIndex) order. Package
+// filtering is left to the caller so a single checkpoint can feed multiple
+// pipelines. Shared by `readCheckpoint` (backfill) and the subscription stream.
+export function checkpointToEvents(checkpointData: CheckpointData, sequenceNumber: bigint): CheckpointEvent[] {
   const timestampMs = protoTimestampToMs(checkpointData.summary?.timestamp)
-  const checkpointNumber = safeNumberSchema.parse(checkpoint)
+  const checkpointNumber = safeNumberSchema.parse(sequenceNumber)
 
   const events: CheckpointEvent[] = []
   for (let txIndex = 0; txIndex < checkpointData.transactions.length; txIndex += 1) {
@@ -99,6 +95,24 @@ export async function readCheckpoint(
     }
   }
 
+  return events
+}
+
+// Read a checkpoint via gRPC and return every event in (txIndex, eventIndex)
+// order. Used for gap backfill; the live tail decodes the pushed proto directly.
+export async function readCheckpoint(client: SuiClient, checkpoint: bigint): Promise<ReadCheckpointResult> {
+  const response = await client.ledgerService.getCheckpoint({
+    checkpointId: { oneofKind: "sequenceNumber", sequenceNumber: checkpoint },
+    readMask: { paths: [...CHECKPOINT_READ_MASK_PATHS] },
+  }).response
+
+  const checkpointData = response.checkpoint
+  if (checkpointData === undefined) {
+    throw new Error(`Checkpoint ${checkpoint.toString()} was not returned`)
+  }
+
+  const events = checkpointToEvents(checkpointData, checkpoint)
+  const timestampMs = protoTimestampToMs(checkpointData.summary?.timestamp)
   return { events, timestampMs }
 }
 

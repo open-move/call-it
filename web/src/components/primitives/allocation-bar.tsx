@@ -1,6 +1,6 @@
 import { cn } from "@/lib/utils"
 
-export type AllocationTone = "primary" | "down" | "muted"
+export type AllocationTone = "primary" | "down" | "up" | "muted"
 
 export interface AllocationSegment {
   label: string
@@ -11,12 +11,14 @@ export interface AllocationSegment {
 const barToneClassName: Record<AllocationTone, string> = {
   primary: "bg-primary",
   down: "bg-outcome-down",
+  up: "bg-outcome-up",
   muted: "bg-muted-foreground/40",
 }
 
 const dotToneClassName: Record<AllocationTone, string> = {
   primary: "bg-primary",
   down: "bg-outcome-down",
+  up: "bg-outcome-up",
   muted: "bg-muted-foreground/55",
 }
 

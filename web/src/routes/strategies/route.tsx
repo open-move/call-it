@@ -1,11 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, Outlet } from "@tanstack/react-router"
 
-import { Page as StrategiesPage } from "@/components/strategies/page"
-
+// Layout for the strategies section. The landing lives in index.tsx; detail
+// pages render at /strategies/$strategyId.
 export const Route = createFileRoute("/strategies")({
-  component: Strategies,
+  component: () => <Outlet />,
 })
-
-function Strategies() {
-  return <StrategiesPage />
-}

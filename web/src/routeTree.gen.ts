@@ -10,9 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as StrategiesRouteRouteImport } from './routes/strategies/route'
-import { Route as ShieldRouteRouteImport } from './routes/shield/route'
 import { Route as RiskRouteRouteImport } from './routes/risk/route'
-import { Route as RangeLadderRouteRouteImport } from './routes/range-ladder/route'
 import { Route as PortfolioRouteRouteImport } from './routes/portfolio/route'
 import { Route as MarketsRouteRouteImport } from './routes/markets/route'
 import { Route as LeaderboardRouteRouteImport } from './routes/leaderboard/route'
@@ -20,10 +18,10 @@ import { Route as KeeperRouteRouteImport } from './routes/keeper/route'
 import { Route as EarnRouteRouteImport } from './routes/earn/route'
 import { Route as ArenaRouteRouteImport } from './routes/arena/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ShieldIndexRouteImport } from './routes/shield/index'
-import { Route as RangeLadderIndexRouteImport } from './routes/range-ladder/index'
+import { Route as StrategiesIndexRouteImport } from './routes/strategies/index'
 import { Route as MarketsIndexRouteImport } from './routes/markets/index'
 import { Route as ArenaIndexRouteImport } from './routes/arena/index'
+import { Route as StrategiesStrategyIdRouteRouteImport } from './routes/strategies/$strategyId/route'
 import { Route as MarketsOracleIdRouteRouteImport } from './routes/markets/$oracleId/route'
 import { Route as ArenaCallIdRouteRouteImport } from './routes/arena/$callId/route'
 import { Route as ArenaCreatorHandleRouteRouteImport } from './routes/arena/creator/$handle/route'
@@ -33,19 +31,9 @@ const StrategiesRouteRoute = StrategiesRouteRouteImport.update({
   path: '/strategies',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ShieldRouteRoute = ShieldRouteRouteImport.update({
-  id: '/shield',
-  path: '/shield',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const RiskRouteRoute = RiskRouteRouteImport.update({
   id: '/risk',
   path: '/risk',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RangeLadderRouteRoute = RangeLadderRouteRouteImport.update({
-  id: '/range-ladder',
-  path: '/range-ladder',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PortfolioRouteRoute = PortfolioRouteRouteImport.update({
@@ -83,15 +71,10 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ShieldIndexRoute = ShieldIndexRouteImport.update({
+const StrategiesIndexRoute = StrategiesIndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => ShieldRouteRoute,
-} as any)
-const RangeLadderIndexRoute = RangeLadderIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => RangeLadderRouteRoute,
+  getParentRoute: () => StrategiesRouteRoute,
 } as any)
 const MarketsIndexRoute = MarketsIndexRouteImport.update({
   id: '/',
@@ -103,6 +86,12 @@ const ArenaIndexRoute = ArenaIndexRouteImport.update({
   path: '/',
   getParentRoute: () => ArenaRouteRoute,
 } as any)
+const StrategiesStrategyIdRouteRoute =
+  StrategiesStrategyIdRouteRouteImport.update({
+    id: '/$strategyId',
+    path: '/$strategyId',
+    getParentRoute: () => StrategiesRouteRoute,
+  } as any)
 const MarketsOracleIdRouteRoute = MarketsOracleIdRouteRouteImport.update({
   id: '/$oracleId',
   path: '/$oracleId',
@@ -127,16 +116,14 @@ export interface FileRoutesByFullPath {
   '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
-  '/range-ladder': typeof RangeLadderRouteRouteWithChildren
   '/risk': typeof RiskRouteRoute
-  '/shield': typeof ShieldRouteRouteWithChildren
-  '/strategies': typeof StrategiesRouteRoute
+  '/strategies': typeof StrategiesRouteRouteWithChildren
   '/arena/$callId': typeof ArenaCallIdRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/strategies/$strategyId': typeof StrategiesStrategyIdRouteRoute
   '/arena/': typeof ArenaIndexRoute
   '/markets/': typeof MarketsIndexRoute
-  '/range-ladder/': typeof RangeLadderIndexRoute
-  '/shield/': typeof ShieldIndexRoute
+  '/strategies/': typeof StrategiesIndexRoute
   '/arena/creator/$handle': typeof ArenaCreatorHandleRouteRoute
 }
 export interface FileRoutesByTo {
@@ -146,13 +133,12 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof LeaderboardRouteRoute
   '/portfolio': typeof PortfolioRouteRoute
   '/risk': typeof RiskRouteRoute
-  '/strategies': typeof StrategiesRouteRoute
   '/arena/$callId': typeof ArenaCallIdRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/strategies/$strategyId': typeof StrategiesStrategyIdRouteRoute
   '/arena': typeof ArenaIndexRoute
   '/markets': typeof MarketsIndexRoute
-  '/range-ladder': typeof RangeLadderIndexRoute
-  '/shield': typeof ShieldIndexRoute
+  '/strategies': typeof StrategiesIndexRoute
   '/arena/creator/$handle': typeof ArenaCreatorHandleRouteRoute
 }
 export interface FileRoutesById {
@@ -164,16 +150,14 @@ export interface FileRoutesById {
   '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
-  '/range-ladder': typeof RangeLadderRouteRouteWithChildren
   '/risk': typeof RiskRouteRoute
-  '/shield': typeof ShieldRouteRouteWithChildren
-  '/strategies': typeof StrategiesRouteRoute
+  '/strategies': typeof StrategiesRouteRouteWithChildren
   '/arena/$callId': typeof ArenaCallIdRouteRoute
   '/markets/$oracleId': typeof MarketsOracleIdRouteRoute
+  '/strategies/$strategyId': typeof StrategiesStrategyIdRouteRoute
   '/arena/': typeof ArenaIndexRoute
   '/markets/': typeof MarketsIndexRoute
-  '/range-ladder/': typeof RangeLadderIndexRoute
-  '/shield/': typeof ShieldIndexRoute
+  '/strategies/': typeof StrategiesIndexRoute
   '/arena/creator/$handle': typeof ArenaCreatorHandleRouteRoute
 }
 export interface FileRouteTypes {
@@ -186,16 +170,14 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/markets'
     | '/portfolio'
-    | '/range-ladder'
     | '/risk'
-    | '/shield'
     | '/strategies'
     | '/arena/$callId'
     | '/markets/$oracleId'
+    | '/strategies/$strategyId'
     | '/arena/'
     | '/markets/'
-    | '/range-ladder/'
-    | '/shield/'
+    | '/strategies/'
     | '/arena/creator/$handle'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -205,13 +187,12 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/portfolio'
     | '/risk'
-    | '/strategies'
     | '/arena/$callId'
     | '/markets/$oracleId'
+    | '/strategies/$strategyId'
     | '/arena'
     | '/markets'
-    | '/range-ladder'
-    | '/shield'
+    | '/strategies'
     | '/arena/creator/$handle'
   id:
     | '__root__'
@@ -222,16 +203,14 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/markets'
     | '/portfolio'
-    | '/range-ladder'
     | '/risk'
-    | '/shield'
     | '/strategies'
     | '/arena/$callId'
     | '/markets/$oracleId'
+    | '/strategies/$strategyId'
     | '/arena/'
     | '/markets/'
-    | '/range-ladder/'
-    | '/shield/'
+    | '/strategies/'
     | '/arena/creator/$handle'
   fileRoutesById: FileRoutesById
 }
@@ -243,10 +222,8 @@ export interface RootRouteChildren {
   LeaderboardRouteRoute: typeof LeaderboardRouteRoute
   MarketsRouteRoute: typeof MarketsRouteRouteWithChildren
   PortfolioRouteRoute: typeof PortfolioRouteRoute
-  RangeLadderRouteRoute: typeof RangeLadderRouteRouteWithChildren
   RiskRouteRoute: typeof RiskRouteRoute
-  ShieldRouteRoute: typeof ShieldRouteRouteWithChildren
-  StrategiesRouteRoute: typeof StrategiesRouteRoute
+  StrategiesRouteRoute: typeof StrategiesRouteRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -258,25 +235,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StrategiesRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/shield': {
-      id: '/shield'
-      path: '/shield'
-      fullPath: '/shield'
-      preLoaderRoute: typeof ShieldRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/risk': {
       id: '/risk'
       path: '/risk'
       fullPath: '/risk'
       preLoaderRoute: typeof RiskRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/range-ladder': {
-      id: '/range-ladder'
-      path: '/range-ladder'
-      fullPath: '/range-ladder'
-      preLoaderRoute: typeof RangeLadderRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/portfolio': {
@@ -328,19 +291,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/shield/': {
-      id: '/shield/'
+    '/strategies/': {
+      id: '/strategies/'
       path: '/'
-      fullPath: '/shield/'
-      preLoaderRoute: typeof ShieldIndexRouteImport
-      parentRoute: typeof ShieldRouteRoute
-    }
-    '/range-ladder/': {
-      id: '/range-ladder/'
-      path: '/'
-      fullPath: '/range-ladder/'
-      preLoaderRoute: typeof RangeLadderIndexRouteImport
-      parentRoute: typeof RangeLadderRouteRoute
+      fullPath: '/strategies/'
+      preLoaderRoute: typeof StrategiesIndexRouteImport
+      parentRoute: typeof StrategiesRouteRoute
     }
     '/markets/': {
       id: '/markets/'
@@ -355,6 +311,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/arena/'
       preLoaderRoute: typeof ArenaIndexRouteImport
       parentRoute: typeof ArenaRouteRoute
+    }
+    '/strategies/$strategyId': {
+      id: '/strategies/$strategyId'
+      path: '/$strategyId'
+      fullPath: '/strategies/$strategyId'
+      preLoaderRoute: typeof StrategiesStrategyIdRouteRouteImport
+      parentRoute: typeof StrategiesRouteRoute
     }
     '/markets/$oracleId': {
       id: '/markets/$oracleId'
@@ -410,27 +373,18 @@ const MarketsRouteRouteWithChildren = MarketsRouteRoute._addFileChildren(
   MarketsRouteRouteChildren,
 )
 
-interface RangeLadderRouteRouteChildren {
-  RangeLadderIndexRoute: typeof RangeLadderIndexRoute
+interface StrategiesRouteRouteChildren {
+  StrategiesStrategyIdRouteRoute: typeof StrategiesStrategyIdRouteRoute
+  StrategiesIndexRoute: typeof StrategiesIndexRoute
 }
 
-const RangeLadderRouteRouteChildren: RangeLadderRouteRouteChildren = {
-  RangeLadderIndexRoute: RangeLadderIndexRoute,
+const StrategiesRouteRouteChildren: StrategiesRouteRouteChildren = {
+  StrategiesStrategyIdRouteRoute: StrategiesStrategyIdRouteRoute,
+  StrategiesIndexRoute: StrategiesIndexRoute,
 }
 
-const RangeLadderRouteRouteWithChildren =
-  RangeLadderRouteRoute._addFileChildren(RangeLadderRouteRouteChildren)
-
-interface ShieldRouteRouteChildren {
-  ShieldIndexRoute: typeof ShieldIndexRoute
-}
-
-const ShieldRouteRouteChildren: ShieldRouteRouteChildren = {
-  ShieldIndexRoute: ShieldIndexRoute,
-}
-
-const ShieldRouteRouteWithChildren = ShieldRouteRoute._addFileChildren(
-  ShieldRouteRouteChildren,
+const StrategiesRouteRouteWithChildren = StrategiesRouteRoute._addFileChildren(
+  StrategiesRouteRouteChildren,
 )
 
 const rootRouteChildren: RootRouteChildren = {
@@ -441,10 +395,8 @@ const rootRouteChildren: RootRouteChildren = {
   LeaderboardRouteRoute: LeaderboardRouteRoute,
   MarketsRouteRoute: MarketsRouteRouteWithChildren,
   PortfolioRouteRoute: PortfolioRouteRoute,
-  RangeLadderRouteRoute: RangeLadderRouteRouteWithChildren,
   RiskRouteRoute: RiskRouteRoute,
-  ShieldRouteRoute: ShieldRouteRouteWithChildren,
-  StrategiesRouteRoute: StrategiesRouteRoute,
+  StrategiesRouteRoute: StrategiesRouteRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

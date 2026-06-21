@@ -31,6 +31,7 @@ const oracleStateResponseSchema = z
         settlement_price: z.number().nullish(),
         settled_at: z.number().nullish(),
         status: z.string().optional(),
+        underlying_asset: z.string().nullish(),
       })
       .partial()
       .optional(),
@@ -102,6 +103,9 @@ export class PredictServerClient {
       }
       const oracle = parsed.data.oracle
       const settlement: OracleSettlement = { settled: oracle?.status === "settled" }
+      if (oracle?.underlying_asset !== undefined && oracle.underlying_asset !== null) {
+        settlement.asset = oracle.underlying_asset
+      }
       if (oracle?.expiry !== undefined && oracle.expiry !== null) {
         settlement.expiryMs = oracle.expiry
       }

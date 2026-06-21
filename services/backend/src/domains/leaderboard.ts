@@ -14,6 +14,12 @@ export type ArenaDataMode = "live" | "mock"
 export interface ArenaCallModel {
   backers: number
   bondPlp: number
+  // Chain object ids — needed by the web to build back/fade/claim transactions.
+  // `id` is our internal ULID; `callId` is the on-chain Call object.
+  callId: string
+  // Creator's wallet address — lets the web gate the creator-only "claim bond"
+  // action (the contract also enforces it).
+  creator: string
   createdAt: string
   creatorAvatarSeed: string
   creatorHandle: string
@@ -25,6 +31,8 @@ export interface ArenaCallModel {
   fairUpProbability: number
   id: string
   market: string
+  oracleId: string
+  predictId: string
   status: ArenaCallStatus
   strikeUsd: number
   winState?: "won" | "lost"
@@ -76,6 +84,9 @@ export interface MarketOverlay {
 // has settled. Defaults to not-settled so reads degrade gracefully when the
 // Predict server is unavailable.
 export interface OracleSettlement {
+  // Underlying asset symbol from the oracle (e.g. "BTC"), used to label the
+  // market. Optional so reads degrade when the Predict server is unavailable.
+  asset?: string
   expiryMs?: number
   settled: boolean
   settlementPrice?: string
@@ -86,13 +97,38 @@ export interface CreatorStats {
   winCount: number
 }
 
-// Scaling: Move u64 amounts are stored as decimal strings. PLP and quote use
-// 9-decimal (MIST-style) precision in DeepBook; convert to a display number.
-const DECIMALS = 1_000_000_000
-
-export function scaleAmount(raw: string): number {
-  return Number(BigInt(raw)) / DECIMALS
+// Resolved identity for a creator address, sourced from the `users` table via
+// their linked wallets. Username supersedes the content-hash metadata name;
+// avatarUrl supersedes the metadata avatar seed when present.
+export interface CreatorIdentity {
+  avatarUrl?: string | undefined
+  displayName?: string | undefined
+  username?: string | undefined
 }
+
+// Scaling: Move u64 amounts are stored as decimal strings, but two different
+// scales are in play. Oracle PRICES (strike, settlement) use 9-decimal
+// precision; quote/PLP AMOUNTS (DUSDC, PLP shares) use the quote asset's 6
+// decimals. Mixing them misreports a bond by 1000x, so keep them split.
+const PRICE_DECIMALS = 1_000_000_000
+const QUOTE_DECIMALS = 1_000_000
+
+// Quote/PLP amount (DUSDC supplied, PLP shares minted) -> display number.
+export function scaleQuote(raw: string): number {
+  return Number(BigInt(raw)) / QUOTE_DECIMALS
+}
+
+// Oracle price (strike, settlement price) -> display number.
+export function scalePrice(raw: string): number {
+  return Number(BigInt(raw)) / PRICE_DECIMALS
+}
+
+// USD strike formatter for the default market label (e.g. "$64,303").
+const strikeUsdFormatter = new Intl.NumberFormat("en-US", {
+  currency: "USD",
+  maximumFractionDigits: 0,
+  style: "currency",
+})
 
 export function callStatus(row: ArenaCallRow, oracle: OracleSettlement): ArenaCallStatus {
   if (row.bondClaimed) {
@@ -169,15 +205,20 @@ export function toCallModel(
   row: ArenaCallRow,
   creatorStats: CreatorStats,
   overlay: MarketOverlay,
-  oracle: OracleSettlement
+  oracle: OracleSettlement,
+  identity: CreatorIdentity = {}
 ): ArenaCallModel {
-  const handle = shortAddress(row.creator)
-  const name = shortAddress(row.creator)
+  // Username (from the users table) supersedes the short-address fallback for
+  // both handle and name; displayName fills the name when no username exists.
+  const handle = identity.username ?? shortAddress(row.creator)
+  const name = identity.username ?? identity.displayName ?? shortAddress(row.creator)
   const model: ArenaCallModel = {
     backers: row.backers,
-    bondPlp: scaleAmount(row.bondPlpAmount),
+    bondPlp: scaleQuote(row.bondPlpAmount),
+    callId: row.callId,
+    creator: row.creator,
     createdAt: row.createdAtMs,
-    creatorAvatarSeed: row.creator,
+    creatorAvatarSeed: identity.avatarUrl ?? row.creator,
     creatorHandle: handle,
     creatorName: name,
     creatorWinRate: winRate(creatorStats.settledCount, creatorStats.winCount),
@@ -186,9 +227,11 @@ export function toCallModel(
     faders: row.faders,
     fairUpProbability: overlay.fairUpProbability ?? 0,
     id: row.id,
-    market: overlay.label ?? defaultMarketLabel(row),
+    market: overlay.label ?? defaultMarketLabel(row, oracle.asset),
+    oracleId: row.oracleId,
+    predictId: row.predictId,
     status: callStatus(row, oracle),
-    strikeUsd: overlay.strikeUsd ?? scaleAmount(row.strike),
+    strikeUsd: overlay.strikeUsd ?? scalePrice(row.strike),
   }
   const won = deriveWon(row, oracle)
   if (won !== null) {
@@ -200,14 +243,17 @@ export function toCallModel(
 export function toCreatorModel(
   row: ArenaCreatorRow,
   meta: ArenaMetadataContent,
-  stats: CreatorStats
+  stats: CreatorStats,
+  identity: CreatorIdentity = {}
 ): ArenaCreatorModel {
+  // Username from the users table takes precedence over the content-hash
+  // metadata handle/name; both fall back to the short address as before.
   return {
-    bondPlp: scaleAmount(row.bondedPlp),
+    bondPlp: scaleQuote(row.bondedPlp),
     callCount: row.callCount,
-    handle: meta.handle ?? shortAddress(row.address),
+    handle: identity.username ?? meta.handle ?? shortAddress(row.address),
     id: row.id,
-    name: meta.name ?? shortAddress(row.address),
+    name: identity.username ?? identity.displayName ?? meta.name ?? shortAddress(row.address),
     settledCount: stats.settledCount,
     winCount: stats.winCount,
   }
@@ -236,7 +282,9 @@ function activityKind(kind: string): ArenaActivityModel["kind"] {
   return "launched"
 }
 
-function defaultMarketLabel(row: ArenaCallRow): string {
+function defaultMarketLabel(row: ArenaCallRow, asset?: string): string {
   const direction = row.isUp ? "Up" : "Down"
-  return `${direction} @ ${scaleAmount(row.strike)}`
+  const strike = strikeUsdFormatter.format(scalePrice(row.strike))
+  const prefix = asset ? `${asset} ` : ""
+  return `${prefix}${direction} @ ${strike}`
 }

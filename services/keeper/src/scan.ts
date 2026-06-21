@@ -1,4 +1,5 @@
 import type { Config } from "./config.ts"
+import type { StoredRawEvent } from "./db/database.ts"
 import type { Repository } from "./db/repo.ts"
 import { isPredictEventType } from "./predict.ts"
 import type { SuiClient } from "./sui.ts"
@@ -9,6 +10,17 @@ const safeNumberSchema = z
   .bigint()
   .refine((value) => value <= BigInt(Number.MAX_SAFE_INTEGER), "value exceeds Number.MAX_SAFE_INTEGER")
   .transform((value) => Number(value))
+
+// The `Checkpoint` proto returned by `getCheckpoint` and pushed on the
+// `subscribeCheckpoints` stream. Derived from the SDK response type so the
+// backfill (getCheckpoint) and live-tail paths share one decode helper without
+// importing a deep proto module path.
+type GetCheckpointResponse = Awaited<ReturnType<SuiClient["ledgerService"]["getCheckpoint"]>["response"]>
+export type CheckpointData = NonNullable<GetCheckpointResponse["checkpoint"]>
+
+// readMask paths shared by the bounded scan, the backfill (`getCheckpoint`) and
+// the live tail (`subscribeCheckpoints`) so every path decodes identically.
+export const CHECKPOINT_READ_MASK_PATHS = ["sequence_number", "transactions.digest", "transactions.events"] as const
 
 export interface ScanResult {
   fromCheckpoint: bigint | null
@@ -105,21 +117,16 @@ export async function scanPredictEvents(
   }
 }
 
-async function readPredictEventsAtCheckpoint(
+// Map a checkpoint proto -> the Predict events we persist, in
+// (txIndex, eventIndex) order, filtered to the configured Predict package.
+// Shared by the bounded scan / backfill (`getCheckpoint`) and the live tail
+// (the pushed `res.checkpoint` proto), so both decode identically.
+export function extractPredictEvents(
   config: Config,
-  client: SuiClient,
+  checkpointData: CheckpointData,
   checkpoint: bigint
-) {
-  const response = await client.ledgerService.getCheckpoint({
-    checkpointId: { oneofKind: "sequenceNumber", sequenceNumber: checkpoint },
-    readMask: { paths: ["sequence_number", "transactions.digest", "transactions.events"] },
-  }).response
-  const checkpointData = response.checkpoint
-  if (checkpointData === undefined) {
-    throw new Error(`Checkpoint ${checkpoint.toString()} was not returned`)
-  }
-
-  const storedEvents = []
+): StoredRawEvent[] {
+  const storedEvents: StoredRawEvent[] = []
   for (let transactionIndex = 0; transactionIndex < checkpointData.transactions.length; transactionIndex += 1) {
     const transaction = checkpointData.transactions[transactionIndex]
     const events = transaction?.events?.events ?? []
@@ -146,6 +153,25 @@ async function readPredictEventsAtCheckpoint(
     }
   }
   return storedEvents
+}
+
+// Read a checkpoint via `getCheckpoint` and decode its Predict events. Used by
+// the bounded scan; the live tail decodes the pushed proto directly.
+export async function readPredictEventsAtCheckpoint(
+  config: Config,
+  client: SuiClient,
+  checkpoint: bigint
+): Promise<StoredRawEvent[]> {
+  const response = await client.ledgerService.getCheckpoint({
+    checkpointId: { oneofKind: "sequenceNumber", sequenceNumber: checkpoint },
+    readMask: { paths: [...CHECKPOINT_READ_MASK_PATHS] },
+  }).response
+  const checkpointData = response.checkpoint
+  if (checkpointData === undefined) {
+    throw new Error(`Checkpoint ${checkpoint.toString()} was not returned`)
+  }
+
+  return extractPredictEvents(config, checkpointData, checkpoint)
 }
 
 function minBigint(left: bigint, right: bigint) {

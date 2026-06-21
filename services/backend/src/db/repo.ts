@@ -1,4 +1,5 @@
-import { and, asc, desc, eq, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, getTableName, inArray, or, sql } from "drizzle-orm"
+import type { Table } from "drizzle-orm"
 
 import { newId } from "../ids.ts"
 import type { Database } from "./database.ts"
@@ -15,8 +16,18 @@ import {
   ingestCursors,
   metadata,
   rawEvents,
+  users,
+  wallets,
 } from "./schema.ts"
-import type { ArenaCallRow, ArenaCreatorRow, MetadataRow, RawEventRow } from "./schema.ts"
+import type {
+  ArenaCallRow,
+  ArenaCreatorRow,
+  MetadataRow,
+  RawEventRow,
+  UserRow,
+  WalletRow,
+} from "./schema.ts"
+import type { DynamicClaims, SuiWallet } from "../domains/auth.ts"
 import type { EventMeta } from "../sui/checkpoint.ts"
 import type {
   CallLaunchedEvent,
@@ -35,11 +46,28 @@ export interface RawEventInput {
   meta: EventMeta
 }
 
+export interface ProfileInput {
+  avatarUrl?: string | undefined
+  displayName?: string | undefined
+  username?: string | undefined
+}
+
+// Thrown when a requested username is already taken by another user. The API
+// maps this to a clean 409 rather than surfacing a raw Postgres unique error.
+export class UsernameConflictError extends Error {
+  constructor(public readonly username: string) {
+    super(`username ${username} already taken`)
+    this.name = "UsernameConflictError"
+  }
+}
+
 export class Repository {
   constructor(private readonly database: Database) {}
 
   // ----- cursors ---------------------------------------------------------
 
+  // Last fully-committed checkpoint sequence number for this pipeline, or null
+  // when the pipeline has never advanced.
   async getCursor(pipeline: string): Promise<bigint | null> {
     const row = await this.database.db.query.ingestCursors.findFirst({
       where: eq(ingestCursors.pipeline, pipeline),
@@ -100,6 +128,178 @@ export class Repository {
     return result
   }
 
+  // ----- identity --------------------------------------------------------
+
+  // Upsert the user (keyed by Dynamic `sub`) and each verified wallet (keyed by
+  // normalized address), all in one transaction so a login never leaves a user
+  // without their wallets. Exactly one wallet is marked primary.
+  async upsertUserWithWallets(
+    claims: DynamicClaims,
+    suiWallets: SuiWallet[]
+  ): Promise<{ user: UserRow; wallets: WalletRow[] }> {
+    const now = Date.now()
+    const displayName = composeDisplayName(claims)
+    return this.database.db.transaction(async (tx) => {
+      const [user] = await tx
+        .insert(users)
+        .values({
+          createdAt: now,
+          displayName: displayName ?? null,
+          dynamicUserId: claims.sub,
+          email: claims.email ?? null,
+          id: newId(),
+          updatedAt: now,
+          // Default handle so every user has one immediately (changeable via
+          // PATCH /me). Derived from the unique Dynamic sub -> always unique +
+          // matches the username format (3-20 [a-z0-9_]).
+          username: defaultUsername(claims.sub),
+        })
+        .onConflictDoUpdate({
+          set: {
+            // Only refresh fields Dynamic owns; never clobber a user-set
+            // username/displayName/avatar with a null from a later login.
+            email: claims.email ?? sql`${users.email}`,
+            updatedAt: now,
+            // Backfill a default handle for pre-existing users without one;
+            // preserve any handle the user already set.
+            username: sql`COALESCE(${users.username}, ${defaultUsername(claims.sub)})`,
+          },
+          target: users.dynamicUserId,
+        })
+        .returning()
+      if (user === undefined) {
+        throw new Error("failed to upsert user")
+      }
+
+      for (const [index, wallet] of suiWallets.entries()) {
+        await tx
+          .insert(wallets)
+          .values({
+            address: wallet.address,
+            chain: wallet.chain,
+            id: newId(),
+            isPrimary: index === 0,
+            linkedAt: now,
+            userId: user.id,
+          })
+          .onConflictDoUpdate({
+            set: { chain: wallet.chain, isPrimary: index === 0, userId: user.id },
+            target: wallets.address,
+          })
+      }
+
+      const linked = await tx.query.wallets.findMany({
+        where: eq(wallets.userId, user.id),
+      })
+      return { user, wallets: linked }
+    })
+  }
+
+  async getUserById(id: string): Promise<UserRow | null> {
+    const row = await this.database.db.query.users.findFirst({
+      where: eq(users.id, id),
+    })
+    return row ?? null
+  }
+
+  async getUserByUsername(username: string): Promise<UserRow | null> {
+    const row = await this.database.db.query.users.findFirst({
+      where: eq(users.username, username.toLowerCase()),
+    })
+    return row ?? null
+  }
+
+  async getUserByWalletAddress(address: string): Promise<UserRow | null> {
+    const wallet = await this.database.db.query.wallets.findFirst({
+      where: eq(wallets.address, address.toLowerCase()),
+    })
+    if (wallet === undefined) {
+      return null
+    }
+    return this.getUserById(wallet.userId)
+  }
+
+  async listWalletsForUser(userId: string): Promise<WalletRow[]> {
+    return this.database.db.query.wallets.findMany({
+      where: eq(wallets.userId, userId),
+    })
+  }
+
+  // Update mutable profile fields. Enforces username uniqueness explicitly so
+  // callers get a typed UsernameConflictError rather than a raw DB error.
+  async setProfile(userId: string, input: ProfileInput): Promise<UserRow> {
+    if (input.username !== undefined) {
+      const existing = await this.getUserByUsername(input.username)
+      if (existing !== null && existing.id !== userId) {
+        throw new UsernameConflictError(input.username)
+      }
+    }
+
+    const set: Partial<UserRow> = { updatedAt: Date.now() }
+    if (input.username !== undefined) {
+      set.username = input.username.toLowerCase()
+    }
+    if (input.displayName !== undefined) {
+      set.displayName = input.displayName
+    }
+    if (input.avatarUrl !== undefined) {
+      set.avatarUrl = input.avatarUrl
+    }
+
+    const [row] = await this.database.db
+      .update(users)
+      .set(set)
+      .where(eq(users.id, userId))
+      .returning()
+    if (row === undefined) {
+      throw new Error("user not found")
+    }
+    return row
+  }
+
+  // Map of normalized address -> username for arena name resolution. Only
+  // addresses with a non-null username are included.
+  async usernamesByAddresses(addresses: string[]): Promise<Map<string, string>> {
+    const result = new Map<string, string>()
+    const normalized = [
+      ...new Set(addresses.map((address) => address.toLowerCase()).filter((address) => address.length > 0)),
+    ]
+    if (normalized.length === 0) {
+      return result
+    }
+    const rows = await this.database.db
+      .select({ address: wallets.address, username: users.username })
+      .from(wallets)
+      .innerJoin(users, eq(wallets.userId, users.id))
+      .where(inArray(wallets.address, normalized))
+    for (const row of rows) {
+      if (row.username !== null) {
+        result.set(row.address, row.username)
+      }
+    }
+    return result
+  }
+
+  // Map of normalized address -> user (for avatar/displayName resolution).
+  async usersByAddresses(addresses: string[]): Promise<Map<string, UserRow>> {
+    const result = new Map<string, UserRow>()
+    const normalized = [
+      ...new Set(addresses.map((address) => address.toLowerCase()).filter((address) => address.length > 0)),
+    ]
+    if (normalized.length === 0) {
+      return result
+    }
+    const rows = await this.database.db
+      .select({ address: wallets.address, user: users })
+      .from(wallets)
+      .innerJoin(users, eq(wallets.userId, users.id))
+      .where(inArray(wallets.address, normalized))
+    for (const row of rows) {
+      result.set(row.address, row.user)
+    }
+    return result
+  }
+
   // ----- arena reads -----------------------------------------------------
 
   async listCalls(): Promise<ArenaCallRow[]> {
@@ -144,6 +344,32 @@ export class Repository {
     })
   }
 
+  // Calls created by any of the supplied (normalized) addresses.
+  async listCallsByCreators(addresses: string[]): Promise<ArenaCallRow[]> {
+    const normalized = [...new Set(addresses.map((address) => address.toLowerCase()))]
+    if (normalized.length === 0) {
+      return []
+    }
+    return this.database.db.query.arenaCalls.findMany({
+      orderBy: (table) => [desc(table.createdAtMs)],
+      where: inArray(arenaCalls.creator, normalized),
+    })
+  }
+
+  // Participations (back/fade) by any of the supplied (normalized) addresses.
+  async listParticipationsByParticipants(
+    addresses: string[]
+  ): Promise<typeof arenaParticipations.$inferSelect[]> {
+    const normalized = [...new Set(addresses.map((address) => address.toLowerCase()))]
+    if (normalized.length === 0) {
+      return []
+    }
+    return this.database.db.query.arenaParticipations.findMany({
+      orderBy: (table) => [desc(table.recordedAtMs)],
+      where: inArray(arenaParticipations.participant, normalized),
+    })
+  }
+
   async listActivity(limit: number): Promise<typeof arenaActivity.$inferSelect[]> {
     return this.database.db.query.arenaActivity.findMany({
       limit,
@@ -177,9 +403,9 @@ export class Repository {
     }
   }
 
-  private async countAll(table: { _: { name: string } }): Promise<number> {
+  private async countAll(table: Table): Promise<number> {
     const result = await this.database.db.execute(
-      sql`SELECT COUNT(*)::int AS count FROM ${sql.identifier(table._.name)}`
+      sql`SELECT COUNT(*)::int AS count FROM ${sql.identifier(getTableName(table))}`
     )
     return readCount(result.rows[0])
   }
@@ -414,6 +640,28 @@ export class CheckpointContext {
       })
       .onConflictDoNothing({ target: arenaActivity.eventId })
   }
+}
+
+// Build a display name from Dynamic standard claims (given/family/alias),
+// falling back to undefined so we never overwrite a user-set displayName.
+// Default username derived from the unique Dynamic sub: always unique and a
+// valid handle (3-20 chars of [a-z0-9_]). Users can change it via PATCH /me.
+function defaultUsername(sub: string): string {
+  const slug = sub.replace(/[^a-z0-9]/gi, "").toLowerCase().slice(0, 13)
+  return `caller_${slug || "user"}`
+}
+
+function composeDisplayName(claims: DynamicClaims): string | undefined {
+  const parts = [claims.given_name, claims.family_name].filter(
+    (part): part is string => typeof part === "string" && part.length > 0
+  )
+  if (parts.length > 0) {
+    return parts.join(" ")
+  }
+  if (typeof claims.alias === "string" && claims.alias.length > 0) {
+    return claims.alias
+  }
+  return undefined
 }
 
 function readCount(row: Record<string, unknown> | undefined): number {

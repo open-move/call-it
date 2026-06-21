@@ -1,7 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { ArrowRightIcon } from "lucide-react"
 
-import { AllocationBar } from "@/components/primitives/allocation-bar"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { Card } from "@/components/ui/card"
 import { StrategyVisual } from "./strategy-visual"
@@ -9,45 +8,43 @@ import {
   getStrategyStatusTone,
   useStrategyStats,
 } from "@/lib/strategies/hooks"
-import type { StrategyKey, StrategyStat } from "@/lib/strategies/hooks"
+import type { StrategyStat, StrategyStatsKey } from "@/lib/strategies/hooks"
+import { STRATEGY_ORDER, getStrategyMeta } from "@/lib/strategies/registry"
 
 interface StrategyCardData {
   description: string
-  href: "/earn" | "/shield" | "/range-ladder"
-  key: StrategyKey
+  /** Strategy-detail slug (`/strategies/<slug>`). Absent for the PLP Earn card, which links to `/earn`. */
+  slug?: string
+  key: StrategyStatsKey
   shareToken: string
   status: string
   title: string
 }
 
+// The PLP Earn vault is bespoke (links to /earn); the strategy vaults are
+// generated from the registry so every strategy surfaces here automatically.
+const earnCard: StrategyCardData = {
+  description:
+    "Supply DUSDC to back Predict market liquidity and receive PLP shares.",
+  key: "earn",
+  shareToken: "PLP",
+  status: "Live",
+  title: "PLP Earn",
+}
+
 const strategyCards: StrategyCardData[] = [
-  {
-    description:
-      "Supply DUSDC to back Predict market liquidity and receive PLP shares.",
-    href: "/earn",
-    key: "earn",
-    shareToken: "PLP",
-    status: "Live",
-    title: "PLP Earn",
-  },
-  {
-    description:
-      "Allocate PLP capital with a downside hedge budget and round-based realization.",
-    href: "/shield",
-    key: "shield",
-    shareToken: "hPLP",
-    status: "Live",
-    title: "Tail Hedge PLP",
-  },
-  {
-    description:
-      "Deploy native Predict range positions across selected rungs for calm-market exposure.",
-    href: "/range-ladder",
-    key: "rangeLadder",
-    shareToken: "rLADDER",
-    status: "Live",
-    title: "Range Ladder",
-  },
+  earnCard,
+  ...STRATEGY_ORDER.map((key): StrategyCardData => {
+    const meta = getStrategyMeta(key)
+    return {
+      description: meta.tagline,
+      slug: meta.key,
+      key,
+      shareToken: meta.shareSymbol,
+      status: "Live",
+      title: meta.name,
+    }
+  }),
 ]
 
 const sharePriceFormatter = new Intl.NumberFormat("en-US", {
@@ -78,8 +75,6 @@ function StrategyCard({
   strategy: StrategyCardData
 }) {
   const status = stat?.status ?? strategy.status
-  const allocationLabel =
-    strategy.key === "earn" ? "Utilization" : "Capital allocation"
 
   return (
     <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-lg border-0 bg-card p-0 shadow-none ring-0 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg">
@@ -139,18 +134,25 @@ function StrategyCard({
           </div>
         </div>
 
-        <div className="mt-3">
-          <AllocationBar label={allocationLabel} segments={stat?.segments} />
-        </div>
-
         <div className="mt-auto pt-4">
-          <Link
-            className="flex items-center justify-between border-t border-border/30 pt-3 text-sm font-medium text-foreground transition-colors group-hover:text-primary"
-            to={strategy.href}
-          >
-            Open strategy
-            <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-          </Link>
+          {strategy.slug ? (
+            <Link
+              className="flex items-center justify-between border-t border-border/30 pt-3 text-sm font-medium text-foreground transition-colors group-hover:text-primary"
+              params={{ strategyId: strategy.slug }}
+              to="/strategies/$strategyId"
+            >
+              Open strategy
+              <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
+          ) : (
+            <Link
+              className="flex items-center justify-between border-t border-border/30 pt-3 text-sm font-medium text-foreground transition-colors group-hover:text-primary"
+              to="/earn"
+            >
+              Open strategy
+              <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
+            </Link>
+          )}
         </div>
       </div>
     </Card>
@@ -168,8 +170,9 @@ export function Page() {
             Strategies
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
-            Choose direct PLP liquidity, hedged PLP exposure, or native range
-            laddering. Values are accounted in DUSDC where applicable.
+            Choose direct PLP liquidity or a structured strategy vault — hedged
+            PLP, collars, strangles, and range ladders. Values are accounted in
+            DUSDC where applicable.
           </p>
         </div>
 

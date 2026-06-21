@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process"
+import { readFileSync } from "node:fs"
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -29,6 +30,30 @@ const DEFAULT_RANGE_LADDER_POLICY = {
   premiumBudgetBps: 1_000,
   reserveBps: 1_000,
 }
+const DEFAULT_STRANGLE_POLICY = {
+  maxLegAskBps: 10_000n,
+  premiumBudgetBps: 1_000,
+  reserveBps: 1_000,
+  strikeBandBps: 200,
+}
+const DEFAULT_BULLISH_UPSIDE_POLICY = {
+  maxUpAskBps: 10_000n,
+  premiumBudgetBps: 1_000,
+  reserveBps: 1_000,
+  strikeBandBps: 2_000,
+}
+const DEFAULT_PLP_COLLAR_POLICY = {
+  downsideBudgetBps: 1_000,
+  maxLegAskBps: 10_000n,
+  maxPlpAllocationBps: 7_000,
+  reserveBps: 1_000,
+  strikeBandBps: 200,
+  upsideBudgetBps: 1_000,
+}
+const DEFAULT_KEEPER_REWARD_AMOUNT = 100_000n
+const DEFAULT_KEEPER_REWARD_MIN_PAYOUT = 0n
+const DEFAULT_KEEPER_REWARD_FUND_AMOUNT = 100_000n
+const DEFAULT_ARENA_MIN_BOND_QUOTE_AMOUNT = 1_000_000n
 
 type Network = "mainnet" | "testnet" | "devnet" | "localnet"
 
@@ -39,33 +64,44 @@ interface BuildOutput {
 
 interface PublishResult {
   packageId: string
+  publisherId?: string
   treasuryCapId?: string
   upgradeCapId?: string
 }
 
+interface StrategyDeployment {
+  adminCapId: string
+  keeperCapId: string
+  managerId: string
+  packageId: string
+  strategyId: string
+}
+
 interface DeploymentRecord {
+  arena: {
+    adminCapId: string
+    arenaId: string
+    packageId: string
+  }
   baseVault: {
     capId: string
     packageId: string
     vaultId: string
   }
+  bullishUpside: StrategyDeployment
   deployer: string
-  hedgedPlp: {
+  hedgedPlp: StrategyDeployment
+  keeperRewards: {
     adminCapId: string
-    keeperCapId: string
-    managerId: string
+    funded: boolean
     packageId: string
-    strategyId: string
+    vaultId: string
   }
   network: Network
   operator: string
-  rangeLadder: {
-    adminCapId: string
-    keeperCapId: string
-    managerId: string
-    packageId: string
-    strategyId: string
-  }
+  plpCollar: StrategyDeployment
+  rangeLadder: StrategyDeployment
+  strangle: StrategyDeployment
 }
 
 function requireEnv(name: string) {
@@ -124,6 +160,33 @@ async function loadDeployerKeypair() {
   }
 
   return Ed25519Keypair.fromSecretKey(secretKey)
+}
+
+// Resolve the operator keypair, preferring stability so funding + caps survive
+// redeploys: explicit SUI_OPERATOR_KEY, then the existing operator/.env key, then
+// a fresh keypair (first-ever deploy). Rotate by setting SUI_OPERATOR_KEY.
+function loadOrCreateOperatorKeypair(envPath: string): Ed25519Keypair {
+  const raw = process.env.SUI_OPERATOR_KEY?.trim() || readOperatorKeyFromEnv(envPath)
+  if (raw) {
+    try {
+      const { scheme, secretKey } = decodeSuiPrivateKey(raw)
+      if (scheme === "ED25519") {
+        return Ed25519Keypair.fromSecretKey(secretKey)
+      }
+    } catch {
+      // Unparseable existing key — fall through to a fresh keypair.
+    }
+  }
+  return Ed25519Keypair.generate()
+}
+
+function readOperatorKeyFromEnv(envPath: string): string | undefined {
+  try {
+    const match = readFileSync(envPath, "utf8").match(/^SUI_KEEPER_KEY=(.+)$/m)
+    return match?.[1]?.trim() || undefined
+  } catch {
+    return undefined
+  }
 }
 
 async function buildPackage(packagePath: string, buildEnv: Network) {
@@ -300,13 +363,20 @@ async function publishPackage({
     transaction,
     (type) => type === "0x2::package::UpgradeCap"
   )
+  // Capture the Publisher created in THIS publish tx (only packages whose init
+  // claims one — e.g. arena). Searching owned objects can't disambiguate: the
+  // deployer accumulates many `0x2::package::Publisher` across deploys.
+  const publisherId = createdObjectByType(
+    transaction,
+    (type) => type.endsWith("::package::Publisher")
+  )
   const treasuryCapId = treasuryType
     ? await ownedObjectByType({ client, owner: deployer.toSuiAddress(), type: treasuryType })
     : undefined
 
   logger.info({ label, packageId }, "package published")
 
-  return { packageId, treasuryCapId, upgradeCapId } satisfies PublishResult
+  return { packageId, publisherId, treasuryCapId, upgradeCapId } satisfies PublishResult
 }
 
 function publishedToml(packageId: string, network: Network) {
@@ -334,7 +404,7 @@ async function createBaseVault({
   const deployerAddress = deployer.toSuiAddress()
 
   tx.setSender(deployerAddress)
-  tx.setGasBudget(500_000_000)
+  tx.setGasBudget(100_000_000)
   const [vault, cap] = tx.moveCall({
     target: `${basePackageId}::base_vault::create_vault`,
     typeArguments: [quoteAsset],
@@ -405,7 +475,7 @@ async function createPredictManager({
 }) {
   const tx = new Transaction()
   tx.setSender(operator.toSuiAddress())
-  tx.setGasBudget(300_000_000)
+  tx.setGasBudget(100_000_000)
   tx.moveCall({ target: `${predictPackageId}::predict::create_manager` })
 
   const transaction = await executeTransaction(client, operator, tx, `create ${label} manager`)
@@ -439,7 +509,7 @@ async function createHedgedPlpStrategy({
 }) {
   const tx = new Transaction()
   tx.setSender(operator.toSuiAddress())
-  tx.setGasBudget(500_000_000)
+  tx.setGasBudget(100_000_000)
   const policy = tx.moveCall({
     target: `${packageId}::policy::new`,
     arguments: [
@@ -492,7 +562,7 @@ async function createRangeLadderStrategy({
 }) {
   const tx = new Transaction()
   tx.setSender(operator.toSuiAddress())
-  tx.setGasBudget(500_000_000)
+  tx.setGasBudget(100_000_000)
   const policy = tx.moveCall({
     target: `${packageId}::policy::new`,
     arguments: [
@@ -521,6 +591,301 @@ async function createRangeLadderStrategy({
     transaction,
     "::strategy::StrategyCreated"
   )
+}
+
+async function createStrangleStrategy({
+  baseVaultId,
+  client,
+  deployerAddress,
+  managerId,
+  operator,
+  packageId,
+  quoteAsset,
+  treasuryCapId,
+}: {
+  baseVaultId: string
+  client: SuiGrpcClient
+  deployerAddress: string
+  managerId: string
+  operator: Ed25519Keypair
+  packageId: string
+  quoteAsset: string
+  treasuryCapId: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(operator.toSuiAddress())
+  tx.setGasBudget(100_000_000)
+  const policy = tx.moveCall({
+    target: `${packageId}::policy::new`,
+    arguments: [
+      tx.pure.u16(DEFAULT_STRANGLE_POLICY.premiumBudgetBps),
+      tx.pure.u16(DEFAULT_STRANGLE_POLICY.strikeBandBps),
+      tx.pure.u16(DEFAULT_STRANGLE_POLICY.reserveBps),
+      tx.pure.u64(DEFAULT_STRANGLE_POLICY.maxLegAskBps),
+    ],
+  })
+  const [strategy, adminCap, keeperCap] = tx.moveCall({
+    target: `${packageId}::strategy::create_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [tx.object(treasuryCapId), tx.object(baseVaultId), tx.object(managerId), policy],
+  })
+  tx.moveCall({
+    target: `${packageId}::strategy::share_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [strategy],
+  })
+  tx.transferObjects([adminCap], deployerAddress)
+  tx.transferObjects([keeperCap], operator.toSuiAddress())
+
+  const transaction = await executeTransaction(client, operator, tx, "create Strangle strategy")
+
+  return eventJson<{ admin_cap_id: string; keeper_cap_id: string; strategy_id: string }>(
+    transaction,
+    "::strategy::StrategyCreated"
+  )
+}
+
+async function createBullishUpsideStrategy({
+  baseVaultId,
+  client,
+  deployerAddress,
+  managerId,
+  operator,
+  packageId,
+  quoteAsset,
+  treasuryCapId,
+}: {
+  baseVaultId: string
+  client: SuiGrpcClient
+  deployerAddress: string
+  managerId: string
+  operator: Ed25519Keypair
+  packageId: string
+  quoteAsset: string
+  treasuryCapId: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(operator.toSuiAddress())
+  tx.setGasBudget(100_000_000)
+  const policy = tx.moveCall({
+    target: `${packageId}::policy::new`,
+    arguments: [
+      tx.pure.u16(DEFAULT_BULLISH_UPSIDE_POLICY.premiumBudgetBps),
+      tx.pure.u16(DEFAULT_BULLISH_UPSIDE_POLICY.strikeBandBps),
+      tx.pure.u16(DEFAULT_BULLISH_UPSIDE_POLICY.reserveBps),
+      tx.pure.u64(DEFAULT_BULLISH_UPSIDE_POLICY.maxUpAskBps),
+    ],
+  })
+  const [strategy, adminCap, keeperCap] = tx.moveCall({
+    target: `${packageId}::strategy::create_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [tx.object(treasuryCapId), tx.object(baseVaultId), tx.object(managerId), policy],
+  })
+  tx.moveCall({
+    target: `${packageId}::strategy::share_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [strategy],
+  })
+  tx.transferObjects([adminCap], deployerAddress)
+  tx.transferObjects([keeperCap], operator.toSuiAddress())
+
+  const transaction = await executeTransaction(client, operator, tx, "create Bullish Upside strategy")
+
+  return eventJson<{ admin_cap_id: string; keeper_cap_id: string; strategy_id: string }>(
+    transaction,
+    "::strategy::StrategyCreated"
+  )
+}
+
+async function createPlpCollarStrategy({
+  baseVaultId,
+  client,
+  deployerAddress,
+  managerId,
+  operator,
+  packageId,
+  quoteAsset,
+  treasuryCapId,
+}: {
+  baseVaultId: string
+  client: SuiGrpcClient
+  deployerAddress: string
+  managerId: string
+  operator: Ed25519Keypair
+  packageId: string
+  quoteAsset: string
+  treasuryCapId: string
+}) {
+  const tx = new Transaction()
+  tx.setSender(operator.toSuiAddress())
+  tx.setGasBudget(100_000_000)
+  const policy = tx.moveCall({
+    target: `${packageId}::policy::new`,
+    arguments: [
+      tx.pure.u16(DEFAULT_PLP_COLLAR_POLICY.downsideBudgetBps),
+      tx.pure.u16(DEFAULT_PLP_COLLAR_POLICY.upsideBudgetBps),
+      tx.pure.u16(DEFAULT_PLP_COLLAR_POLICY.strikeBandBps),
+      tx.pure.u16(DEFAULT_PLP_COLLAR_POLICY.reserveBps),
+      tx.pure.u16(DEFAULT_PLP_COLLAR_POLICY.maxPlpAllocationBps),
+      tx.pure.u64(DEFAULT_PLP_COLLAR_POLICY.maxLegAskBps),
+    ],
+  })
+  const [strategy, adminCap, keeperCap] = tx.moveCall({
+    target: `${packageId}::strategy::create_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [tx.object(treasuryCapId), tx.object(baseVaultId), tx.object(managerId), policy],
+  })
+  tx.moveCall({
+    target: `${packageId}::strategy::share_strategy`,
+    typeArguments: [quoteAsset],
+    arguments: [strategy],
+  })
+  tx.transferObjects([adminCap], deployerAddress)
+  tx.transferObjects([keeperCap], operator.toSuiAddress())
+
+  const transaction = await executeTransaction(client, operator, tx, "create PLP Collar strategy")
+
+  return eventJson<{ admin_cap_id: string; keeper_cap_id: string; strategy_id: string }>(
+    transaction,
+    "::strategy::StrategyCreated"
+  )
+}
+
+async function bootstrapArena({
+  client,
+  deployer,
+  minBondQuoteAmount,
+  packageId,
+  publisherId,
+}: {
+  client: SuiGrpcClient
+  deployer: Ed25519Keypair
+  minBondQuoteAmount: bigint
+  packageId: string
+  publisherId: string
+}) {
+  const deployerAddress = deployer.toSuiAddress()
+
+  const tx = new Transaction()
+  tx.setSender(deployerAddress)
+  tx.setGasBudget(100_000_000)
+  const [adminCap] = tx.moveCall({
+    target: `${packageId}::arena::bootstrap`,
+    arguments: [tx.object(publisherId), tx.pure.u64(minBondQuoteAmount)],
+  })
+  tx.transferObjects([adminCap], deployerAddress)
+
+  const transaction = await executeTransaction(client, deployer, tx, "bootstrap Arena")
+  const event = eventJson<{ admin_cap_id: string; arena_id: string }>(
+    transaction,
+    "::arena::ArenaCreated"
+  )
+
+  return { adminCapId: event.admin_cap_id, arenaId: event.arena_id }
+}
+
+async function createKeeperRewardVault({
+  client,
+  deployer,
+  minPayout,
+  packageId,
+  predictObjectId,
+  rewardAmount,
+  rewardAsset,
+}: {
+  client: SuiGrpcClient
+  deployer: Ed25519Keypair
+  minPayout: bigint
+  packageId: string
+  predictObjectId: string
+  rewardAmount: bigint
+  rewardAsset: string
+}) {
+  const deployerAddress = deployer.toSuiAddress()
+  const tx = new Transaction()
+  tx.setSender(deployerAddress)
+  tx.setGasBudget(100_000_000)
+  const [vault, adminCap] = tx.moveCall({
+    target: `${packageId}::reward_vault::create_vault`,
+    typeArguments: [rewardAsset],
+    arguments: [
+      tx.object(predictObjectId),
+      tx.pure.u64(rewardAmount),
+      tx.pure.u64(minPayout),
+    ],
+  })
+  tx.moveCall({
+    target: `${packageId}::reward_vault::share_vault`,
+    typeArguments: [rewardAsset],
+    arguments: [vault],
+  })
+  tx.transferObjects([adminCap], deployerAddress)
+
+  const transaction = await executeTransaction(client, deployer, tx, "create keeper reward vault")
+  const event = eventJson<{ cap_id: string; vault_id: string }>(
+    transaction,
+    "::reward_vault::RewardVaultCreated"
+  )
+
+  return { adminCapId: event.cap_id, vaultId: event.vault_id }
+}
+
+// Best-effort: top up the keeper reward vault if the deployer holds a single
+// reward coin large enough to fund it. Never throws — funding the vault later is
+// always an option, so a missing/too-small coin only logs a warning.
+async function fundKeeperRewardVault({
+  client,
+  deployer,
+  fundAmount,
+  packageId,
+  rewardAsset,
+  vaultId,
+}: {
+  client: SuiGrpcClient
+  deployer: Ed25519Keypair
+  fundAmount: bigint
+  packageId: string
+  rewardAsset: string
+  vaultId: string
+}) {
+  try {
+    const deployerAddress = deployer.toSuiAddress()
+    const coins = await client.listCoins({
+      coinType: rewardAsset,
+      limit: 50,
+      owner: deployerAddress,
+    })
+    const fundingCoin = coins.objects.find((coin) => BigInt(coin.balance) >= fundAmount)
+
+    if (!fundingCoin) {
+      logger.warn(
+        { fundAmount: fundAmount.toString(), rewardAsset, vaultId },
+        "no splittable reward coin found; fund keeper rewards later"
+      )
+
+      return false
+    }
+
+    const tx = new Transaction()
+    tx.setSender(deployerAddress)
+    tx.setGasBudget(100_000_000)
+    const [funds] = tx.splitCoins(tx.object(fundingCoin.objectId), [tx.pure.u64(fundAmount)])
+    tx.moveCall({
+      target: `${packageId}::reward_vault::fund`,
+      typeArguments: [rewardAsset],
+      arguments: [tx.object(vaultId), funds],
+    })
+    await executeTransaction(client, deployer, tx, "fund keeper reward vault")
+
+    return true
+  } catch (error: unknown) {
+    logger.warn(
+      { error: error instanceof Error ? error.message : String(error), vaultId },
+      "could not fund keeper rewards; fund keeper rewards later"
+    )
+
+    return false
+  }
 }
 
 // On-chain ids live in deployment.<network>.json (the runtime's source of
@@ -565,16 +930,24 @@ async function main() {
     throw new Error("Deployment currently supports SUI_NETWORK=testnet only")
   }
 
-  const repoRoot = path.resolve(import.meta.dir, "../..")
+  const repoRoot = path.resolve(import.meta.dir, "../../..")
   const deployer = await loadDeployerKeypair()
   const deployerAddress = deployer.toSuiAddress()
-  const operator = Ed25519Keypair.generate()
+  // Reuse a stable operator key across deploys so funding/caps persist (and the
+  // operator can be rotated deliberately via SUI_OPERATOR_KEY). Falls back to the
+  // existing operator/.env key, then to a fresh keypair on a first-ever deploy.
+  const operator = loadOrCreateOperatorKeypair(path.join(import.meta.dir, "../.env"))
   const operatorAddress = operator.toSuiAddress()
   const operatorSecretKey = operator.getSecretKey()
   const suiRpcUrl = optionalEnv("SUI_RPC_URL", "https://fullnode.testnet.sui.io:443")
   const predictPackageId = optionalEnv("PREDICT_PACKAGE_ID", "0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138")
+  const predictObjectId = optionalEnv("PREDICT_OBJECT_ID", "0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a")
   const quoteAsset = optionalEnv("PREDICT_QUOTE_ASSET", "0xe95040085976bfd54a1a07225cd46c8a2b4e8e2b6732f140a0fc49850ba73e1a::dusdc::DUSDC")
   const fundAmount = readBigIntEnv("OPERATOR_FUND_AMOUNT_MIST", DEFAULT_FUND_AMOUNT_MIST)
+  const arenaMinBondQuoteAmount = readBigIntEnv("ARENA_MIN_BOND_QUOTE_AMOUNT", DEFAULT_ARENA_MIN_BOND_QUOTE_AMOUNT)
+  const keeperRewardAmount = readBigIntEnv("KEEPER_REWARD_AMOUNT", DEFAULT_KEEPER_REWARD_AMOUNT)
+  const keeperRewardMinPayout = readBigIntEnv("KEEPER_REWARD_MIN_PAYOUT", DEFAULT_KEEPER_REWARD_MIN_PAYOUT)
+  const keeperRewardFundAmount = readBigIntEnv("KEEPER_REWARD_FUND_AMOUNT", DEFAULT_KEEPER_REWARD_FUND_AMOUNT)
   const client = new SuiGrpcClient({ baseUrl: suiRpcUrl, network })
   const tmp = await mkdtemp(path.join(os.tmpdir(), "callit-deploy-"))
 
@@ -634,10 +1007,55 @@ async function main() {
       packagePath: path.join(tempPackages, "strategies", "range_ladder"),
       treasuryTypeSuffix: "::rladder::RLADDER",
     })
+    const strangle = await publishPackage({
+      buildEnv: network,
+      client,
+      deployer,
+      label: "Strangle",
+      packagePath: path.join(tempPackages, "strategies", "strangle"),
+      treasuryTypeSuffix: "::strangle::STRANGLE",
+    })
+    const bullishUpside = await publishPackage({
+      buildEnv: network,
+      client,
+      deployer,
+      label: "Bullish Upside",
+      packagePath: path.join(tempPackages, "strategies", "bullish_upside"),
+      treasuryTypeSuffix: "::bup::BUP",
+    })
+    const plpCollar = await publishPackage({
+      buildEnv: network,
+      client,
+      deployer,
+      label: "PLP Collar",
+      packagePath: path.join(tempPackages, "strategies", "plp_collar"),
+      treasuryTypeSuffix: "::pcollar::PCOLLAR",
+    })
 
-    if (!hedgedPlp.treasuryCapId || !rangeLadder.treasuryCapId) {
+    if (
+      !hedgedPlp.treasuryCapId
+      || !rangeLadder.treasuryCapId
+      || !strangle.treasuryCapId
+      || !bullishUpside.treasuryCapId
+      || !plpCollar.treasuryCapId
+    ) {
       throw new Error("Could not find strategy TreasuryCaps after publish")
     }
+
+    const arena = await publishPackage({
+      buildEnv: network,
+      client,
+      deployer,
+      label: "Arena",
+      packagePath: path.join(tempPackages, "arena"),
+    })
+    const keeperRewards = await publishPackage({
+      buildEnv: network,
+      client,
+      deployer,
+      label: "Keeper Rewards",
+      packagePath: path.join(tempPackages, "keeper_rewards"),
+    })
 
     await transferObject({
       client,
@@ -653,6 +1071,27 @@ async function main() {
       objectId: rangeLadder.treasuryCapId,
       recipient: operatorAddress,
     })
+    await transferObject({
+      client,
+      deployer,
+      label: "transfer STRANGLE TreasuryCap to operator",
+      objectId: strangle.treasuryCapId,
+      recipient: operatorAddress,
+    })
+    await transferObject({
+      client,
+      deployer,
+      label: "transfer BUP TreasuryCap to operator",
+      objectId: bullishUpside.treasuryCapId,
+      recipient: operatorAddress,
+    })
+    await transferObject({
+      client,
+      deployer,
+      label: "transfer PCOLLAR TreasuryCap to operator",
+      objectId: plpCollar.treasuryCapId,
+      recipient: operatorAddress,
+    })
     await fundOperator({ amount: fundAmount, client, deployer, operatorAddress })
 
     const hedgedPlpManagerId = await createPredictManager({
@@ -664,6 +1103,24 @@ async function main() {
     const rangeLadderManagerId = await createPredictManager({
       client,
       label: "Range Ladder",
+      operator,
+      predictPackageId,
+    })
+    const strangleManagerId = await createPredictManager({
+      client,
+      label: "Strangle",
+      operator,
+      predictPackageId,
+    })
+    const bullishUpsideManagerId = await createPredictManager({
+      client,
+      label: "Bullish Upside",
+      operator,
+      predictPackageId,
+    })
+    const plpCollarManagerId = await createPredictManager({
+      client,
+      label: "PLP Collar",
       operator,
       predictPackageId,
     })
@@ -688,8 +1145,80 @@ async function main() {
       quoteAsset,
       treasuryCapId: rangeLadder.treasuryCapId,
     })
+    const strangleStrategy = await createStrangleStrategy({
+      baseVaultId: baseVault.vaultId,
+      client,
+      deployerAddress,
+      managerId: strangleManagerId,
+      operator,
+      packageId: strangle.packageId,
+      quoteAsset,
+      treasuryCapId: strangle.treasuryCapId,
+    })
+    const bullishUpsideStrategy = await createBullishUpsideStrategy({
+      baseVaultId: baseVault.vaultId,
+      client,
+      deployerAddress,
+      managerId: bullishUpsideManagerId,
+      operator,
+      packageId: bullishUpside.packageId,
+      quoteAsset,
+      treasuryCapId: bullishUpside.treasuryCapId,
+    })
+    const plpCollarStrategy = await createPlpCollarStrategy({
+      baseVaultId: baseVault.vaultId,
+      client,
+      deployerAddress,
+      managerId: plpCollarManagerId,
+      operator,
+      packageId: plpCollar.packageId,
+      quoteAsset,
+      treasuryCapId: plpCollar.treasuryCapId,
+    })
+
+    if (!arena.publisherId) {
+      throw new Error("Could not find the Publisher created by the Arena publish tx")
+    }
+    const arenaDeployment = await bootstrapArena({
+      client,
+      deployer,
+      minBondQuoteAmount: arenaMinBondQuoteAmount,
+      packageId: arena.packageId,
+      publisherId: arena.publisherId,
+    })
+
+    const keeperRewardVault = await createKeeperRewardVault({
+      client,
+      deployer,
+      minPayout: keeperRewardMinPayout,
+      packageId: keeperRewards.packageId,
+      predictObjectId,
+      rewardAmount: keeperRewardAmount,
+      rewardAsset: quoteAsset,
+    })
+    const keeperRewardsFunded = await fundKeeperRewardVault({
+      client,
+      deployer,
+      fundAmount: keeperRewardFundAmount,
+      packageId: keeperRewards.packageId,
+      rewardAsset: quoteAsset,
+      vaultId: keeperRewardVault.vaultId,
+    })
+
     const record: DeploymentRecord = {
+      arena: {
+        adminCapId: arenaDeployment.adminCapId,
+        arenaId: arenaDeployment.arenaId,
+        packageId: arena.packageId,
+      },
       baseVault: { capId: baseVault.capId, packageId: base.packageId, vaultId: baseVault.vaultId },
+      bullishUpside: {
+        adminCapId: bullishUpsideStrategy.admin_cap_id,
+        keeperCapId: bullishUpsideStrategy.keeper_cap_id,
+        managerId: bullishUpsideManagerId,
+        packageId: bullishUpside.packageId,
+        strategyId: bullishUpsideStrategy.strategy_id,
+      },
       deployer: deployerAddress,
       hedgedPlp: {
         adminCapId: hedgedPlpStrategy.admin_cap_id,
@@ -698,14 +1227,34 @@ async function main() {
         packageId: hedgedPlp.packageId,
         strategyId: hedgedPlpStrategy.strategy_id,
       },
+      keeperRewards: {
+        adminCapId: keeperRewardVault.adminCapId,
+        funded: keeperRewardsFunded,
+        packageId: keeperRewards.packageId,
+        vaultId: keeperRewardVault.vaultId,
+      },
       network,
       operator: operatorAddress,
+      plpCollar: {
+        adminCapId: plpCollarStrategy.admin_cap_id,
+        keeperCapId: plpCollarStrategy.keeper_cap_id,
+        managerId: plpCollarManagerId,
+        packageId: plpCollar.packageId,
+        strategyId: plpCollarStrategy.strategy_id,
+      },
       rangeLadder: {
         adminCapId: rangeLadderStrategy.admin_cap_id,
         keeperCapId: rangeLadderStrategy.keeper_cap_id,
         managerId: rangeLadderManagerId,
         packageId: rangeLadder.packageId,
         strategyId: rangeLadderStrategy.strategy_id,
+      },
+      strangle: {
+        adminCapId: strangleStrategy.admin_cap_id,
+        keeperCapId: strangleStrategy.keeper_cap_id,
+        managerId: strangleManagerId,
+        packageId: strangle.packageId,
+        strategyId: strangleStrategy.strategy_id,
       },
     }
     const deploymentPath = path.join(import.meta.dir, `../deployment.${network}.json`)

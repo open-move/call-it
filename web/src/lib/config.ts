@@ -22,33 +22,23 @@ export const QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
 
 export const PREDICT_PRICE_SCALE = 1_000_000_000
 
-export const ARENA_PACKAGE_ID = ""
+export const ARENA_PACKAGE_ID = "0x2feb9cafa30c952d2c8d8ba4a30b1c5ef74968c686b3c9c5f8db9ca6c6106075"
 
 export const ARENA_ROOT_ID = ""
 
-export const ARENA_OBJECT_ID = ""
+export const ARENA_OBJECT_ID = "0x04fa00e9e39489bde2f6e3e7144548557c9272db589cdad6c65755ab808e9a9c"
 
-// CallIt backend (read/index/aggregate). Empty = not configured → Arena falls
-// back to mock data. Set e.g. "http://localhost:8080" to read live indexed data.
-export const BACKEND_URL = ""
+// CallIt backend (read/index/aggregate). Empty = not configured → Arena renders
+// empty. This is the HOST-mapped port (docker-compose maps 8799:8080), so the
+// browser must use 8799, not the in-container PORT (8080).
+export const BACKEND_URL: string = "http://localhost:8799"
 
 // Settled-redeem keeper status API (read-only ops dashboard). Point at the
-// running keeper's KEEPER_HTTP_PORT (default 4000). Empty = treated as offline.
-export const KEEPER_API_URL = "http://localhost:4000"
+// running keeper's KEEPER_HTTP_PORT (default 8801). Empty = treated as offline.
+export const KEEPER_API_URL = "http://localhost:8801"
 
 export const BASE_VAULT_ID =
-  "0xdbe679688a9cd9d3a5f0c1e5be147956f0ddbaa8ab01731e8fded01584807122"
-
-export const HEDGED_PLP_PACKAGE_ID =
-  "0x389a3c825b061bfab289cd61840ac5e3c1e90ca9733957c98afd63be337af945"
-
-export const HEDGED_PLP_ORIGINAL_PACKAGE_ID =
-  "0x0908bdb483f870637ac1480e7c5c3784606b512256d3da8c040d3a1b4718f16a"
-
-export const HEDGED_PLP_STRATEGY_ID =
-  "0x5b1dd50256f591723acc61c429024f758e339e6ac82683a7f83ee0d6c896182b"
-
-export const HEDGED_PLP_SHARE_ASSET = `${HEDGED_PLP_ORIGINAL_PACKAGE_ID}::hplp::HPLP`
+  "0x582b9a78622d39637896496e00a02ea122879c0f18ead1d693ddc86db2ce10e3"
 
 export const SHIELD_PACKAGE_ID = ""
 
@@ -58,16 +48,6 @@ export const PROTECT_PACKAGE_ID =
   "0x831382e100bfc9ad633d34c96ab9fb97283ddfdb6e6d5f1fc995801e6b1eda83"
 
 export const PROTECT_ORIGINAL_PACKAGE_ID = PROTECT_PACKAGE_ID
-
-export const RANGE_LADDER_PACKAGE_ID =
-  "0xe3b3a7f7c5a5c8b925b42787130ba72ac86fa28c577cd2f7f8307f2e8de72e05"
-
-export const RANGE_LADDER_ORIGINAL_PACKAGE_ID = RANGE_LADDER_PACKAGE_ID
-
-export const RANGE_LADDER_STRATEGY_ID =
-  "0x129f82f05b18181555019a726548e67302fbe3db8bc3b53e67c4c790d1f2be2b"
-
-export const RANGE_LADDER_SHARE_ASSET = `${RANGE_LADDER_PACKAGE_ID}::rladder::RLADDER`
 
 export const SUI_GRPC_URL = "https://fullnode.testnet.sui.io:443"
 

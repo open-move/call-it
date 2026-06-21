@@ -3,10 +3,15 @@ import type { Ed25519Keypair } from "@mysten/sui/keypairs/ed25519"
 import { parseCliOptions, type CliOptions, type ProductSelection } from "./cli.ts"
 import { loadConfig, type OperatorConfig } from "./config.ts"
 import { logger, toLogFields } from "./logger.ts"
+import { bullishUpsideDriver } from "./strategies/bullish-upside.ts"
+import { createDualLegDriver } from "./strategies/dual-leg.ts"
 import { hedgedPlpDriver } from "./strategies/hedged-plp.ts"
 import { rangeLadderDriver } from "./strategies/range-ladder.ts"
 import { runStrategyTick, type TickOptions } from "./strategy/engine.ts"
 import { createSuiClient, loadKeeperKeypair, type SuiClient } from "./sui.ts"
+
+const plpCollarDriver = createDualLegDriver("plp_collar", (config) => config.plpCollar)
+const strangleDriver = createDualLegDriver("strangle", (config) => config.strangle)
 
 interface StrategyRunner {
   enabled(config: OperatorConfig): boolean
@@ -33,6 +38,24 @@ const RUNNERS: StrategyRunner[] = [
     kind: "range_ladder",
     run: (client, keypair, config, options) =>
       runStrategyTick(rangeLadderDriver, client, keypair, config, options),
+  },
+  {
+    enabled: (config) => config.bullishUpside.enabled,
+    kind: "bullish_upside",
+    run: (client, keypair, config, options) =>
+      runStrategyTick(bullishUpsideDriver, client, keypair, config, options),
+  },
+  {
+    enabled: (config) => config.plpCollar.enabled,
+    kind: "plp_collar",
+    run: (client, keypair, config, options) =>
+      runStrategyTick(plpCollarDriver, client, keypair, config, options),
+  },
+  {
+    enabled: (config) => config.strangle.enabled,
+    kind: "strangle",
+    run: (client, keypair, config, options) =>
+      runStrategyTick(strangleDriver, client, keypair, config, options),
   },
 ]
 

@@ -96,7 +96,6 @@ export const rangeLadderDriver: StrategyDriver<RangeLadderStrategyState> = {
       activeRound: state.activeRound,
       baseShares: state.baseShares,
       baseVaultId: state.baseVaultId,
-      cash: state.cash,
       managerId: state.managerId,
       nav: state.nav,
       paused: state.paused,

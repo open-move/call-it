@@ -1,122 +1,21 @@
-import { bcs } from "@mysten/sui/bcs"
-
 import type { SuiClient } from "./sui.ts"
 
-const SuiIdBcs = bcs
-  .struct("ID", {
-    bytes: bcs.Address,
-  })
-  .transform({
-    output: (value) => value.bytes,
-  })
-
-const SuiUidBcs = bcs.struct("UID", {
-  id: SuiIdBcs,
-})
-
-const BalanceBcs = bcs.struct("Balance", {
-  value: bcs.U64,
-})
-
-const SupplyBcs = bcs.struct("Supply", {
-  value: bcs.U64,
-})
-
-const TreasuryCapBcs = bcs.struct("TreasuryCap", {
-  id: SuiUidBcs,
-  total_supply: SupplyBcs,
-})
-
-const HedgedPlpPolicyBcs = bcs.struct("Policy", {
-  hedge_budget_bps: bcs.U16,
-  strike_band_bps: bcs.U16,
-  reserve_bps: bcs.U16,
-  max_plp_allocation_bps: bcs.U16,
-  max_hedge_ask_bps: bcs.U64,
-})
-
-const HedgedPlpRoundBcs = bcs.struct("Round", {
-  predict_id: SuiIdBcs,
-  oracle_id: SuiIdBcs,
-  strike: bcs.U64,
-  hedge_quantity: bcs.U64,
-  settled: bcs.Bool,
-})
-
-const HedgedPlpStrategyBcs = bcs.struct("Strategy", {
-  id: SuiUidBcs,
-  treasury: TreasuryCapBcs,
-  base_vault_id: SuiIdBcs,
-  base_shares: BalanceBcs,
-  cash: BalanceBcs,
-  plp: BalanceBcs,
-  plp_cost_basis: bcs.U64,
-  manager_id: SuiIdBcs,
-  active_round: bcs.option(HedgedPlpRoundBcs),
-  policy: HedgedPlpPolicyBcs,
-  paused: bcs.Bool,
-})
-
-const RangeLadderPolicyBcs = bcs.struct("Policy", {
-  premium_budget_bps: bcs.U16,
-  reserve_bps: bcs.U16,
-  max_range_ask_bps: bcs.U64,
-  max_rung_count: bcs.U64,
-})
-
-const RangeKeyBcs = bcs.struct("RangeKey", {
-  oracle_id: SuiIdBcs,
-  expiry: bcs.U64,
-  lower_strike: bcs.U64,
-  higher_strike: bcs.U64,
-})
-
-const RangePositionBcs = bcs.struct("Position", {
-  key: RangeKeyBcs,
-  quantity: bcs.U64,
-  cost: bcs.U64,
-})
-
-const RangeRoundBcs = bcs.struct("Round", {
-  predict_id: SuiIdBcs,
-  oracle_id: SuiIdBcs,
-  positions: bcs.vector(RangePositionBcs),
-})
-
-const RangeLadderStrategyBcs = bcs.struct("Strategy", {
-  id: SuiUidBcs,
-  treasury: TreasuryCapBcs,
-  base_vault_id: SuiIdBcs,
-  base_shares: BalanceBcs,
-  cash: BalanceBcs,
-  manager_id: SuiIdBcs,
-  active_round: bcs.option(RangeRoundBcs),
-  policy: RangeLadderPolicyBcs,
-  paused: bcs.Bool,
-})
-
-const BaseVaultBcs = bcs.struct("BaseVault", {
-  id: SuiUidBcs,
-  treasury: TreasuryCapBcs,
-  cash: BalanceBcs,
-  paused: bcs.Bool,
-})
-
-type HedgedPlpStrategyBcsValue = ReturnType<typeof HedgedPlpStrategyBcs.parse>
-type RangeLadderStrategyBcsValue = ReturnType<typeof RangeLadderStrategyBcs.parse>
-type BaseVaultBcsValue = ReturnType<typeof BaseVaultBcs.parse>
+// The strategy/base-vault structs carry a `WithdrawalQueue` (holding Sui
+// `Table`s) and other fields whose exact byte layout is awkward to model, so we
+// read gRPC `json` mode and pick fields by name instead of by BCS offset. In
+// json mode Move `Balance<T>` flattens to a bare u64 string and `Supply`
+// renders as `{ value }`. The redeployed vaults hold no bare `cash`: deployable
+// value lives as `base_shares` in the Base Vault (+ PLP for hedged_plp).
 
 export interface HedgedPlpStrategyState {
   activeRound: {
     hedgeQuantity: bigint
     oracleId: string
     predictId: string
-    settled: boolean
     strike: bigint
   } | null
   baseShares: bigint
   baseVaultId: string
-  cash: bigint
   managerId: string
   nav: bigint
   paused: boolean
@@ -133,104 +32,71 @@ export interface RangeLadderStrategyState {
   } | null
   baseShares: bigint
   baseVaultId: string
-  cash: bigint
   managerId: string
   nav: bigint
   paused: boolean
   strategyId: string
 }
 
-function readBigInt(value: string) {
-  return BigInt(value)
+interface BaseVaultRead {
+  cash: bigint
+  supply: bigint
 }
 
-function baseValueForShares(base: BaseVaultBcsValue | undefined, shares: bigint) {
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {}
+}
+
+function readString(value: unknown): string {
+  return typeof value === "string" ? value : ""
+}
+
+/** Coerce a json scalar (bare u64 string/number) or a `{ value }` wrapper to a bigint. */
+function bigintFrom(value: unknown): bigint {
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    return BigInt(value)
+  }
+  if (typeof value === "number" && Number.isInteger(value)) {
+    return BigInt(value)
+  }
+  if (value && typeof value === "object" && "value" in (value as Record<string, unknown>)) {
+    return bigintFrom((value as Record<string, unknown>).value)
+  }
+  return 0n
+}
+
+function baseValueForShares(shares: bigint, base: BaseVaultRead | undefined): bigint {
   if (shares <= 0n) {
     return 0n
   }
-
-  if (!base) {
+  if (!base || base.supply <= 0n) {
     return shares
   }
-
-  const nav = readBigInt(base.cash.value)
-  const supply = readBigInt(base.treasury.total_supply.value)
-
-  if (supply <= 0n) {
-    throw new Error("Base Vault has shares to value but zero supply")
-  }
-
-  return (shares * nav) / supply
+  return (shares * base.cash) / base.supply
 }
 
-async function readBcsObject(client: SuiClient, objectId: string) {
-  const object = await client.getObject({
-    objectId,
-    include: { content: true },
-  })
-  const content = object.object.content
+async function readJson(client: SuiClient, objectId: string): Promise<Record<string, unknown>> {
+  const object = await client.getObject({ objectId, include: { json: true } })
+  const json = object.object.json
 
-  if (!content) {
-    throw new Error(`Object ${objectId} has no readable content`)
+  if (!json) {
+    throw new Error(`Object ${objectId} has no readable json content`)
   }
 
-  return content
+  return asRecord(json)
 }
 
-function normalizeHedgedPlp(
-  value: HedgedPlpStrategyBcsValue,
-  base?: BaseVaultBcsValue
-): HedgedPlpStrategyState {
-  const cash = readBigInt(value.cash.value)
-  const baseShares = readBigInt(value.base_shares.value)
-  const plpCostBasis = readBigInt(value.plp_cost_basis)
-  const round = value.active_round
-
+async function readBaseVault(
+  client: SuiClient,
+  baseVaultId: string | undefined
+): Promise<BaseVaultRead | undefined> {
+  if (!baseVaultId) {
+    return undefined
+  }
+  const json = await readJson(client, baseVaultId)
   return {
-    activeRound: round
-      ? {
-          hedgeQuantity: readBigInt(round.hedge_quantity),
-          oracleId: round.oracle_id,
-          predictId: round.predict_id,
-          settled: round.settled,
-          strike: readBigInt(round.strike),
-      }
-      : null,
-    baseShares,
-    baseVaultId: value.base_vault_id,
-    cash,
-    managerId: value.manager_id,
-    nav: cash + plpCostBasis + baseValueForShares(base, baseShares),
-    paused: value.paused,
-    plpAmount: readBigInt(value.plp.value),
-    plpCostBasis,
-    strategyId: value.id.id,
-  }
-}
-
-function normalizeRangeLadder(
-  value: RangeLadderStrategyBcsValue,
-  base?: BaseVaultBcsValue
-): RangeLadderStrategyState {
-  const cash = readBigInt(value.cash.value)
-  const baseShares = readBigInt(value.base_shares.value)
-  const round = value.active_round
-
-  return {
-    activeRound: round
-      ? {
-          oracleId: round.oracle_id,
-          positionCount: round.positions.length,
-          predictId: round.predict_id,
-      }
-      : null,
-    baseShares,
-    baseVaultId: value.base_vault_id,
-    cash,
-    managerId: value.manager_id,
-    nav: cash + baseValueForShares(base, baseShares),
-    paused: value.paused,
-    strategyId: value.id.id,
+    cash: bigintFrom(json.cash),
+    supply: bigintFrom(asRecord(asRecord(json.treasury).total_supply).value),
   }
 }
 
@@ -239,15 +105,84 @@ export async function readHedgedPlpStrategy(
   objectId: string,
   baseVaultId?: string
 ): Promise<HedgedPlpStrategyState> {
-  const [strategyObject, baseObject] = await Promise.all([
-    readBcsObject(client, objectId),
-    baseVaultId ? readBcsObject(client, baseVaultId) : undefined,
+  const [json, base] = await Promise.all([
+    readJson(client, objectId),
+    readBaseVault(client, baseVaultId),
   ])
 
-  return normalizeHedgedPlp(
-    HedgedPlpStrategyBcs.parse(strategyObject),
-    baseObject ? BaseVaultBcs.parse(baseObject) : undefined
-  )
+  const baseShares = bigintFrom(json.base_shares)
+  const plpCostBasis = bigintFrom(json.plp_cost_basis)
+  const round = json.active_round ? asRecord(json.active_round) : null
+
+  return {
+    activeRound: round
+      ? {
+          hedgeQuantity: bigintFrom(round.hedge_quantity),
+          oracleId: readString(round.oracle_id),
+          predictId: readString(round.predict_id),
+          strike: bigintFrom(round.strike),
+        }
+      : null,
+    baseShares,
+    baseVaultId: readString(json.base_vault_id),
+    managerId: readString(json.manager_id),
+    nav: plpCostBasis + baseValueForShares(baseShares, base),
+    paused: json.paused === true,
+    plpAmount: bigintFrom(json.plp),
+    plpCostBasis,
+    strategyId: objectId,
+  }
+}
+
+/// Shared, shape-tolerant view used by the strategies whose only operator-facing
+/// needs are NAV, the active-round oracle, and the validation ids. Works for
+/// single, dual, and PLP-bearing vaults alike: `plp_cost_basis` is absent (→ 0)
+/// for vaults that hold no PLP, so NAV collapses to the base-share value.
+export interface StrategyState {
+  activeRound: {
+    oracleId: string
+    predictId: string
+  } | null
+  baseShares: bigint
+  baseVaultId: string
+  managerId: string
+  nav: bigint
+  paused: boolean
+  plpAmount: bigint
+  plpCostBasis: bigint
+  strategyId: string
+}
+
+export async function readStrategyState(
+  client: SuiClient,
+  objectId: string,
+  baseVaultId?: string
+): Promise<StrategyState> {
+  const [json, base] = await Promise.all([
+    readJson(client, objectId),
+    readBaseVault(client, baseVaultId),
+  ])
+
+  const baseShares = bigintFrom(json.base_shares)
+  const plpCostBasis = bigintFrom(json.plp_cost_basis)
+  const round = json.active_round ? asRecord(json.active_round) : null
+
+  return {
+    activeRound: round
+      ? {
+          oracleId: readString(round.oracle_id),
+          predictId: readString(round.predict_id),
+        }
+      : null,
+    baseShares,
+    baseVaultId: readString(json.base_vault_id),
+    managerId: readString(json.manager_id),
+    nav: plpCostBasis + baseValueForShares(baseShares, base),
+    paused: json.paused === true,
+    plpAmount: bigintFrom(json.plp),
+    plpCostBasis,
+    strategyId: objectId,
+  }
 }
 
 export async function readRangeLadderStrategy(
@@ -255,13 +190,28 @@ export async function readRangeLadderStrategy(
   objectId: string,
   baseVaultId?: string
 ): Promise<RangeLadderStrategyState> {
-  const [strategyObject, baseObject] = await Promise.all([
-    readBcsObject(client, objectId),
-    baseVaultId ? readBcsObject(client, baseVaultId) : undefined,
+  const [json, base] = await Promise.all([
+    readJson(client, objectId),
+    readBaseVault(client, baseVaultId),
   ])
 
-  return normalizeRangeLadder(
-    RangeLadderStrategyBcs.parse(strategyObject),
-    baseObject ? BaseVaultBcs.parse(baseObject) : undefined
-  )
+  const baseShares = bigintFrom(json.base_shares)
+  const round = json.active_round ? asRecord(json.active_round) : null
+  const positions = round?.positions
+
+  return {
+    activeRound: round
+      ? {
+          oracleId: readString(round.oracle_id),
+          positionCount: Array.isArray(positions) ? positions.length : 0,
+          predictId: readString(round.predict_id),
+        }
+      : null,
+    baseShares,
+    baseVaultId: readString(json.base_vault_id),
+    managerId: readString(json.manager_id),
+    nav: baseValueForShares(baseShares, base),
+    paused: json.paused === true,
+    strategyId: objectId,
+  }
 }

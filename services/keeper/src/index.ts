@@ -6,6 +6,7 @@ import { reconcileEvents } from "./reconcile.ts"
 import { executeRedemptions, planRedemptions } from "./redemptions.ts"
 import { scanPredictEvents, seedStartCheckpointIfFresh } from "./scan.ts"
 import { startStatusServer } from "./server.ts"
+import { runCheckpointStream } from "./stream.ts"
 import { createSuiClient } from "./sui.ts"
 
 const VALID_COMMANDS = new Set(["once", "reconcile", "scan", "serve", "status", "watch"])
@@ -97,14 +98,33 @@ async function watch(
   // exposes its own dashboard.
   startStatusServer(config, client, repo)
 
+  // Ingestion runs in the background off the live checkpoint stream (with
+  // on-demand backfill), persisting raw events + advancing the cursor. The
+  // foreground loop only reconciles + redeems what's been ingested. We don't
+  // await the stream until shutdown.
+  const streamDone = runCheckpointStream(config, client, repo, () => stopping)
+  streamDone.catch((error: unknown) => {
+    logger.error({ error: error instanceof Error ? error.message : String(error) }, "checkpoint stream failed")
+    stopping = true
+  })
+
   while (!stopping) {
     try {
-      logger.info(toLogFields(await runOnce(config, client, repo)), "watch tick complete")
+      const reconcile = await reconcileEvents(repo)
+      const plans = await planRedemptions(config, repo)
+      const redeem = await executeRedemptions(config, client, repo, plans)
+      logger.info(
+        toLogFields({ plannedRedemptions: plans.length, reconcile, redeem }),
+        "watch tick complete"
+      )
     } catch (error) {
       logger.error({ error: error instanceof Error ? error.message : String(error) }, "watch tick failed")
     }
     await sleep(config.pollSeconds * 1000, () => stopping)
   }
+
+  // Let the stream observe the stop flag and unwind before we exit.
+  await streamDone
 
   logger.info("keeper stopped")
 }

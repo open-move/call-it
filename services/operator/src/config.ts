@@ -42,13 +42,37 @@ export interface RangeLadderConfig {
   strategyId: string
 }
 
+export interface BullishUpsideConfig {
+  enabled: boolean
+  keeperCapId: string
+  managerId: string
+  packageId: string
+  quantityBpsOfNav: number
+  strikeSpotBps: number
+  strategyId: string
+}
+
+/** Dual-leg vaults (a down leg below spot + an up leg above spot). */
+export interface DualLegConfig {
+  enabled: boolean
+  keeperCapId: string
+  managerId: string
+  packageId: string
+  quantityBpsOfNav: number
+  strikeWidthBps: number
+  strategyId: string
+}
+
 export interface OperatorConfig {
   baseVault: BaseVaultConfig
+  bullishUpside: BullishUpsideConfig
   dryRun: boolean
+  hedgedPlp: HedgedPlpConfig
+  plpCollar: DualLegConfig
   pollSeconds: number
   predict: PredictConfig
   rangeLadder: RangeLadderConfig
-  hedgedPlp: HedgedPlpConfig
+  strangle: DualLegConfig
   suiNetwork: SuiNetwork
   suiRpcUrl: string
 }
@@ -122,6 +146,15 @@ const envSchema = z
     RANGE_QUANTITY_BPS_OF_NAV: envNumber(250),
     RANGE_RUNG_COUNT: envNumber(2),
     RANGE_RUNG_WIDTH_BPS: envNumber(25),
+    BULLISH_UPSIDE_ENABLED: envBoolean(true),
+    BULLISH_UPSIDE_QUANTITY_BPS_OF_NAV: envNumber(250),
+    BULLISH_UPSIDE_STRIKE_SPOT_BPS: envNumber(10_100),
+    PLP_COLLAR_ENABLED: envBoolean(true),
+    PLP_COLLAR_QUANTITY_BPS_OF_NAV: envNumber(250),
+    PLP_COLLAR_STRIKE_WIDTH_BPS: envNumber(100),
+    STRANGLE_ENABLED: envBoolean(true),
+    STRANGLE_QUANTITY_BPS_OF_NAV: envNumber(250),
+    STRANGLE_STRIKE_WIDTH_BPS: envNumber(100),
     OPERATOR_DEPLOYMENT_PATH: z.preprocess(
       (value) => (typeof value === "string" && value.trim() !== "" ? value.trim() : undefined),
       z.string().optional()
@@ -155,6 +188,27 @@ const deploymentSchema = z.object({
     strategyId: objectId,
   }),
   rangeLadder: z.object({
+    adminCapId: objectId,
+    keeperCapId: objectId,
+    managerId: objectId,
+    packageId: objectId,
+    strategyId: objectId,
+  }),
+  bullishUpside: z.object({
+    adminCapId: objectId,
+    keeperCapId: objectId,
+    managerId: objectId,
+    packageId: objectId,
+    strategyId: objectId,
+  }),
+  plpCollar: z.object({
+    adminCapId: objectId,
+    keeperCapId: objectId,
+    managerId: objectId,
+    packageId: objectId,
+    strategyId: objectId,
+  }),
+  strangle: z.object({
     adminCapId: objectId,
     keeperCapId: objectId,
     managerId: objectId,
@@ -196,6 +250,33 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): OperatorConfig
     baseVault: {
       packageId: deployment.baseVault.packageId,
       vaultId: deployment.baseVault.vaultId,
+    },
+    bullishUpside: {
+      enabled: parsed.BULLISH_UPSIDE_ENABLED,
+      keeperCapId: deployment.bullishUpside.keeperCapId,
+      managerId: deployment.bullishUpside.managerId,
+      packageId: deployment.bullishUpside.packageId,
+      quantityBpsOfNav: parsed.BULLISH_UPSIDE_QUANTITY_BPS_OF_NAV,
+      strikeSpotBps: parsed.BULLISH_UPSIDE_STRIKE_SPOT_BPS,
+      strategyId: deployment.bullishUpside.strategyId,
+    },
+    plpCollar: {
+      enabled: parsed.PLP_COLLAR_ENABLED,
+      keeperCapId: deployment.plpCollar.keeperCapId,
+      managerId: deployment.plpCollar.managerId,
+      packageId: deployment.plpCollar.packageId,
+      quantityBpsOfNav: parsed.PLP_COLLAR_QUANTITY_BPS_OF_NAV,
+      strikeWidthBps: parsed.PLP_COLLAR_STRIKE_WIDTH_BPS,
+      strategyId: deployment.plpCollar.strategyId,
+    },
+    strangle: {
+      enabled: parsed.STRANGLE_ENABLED,
+      keeperCapId: deployment.strangle.keeperCapId,
+      managerId: deployment.strangle.managerId,
+      packageId: deployment.strangle.packageId,
+      quantityBpsOfNav: parsed.STRANGLE_QUANTITY_BPS_OF_NAV,
+      strikeWidthBps: parsed.STRANGLE_STRIKE_WIDTH_BPS,
+      strategyId: deployment.strangle.strategyId,
     },
     dryRun: parsed.DRY_RUN,
     pollSeconds: parsed.POLL_SECONDS,

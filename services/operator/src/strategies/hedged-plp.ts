@@ -80,13 +80,11 @@ export const hedgedPlpDriver: StrategyDriver<HedgedPlpStrategyState> = {
         ? {
             hedgeQuantity: state.activeRound.hedgeQuantity,
             oracleId: state.activeRound.oracleId,
-            settled: state.activeRound.settled,
             strike: state.activeRound.strike,
           }
         : null,
       baseShares: state.baseShares,
       baseVaultId: state.baseVaultId,
-      cash: state.cash,
       managerId: state.managerId,
       nav: state.nav,
       paused: state.paused,
@@ -99,16 +97,13 @@ export const hedgedPlpDriver: StrategyDriver<HedgedPlpStrategyState> = {
   isPaused: (state) => state.paused,
   nav: (state) => state.nav,
   activeRoundOracleId: (state) => state.activeRound?.oracleId ?? null,
-  isRoundSettled: (state) => state.activeRound?.settled ?? false,
+  // Two-phase rounds: settle_round consumes the round (active_round -> none).
+  // There is no per-round settled flag; the engine's oracle settled-status gate
+  // governs settlement.
+  isRoundSettled: () => false,
 
   nextAction(state): StrategyStep {
-    if (!state.activeRound) {
-      return "start"
-    }
-    if (!state.activeRound.settled) {
-      return "settle"
-    }
-    return "realize"
+    return state.activeRound ? "settle" : "start"
   },
 
   async selectStartCandidate(context, state): Promise<StartCandidate | undefined> {
@@ -155,23 +150,6 @@ export const hedgedPlpDriver: StrategyDriver<HedgedPlpStrategyState> = {
         tx.object(config.predict.sharedObjectId),
         tx.object(state.managerId),
         tx.object(oracleId),
-        tx.object(config.predict.clockObjectId),
-      ],
-    })
-    return tx
-  },
-
-  buildRealizeTx(config, _state, sender) {
-    const tx = new Transaction()
-    tx.setSender(sender)
-    tx.moveCall({
-      target: target(config, "realize_round"),
-      typeArguments: [config.predict.quoteAsset],
-      arguments: [
-        tx.object(config.hedgedPlp.strategyId),
-        tx.object(config.baseVault.vaultId),
-        tx.object(config.hedgedPlp.keeperCapId),
-        tx.object(config.predict.sharedObjectId),
         tx.object(config.predict.clockObjectId),
       ],
     })
