@@ -10,11 +10,16 @@ import type { SuiClient } from "./sui.ts"
 // backfill only ever covers gaps (disconnect windows / fresh-start catch-up).
 const BACKFILL_CONCURRENCY = 4
 
-// Per-read retry attempts before a backfill read is considered failed.
-const READ_MAX_ATTEMPTS = 4
+// Per-checkpoint read attempts, covering BOTH transient RPC errors AND the
+// json-projection lag: the node populates an event's protobuf-json a few seconds
+// after the checkpoint first appears, so a tip read can return events with null
+// json. We retry until matched Predict events carry json (or the budget spends).
+const READ_MAX_ATTEMPTS = 12
 
-// Base backoff (ms) for read retries; grows linearly per attempt.
-const READ_RETRY_BASE_MS = 250
+// Base backoff (ms) per attempt; grows linearly, capped, so the budget spans
+// ~20s — enough for the json projection to catch up at the chain tip.
+const READ_RETRY_BASE_MS = 500
+const READ_RETRY_CAP_MS = 2_000
 
 // Reconnect the stream if no checkpoint arrives within this window. The chain
 // produces a checkpoint every few hundred ms, so even a few seconds of silence
@@ -65,7 +70,7 @@ export async function backfillRange(
   let committed = from - 1n
 
   const launch = (seq: bigint) => {
-    inflight.set(seq, readCheckpointWithRetry(client, seq))
+    inflight.set(seq, fetchReadyCheckpoint(config, client, seq))
   }
 
   // Prime the window.
@@ -103,9 +108,17 @@ export async function backfillRange(
   logger.info(toLogFields({ committedThrough: committed.toString() }), "backfill range done")
 }
 
-// Read a checkpoint proto with bounded retry/backoff. Returns null if all
-// attempts fail so the caller can stop the backfill cleanly.
-async function readCheckpointWithRetry(client: SuiClient, seq: bigint): Promise<CheckpointData | null> {
+// Read a checkpoint proto, retrying on transient errors AND while the json
+// projection is still catching up (matched Predict events whose `json` is null
+// at the tip). Returns the proto once its Predict events carry json, the
+// best-effort proto if the readiness budget is spent (a rare straggler that
+// re-resolves on a later pass), or null if the read itself keeps failing.
+async function fetchReadyCheckpoint(
+  config: Config,
+  client: SuiClient,
+  seq: bigint
+): Promise<CheckpointData | null> {
+  let lastData: CheckpointData | null = null
   for (let attempt = 1; attempt <= READ_MAX_ATTEMPTS; attempt += 1) {
     try {
       const response = await client.ledgerService.getCheckpoint({
@@ -116,7 +129,11 @@ async function readCheckpointWithRetry(client: SuiClient, seq: bigint): Promise<
       if (checkpointData === undefined) {
         throw new Error(`Checkpoint ${seq.toString()} was not returned`)
       }
-      return checkpointData
+      lastData = checkpointData
+      // Ready once every matched Predict event carries json (none matched ⇒ ready).
+      if (extractPredictEvents(config, checkpointData, seq).every((event) => event.json !== null)) {
+        return checkpointData
+      }
     } catch (error) {
       if (attempt === READ_MAX_ATTEMPTS) {
         // Recoverable: backfill stops at the last contiguous checkpoint and the
@@ -131,10 +148,10 @@ async function readCheckpointWithRetry(client: SuiClient, seq: bigint): Promise<
         )
         return null
       }
-      await delay(READ_RETRY_BASE_MS * attempt)
     }
+    await delay(Math.min(READ_RETRY_CAP_MS, READ_RETRY_BASE_MS * attempt))
   }
-  return null
+  return lastData
 }
 
 // Main ingestion driver: subscribe to the live checkpoint stream, decode the
@@ -217,9 +234,25 @@ export async function runCheckpointStream(
           }
         }
 
-        const checkpointData = cp ?? (await fetchCheckpoint(client, seq))
-        await processCheckpoint(config, repo, seq, checkpointData)
-        cursor = seq
+        // The pushed proto carries event types + BCS but NOT the protobuf-json
+        // projection the parser needs (it lags the tip by a few seconds). So if
+        // the checkpoint actually has Predict events, fetch via getCheckpoint and
+        // wait out the json lag; empty checkpoints use the proto directly (no
+        // fetch). Predict events are sparse, so the extra read is rare.
+        const streamedEvents = cp ? extractPredictEvents(config, cp, seq) : []
+        if (cp !== undefined && streamedEvents.length === 0) {
+          await processCheckpoint(config, repo, seq, cp)
+          cursor = seq
+        } else {
+          const ready = await fetchReadyCheckpoint(config, client, seq)
+          if (ready === null) {
+            // Can't read it yet — leave the cursor; the next stream item's gap
+            // backfill retries it.
+            continue
+          }
+          await processCheckpoint(config, repo, seq, ready)
+          cursor = seq
+        }
       }
     } catch (error) {
       reason = "error"
@@ -241,19 +274,6 @@ export async function runCheckpointStream(
     )
     await delay(backoffMs)
   }
-}
-
-// Fetch a single checkpoint proto (used when the stream omits `res.checkpoint`).
-async function fetchCheckpoint(client: SuiClient, seq: bigint): Promise<CheckpointData> {
-  const response = await client.ledgerService.getCheckpoint({
-    checkpointId: { oneofKind: "sequenceNumber", sequenceNumber: seq },
-    readMask: { paths: [...CHECKPOINT_READ_MASK_PATHS] },
-  }).response
-  const checkpointData = response.checkpoint
-  if (checkpointData === undefined) {
-    throw new Error(`Checkpoint ${seq.toString()} was not returned`)
-  }
-  return checkpointData
 }
 
 function delay(ms: number): Promise<void> {

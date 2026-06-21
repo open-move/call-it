@@ -20,13 +20,23 @@ export interface RedeemResult {
   submitted: number
 }
 
+// Coin-type strings differ only by the leading `0x` on the address (and case):
+// the indexed `quote_asset` omits it, config includes it. Normalize before
+// comparing. (The DUSDC address is already full-width, so stripping `0x` suffices.)
+function normalizeCoinType(type: string): string {
+  return type.replace(/^0x/i, "").toLowerCase()
+}
+
 export async function planRedemptions(config: Config, repo: Repository) {
   const positions = await repo.listOpenSettledPositions()
   const resolvedKeys = await repo.listResolvedPositionKeys()
   const plans: RedemptionPlan[] = []
 
   for (const position of positions) {
-    if (position.quoteAsset !== config.predictQuoteAsset) {
+    // Indexed positions store the coin type without the `0x` address prefix that
+    // config carries, so compare normalized forms — otherwise the mismatch would
+    // skip every position (including winners that should be redeemed).
+    if (normalizeCoinType(position.quoteAsset) !== normalizeCoinType(config.predictQuoteAsset)) {
       continue
     }
 
