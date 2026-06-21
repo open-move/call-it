@@ -1,3 +1,7 @@
+/// End-to-end tests for the arena facade against a real Predict deployment
+/// (registry + predict + oracle + managers) stood up by `setup`. Covers
+/// bootstrap/config, launch validation, back/fade minting, and the two bond exit
+/// paths: claim after the oracle settles and reclaim after the expiry grace.
 #[test_only]
 module arena::arena_tests;
 
@@ -43,6 +47,7 @@ const PARTICIPANT_QUOTE_AMOUNT: u64 = 7_000_000;
 const PARTICIPANT_QUANTITY: u64 = 100_000;
 const SEED_LIQUIDITY: u64 = 10_000_000_000;
 
+/// Object ids threaded through a test once `setup` has provisioned the world.
 public struct Env has drop {
     predict_id: ID,
     oracle_id: ID,
@@ -486,6 +491,7 @@ fun reclaim_bond_aborts_for_wrong_creator() {
     end(test);
 }
 
+/// Share a clock and bootstrap the arena under ADMIN, transferring the cap to ADMIN.
 fun bootstrap_arena(test: &mut Scenario) {
     setup_clock(test);
     test.next_tx(ADMIN);
@@ -499,6 +505,7 @@ fun bootstrap_arena(test: &mut Scenario) {
     }
 }
 
+/// Launch a valid up-call from CREATOR with the standard bond and strike.
 fun launch_call(test: &mut Scenario, env: &Env) {
     attempt_launch(
         test,
@@ -508,6 +515,8 @@ fun launch_call(test: &mut Scenario, env: &Env) {
     )
 }
 
+/// Attempt an up-call launch with the given bond and strike (may abort — used by
+/// the validation failure tests).
 fun attempt_launch(
     test: &mut Scenario,
     env: &Env,
@@ -517,6 +526,7 @@ fun attempt_launch(
     attempt_launch_with_direction(test, env, bond_quote_amount, strike, true)
 }
 
+/// Launch a call from CREATOR with an explicit direction.
 fun attempt_launch_with_direction(
     test: &mut Scenario,
     env: &Env,
@@ -550,12 +560,15 @@ fun attempt_launch_with_direction(
     }
 }
 
+/// Full happy-path world: registry, predict, seeded vault, managers, and an
+/// *active* oracle ready to trade.
 fun setup(test: &mut Scenario): Env {
     let env = setup_without_active_oracle(test);
     activate_oracle(test, env.oracle_id);
     env
 }
 
+/// Same as `setup` but leaves the oracle inactive (for the inactive-oracle test).
 fun setup_without_active_oracle(test: &mut Scenario): Env {
     bootstrap_arena(test);
     let currency = test_quote::create_currency(test.ctx());
@@ -598,6 +611,7 @@ fun setup_predict(test: &mut Scenario, currency: &Currency<TEST_QUOTE>): ID {
     predict_id
 }
 
+/// Supply baseline liquidity into Predict so back/fade mints can fill.
 fun seed_vault(test: &mut Scenario, predict_id: ID) {
     test.next_tx(ADMIN);
     let mut predict = test.take_shared_by_id<Predict>(predict_id);
@@ -611,7 +625,6 @@ fun seed_vault(test: &mut Scenario, predict_id: ID) {
     return_shared(predict);
     return_shared(clock);
 }
-
 
 fun setup_oracle(test: &mut Scenario, predict_id: ID): ID {
     test.next_tx(ADMIN);
@@ -666,6 +679,8 @@ fun activate_oracle(test: &mut Scenario, oracle_id: ID) {
     test.return_to_sender(oracle_cap);
 }
 
+/// Advance the clock to expiry and push a final price so the oracle records a
+/// settlement price — the precondition `claim_bond` gates on.
 fun settle_oracle(test: &mut Scenario, oracle_id: ID) {
     test.next_tx(ADMIN);
     {
