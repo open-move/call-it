@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
+import { index, integer, primaryKey, sqliteTable, text } from "drizzle-orm/sqlite-core"
 import type { InferSelectModel } from "drizzle-orm"
 
 export const meta = sqliteTable("meta", {
@@ -19,6 +19,7 @@ export const rawEvents = sqliteTable(
     module: text("module").notNull(),
     packageId: text("package_id").notNull(),
     reconciledAt: integer("reconciled_at"),
+    reconcileError: text("reconcile_error"),
     sender: text("sender").notNull(),
     transactionDigest: text("transaction_digest").notNull(),
     transactionIndex: integer("transaction_index").notNull(),
@@ -29,13 +30,21 @@ export const rawEvents = sqliteTable(
   })
 )
 
-export const oracles = sqliteTable("oracles", {
-  expiry: text("expiry").notNull(),
-  lastCheckpoint: integer("last_checkpoint").notNull(),
-  oracleId: text("oracle_id").primaryKey(),
-  settlementPrice: text("settlement_price").notNull(),
-  settledAt: integer("settled_at").notNull(),
-})
+export const oracles = sqliteTable(
+  "oracles",
+  {
+    expiry: text("expiry").notNull(),
+    lastCheckpoint: integer("last_checkpoint").notNull(),
+    oracleId: text("oracle_id").notNull(),
+    settlementPrice: text("settlement_price").notNull(),
+    settledAt: integer("settled_at").notNull(),
+  },
+  // A Predict oracle is identified by (oracleId, expiry): the same oracle id can
+  // be reused across rounds/expiries, each with its own settlement price.
+  (table) => ({
+    pk: primaryKey({ columns: [table.oracleId, table.expiry] }),
+  })
+)
 
 export const positions = sqliteTable(
   "positions",

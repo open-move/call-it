@@ -1,6 +1,6 @@
-import { and, eq, isNull } from "drizzle-orm"
+import { and, eq, inArray, isNull } from "drizzle-orm"
 
-import type { KeeperDatabase, PositionState, StoredRawEvent, TransactionStatus } from "./database.ts"
+import type { Database, PositionState, StoredRawEvent, TransactionStatus } from "./database.ts"
 import { checkpointValueSchema, countRowSchema, positionFromRow, rawEventFromRow } from "./database.ts"
 import { meta, oracles, positions, rawEvents, txs } from "./schema.ts"
 import type { OracleSettledEvent, PositionMintedEvent, PositionRedeemedEvent } from "../predict.ts"
@@ -8,8 +8,8 @@ import { positionKey } from "../predict.ts"
 
 const LAST_SCANNED_CHECKPOINT = "last_scanned_checkpoint"
 
-export class KeeperRepository {
-  constructor(private readonly database: KeeperDatabase) {}
+export class Repository {
+  constructor(private readonly database: Database) {}
 
   get sqlite() {
     return this.database.sqlite
@@ -63,7 +63,17 @@ export class KeeperRepository {
   }
 
   async markRawEventReconciled(id: string) {
-    await this.database.db.update(rawEvents).set({ reconciledAt: Date.now() }).where(eq(rawEvents.id, id))
+    await this.database.db
+      .update(rawEvents)
+      .set({ reconcileError: null, reconciledAt: Date.now() })
+      .where(eq(rawEvents.id, id))
+  }
+
+  async markRawEventFailed(id: string, error: string) {
+    await this.database.db
+      .update(rawEvents)
+      .set({ reconcileError: error, reconciledAt: Date.now() })
+      .where(eq(rawEvents.id, id))
   }
 
   async upsertOracleSettled(event: OracleSettledEvent, checkpoint: number) {
@@ -79,18 +89,19 @@ export class KeeperRepository {
       })
       .onConflictDoUpdate({
         set: {
-          expiry: event.expiry.toString(),
           lastCheckpoint: checkpoint,
           settlementPrice: event.settlementPrice.toString(),
           settledAt: now,
         },
-        target: oracles.oracleId,
+        target: [oracles.oracleId, oracles.expiry],
       })
 
+    // Settlement is per (oracle, expiry): only flag positions of the same
+    // expiry so other rounds on the same oracle id are not mismarked.
     await this.database.db
       .update(positions)
       .set({ settled: true, settlementPrice: event.settlementPrice.toString() })
-      .where(eq(positions.oracleId, event.oracleId))
+      .where(and(eq(positions.oracleId, event.oracleId), eq(positions.expiry, event.expiry.toString())))
   }
 
   async applyMint(event: PositionMintedEvent, checkpoint: number) {
@@ -180,6 +191,17 @@ export class KeeperRepository {
       where: and(eq(positions.settled, true)),
     })
     return rows.map(positionFromRow).filter((position) => position.openQty > 0n)
+  }
+
+  /// Position keys with a submitted or succeeded redemption tx. These are
+  /// awaiting their on-chain PositionRedeemed event and must not be re-planned,
+  /// or they re-simulate and fail every tick until the event lands.
+  async listResolvedPositionKeys() {
+    const rows = await this.database.db
+      .select({ positionKey: txs.positionKey })
+      .from(txs)
+      .where(inArray(txs.status, ["submitted", "succeeded"]))
+    return new Set(rows.map((row) => row.positionKey))
   }
 
   async recordTx(input: {

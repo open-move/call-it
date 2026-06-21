@@ -1,4 +1,4 @@
-import Database from "better-sqlite3"
+import BetterSqlite3 from "better-sqlite3"
 import { migrate as runDrizzleMigrations } from "drizzle-orm/better-sqlite3/migrator"
 import { drizzle } from "drizzle-orm/better-sqlite3"
 import { mkdirSync } from "node:fs"
@@ -8,7 +8,7 @@ import { z } from "zod"
 import * as schema from "./schema.ts"
 import type { PositionRow, RawEventRow, TxRow } from "./schema.ts"
 
-export type KeeperDatabase = ReturnType<typeof openKeeperDatabase>
+export type Database = ReturnType<typeof openDatabase>
 
 export interface StoredRawEvent {
   checkpoint: number
@@ -128,13 +128,13 @@ export const checkpointValueSchema = unsignedIntegerString
 
 export const countRowSchema = z.object({ count: z.number().int().nonnegative() })
 
-export function openKeeperDatabase(dbPath: string) {
+export function openDatabase(dbPath: string) {
   const parent = dirname(dbPath)
   if (parent !== ".") {
     mkdirSync(parent, { recursive: true })
   }
 
-  const sqlite = new Database(dbPath)
+  const sqlite = new BetterSqlite3(dbPath)
   sqlite.pragma("journal_mode = WAL")
   sqlite.pragma("foreign_keys = ON")
   sqlite.pragma("busy_timeout = 5000")
@@ -145,7 +145,7 @@ export function openKeeperDatabase(dbPath: string) {
   }
 }
 
-export function runMigrations(database: KeeperDatabase) {
+export function runMigrations(database: Database) {
   runDrizzleMigrations(database.db, { migrationsFolder: "./drizzle" })
 }
 

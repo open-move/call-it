@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.ts"
-import { openKeeperDatabase, runMigrations } from "./db/database.ts"
-import { KeeperRepository } from "./db/repo.ts"
+import { openDatabase, runMigrations } from "./db/database.ts"
+import { Repository } from "./db/repo.ts"
 import { logger, toLogFields } from "./logger.ts"
 import { reconcileEvents } from "./reconcile.ts"
 import { executeRedemptions, planRedemptions } from "./redemptions.ts"
@@ -16,9 +16,9 @@ async function main() {
   }
 
   const config = loadConfig()
-  const database = openKeeperDatabase(config.dbPath)
+  const database = openDatabase(config.dbPath)
   runMigrations(database)
-  const repo = new KeeperRepository(database)
+  const repo = new Repository(database)
   const client = createSuiClient(config)
 
   if (command === "scan") {
@@ -51,7 +51,7 @@ async function main() {
 async function runOnce(
   config: ReturnType<typeof loadConfig>,
   client: ReturnType<typeof createSuiClient>,
-  repo: KeeperRepository
+  repo: Repository
 ) {
   const scan = await scanPredictEvents(config, client, repo)
   const reconcile = await reconcileEvents(repo)
@@ -68,7 +68,7 @@ async function runOnce(
 async function watch(
   config: ReturnType<typeof loadConfig>,
   client: ReturnType<typeof createSuiClient>,
-  repo: KeeperRepository
+  repo: Repository
 ) {
   let stopping = false
   const stop = () => {

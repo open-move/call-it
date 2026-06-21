@@ -1,7 +1,7 @@
-import type { KeeperConfig } from "./config.ts"
-import type { KeeperRepository } from "./db/repo.ts"
+import type { Config } from "./config.ts"
+import type { Repository } from "./db/repo.ts"
 import { isPredictEventType } from "./predict.ts"
-import type { KeeperSuiClient } from "./sui.ts"
+import type { SuiClient } from "./sui.ts"
 import { protobufValueToJson } from "./sui.ts"
 import { z } from "zod"
 
@@ -19,16 +19,23 @@ export interface ScanResult {
 }
 
 export async function scanPredictEvents(
-  config: KeeperConfig,
-  client: KeeperSuiClient,
-  repo: KeeperRepository
+  config: Config,
+  client: SuiClient,
+  repo: Repository
 ): Promise<ScanResult> {
   const serviceInfo = await client.ledgerService.getServiceInfo({}).response
   const latestCheckpoint = serviceInfo.checkpointHeight ?? 0n
   const lastScanned = await repo.getLastScannedCheckpoint()
 
   if (lastScanned === null) {
-    const startingCheckpoint = config.startCheckpoint ?? latestCheckpoint
+    if (config.startCheckpoint === null) {
+      // Starting at "latest" would silently skip every pre-existing position —
+      // exactly the redeemables a keeper exists to find. Make the horizon explicit.
+      throw new Error(
+        "KEEPER_START_CHECKPOINT is required for a new keeper DB; the keeper only manages positions from this checkpoint forward"
+      )
+    }
+    const startingCheckpoint = config.startCheckpoint
     await repo.setLastScannedCheckpoint(startingCheckpoint)
     return {
       fromCheckpoint: null,
@@ -71,8 +78,8 @@ export async function scanPredictEvents(
 }
 
 async function readPredictEventsAtCheckpoint(
-  config: KeeperConfig,
-  client: KeeperSuiClient,
+  config: Config,
+  client: SuiClient,
   checkpoint: bigint
 ) {
   const response = await client.ledgerService.getCheckpoint({

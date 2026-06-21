@@ -1,10 +1,11 @@
-import type { KeeperConfig } from "./config.ts"
+import type { Config } from "./config.ts"
 import type { PositionState } from "./db/database.ts"
 import { makeLocalTxId } from "./db/database.ts"
-import type { KeeperRepository } from "./db/repo.ts"
+import type { Repository } from "./db/repo.ts"
+import { logger } from "./logger.ts"
 import { expectedSettledPayout } from "./predict.ts"
-import type { KeeperSuiClient } from "./sui.ts"
-import { buildRedeemTransaction, executeRedeem, loadRedeemKeypair, simulateRedeem } from "./sui.ts"
+import type { SuiClient } from "./sui.ts"
+import { buildRedeemTransaction, executeRedeem, getSuiBalance, loadRedeemKeypair, simulateRedeem } from "./sui.ts"
 
 export interface RedemptionPlan {
   expectedPayout: bigint
@@ -15,15 +16,22 @@ export interface RedemptionPlan {
 export interface RedeemResult {
   dryRun: boolean
   failed: number
+  skipped: number
   submitted: number
 }
 
-export async function planRedemptions(config: KeeperConfig, repo: KeeperRepository) {
+export async function planRedemptions(config: Config, repo: Repository) {
   const positions = await repo.listOpenSettledPositions()
+  const resolvedKeys = await repo.listResolvedPositionKeys()
   const plans: RedemptionPlan[] = []
 
   for (const position of positions) {
     if (position.quoteAsset !== config.predictQuoteAsset) {
+      continue
+    }
+
+    // Already submitted/succeeded; awaiting its PositionRedeemed event.
+    if (resolvedKeys.has(position.key)) {
       continue
     }
 
@@ -47,13 +55,13 @@ export async function planRedemptions(config: KeeperConfig, repo: KeeperReposito
 }
 
 export async function executeRedemptions(
-  config: KeeperConfig,
-  client: KeeperSuiClient,
-  repo: KeeperRepository,
+  config: Config,
+  client: SuiClient,
+  repo: Repository,
   plans: RedemptionPlan[]
 ): Promise<RedeemResult> {
   if (plans.length === 0) {
-    return { dryRun: config.dryRun, failed: 0, submitted: 0 }
+    return { dryRun: config.dryRun, failed: 0, skipped: 0, submitted: 0 }
   }
 
   if (config.dryRun) {
@@ -68,15 +76,30 @@ export async function executeRedemptions(
         status: "dry_run",
       })
     }
-    return { dryRun: true, failed: 0, submitted: plans.length }
+    return { dryRun: true, failed: 0, skipped: 0, submitted: plans.length }
   }
 
   const signer = loadRedeemKeypair(config)
+  const keeperAddress = signer.toSuiAddress()
+
+  const balance = await getSuiBalance(client, keeperAddress)
+  if (balance < config.minSuiBalance) {
+    logger.warn(
+      {
+        balance: balance.toString(),
+        keeperAddress,
+        minSuiBalance: config.minSuiBalance.toString(),
+      },
+      "keeper SUI balance below minimum; skipping redemptions this tick"
+    )
+    return { dryRun: false, failed: 0, skipped: plans.length, submitted: 0 }
+  }
+
   let submitted = 0
   let failed = 0
 
   for (const plan of plans) {
-    const transaction = buildRedeemTransaction(config, plan)
+    const transaction = buildRedeemTransaction(config, plan, keeperAddress)
     const simulation = await simulateRedeem(client, transaction)
     if (!simulation.ok) {
       failed += 1
@@ -120,5 +143,5 @@ export async function executeRedemptions(
     }
   }
 
-  return { dryRun: false, failed, submitted }
+  return { dryRun: false, failed, skipped: 0, submitted }
 }

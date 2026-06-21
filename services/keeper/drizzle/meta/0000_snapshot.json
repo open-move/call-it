@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7872f2a3-5d9a-46e6-804a-43c37bf3a857",
+  "id": "192268ec-06ba-4256-9e6a-c82d41b002b1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "meta": {
@@ -55,7 +55,7 @@
         "oracle_id": {
           "name": "oracle_id",
           "type": "text",
-          "primaryKey": true,
+          "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
@@ -76,7 +76,15 @@
       },
       "indexes": {},
       "foreignKeys": {},
-      "compositePrimaryKeys": {},
+      "compositePrimaryKeys": {
+        "oracles_oracle_id_expiry_pk": {
+          "columns": [
+            "oracle_id",
+            "expiry"
+          ],
+          "name": "oracles_oracle_id_expiry_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
@@ -286,6 +294,13 @@
         "reconciled_at": {
           "name": "reconciled_at",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "reconcile_error": {
+          "name": "reconcile_error",
+          "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false

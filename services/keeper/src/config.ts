@@ -1,22 +1,28 @@
 import type { SuiClientTypes } from "@mysten/sui/client"
 import { z } from "zod"
 
-export interface KeeperConfig {
+export interface Config {
   clockObjectId: string
   dbPath: string
   dryRun: boolean
   maxBatchSize: number
   maxCheckpointsPerScan: number
   minPayout: bigint
+  minSuiBalance: bigint
   pollSeconds: number
   predictObjectId: string
   predictPackageId: string
   predictQuoteAsset: string
   redeemKey: string | null
+  rewardCoinType: string
+  rewardPackageId: string | null
+  rewardVaultId: string | null
   startCheckpoint: bigint | null
   suiNetwork: SuiClientTypes.Network
   suiRpcUrl: string
 }
+
+const SUI_NETWORKS = ["devnet", "localnet", "mainnet", "testnet"] as const
 
 const optionalEnvString = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -59,6 +65,10 @@ function envBigint(defaultValue: bigint) {
   return optionalBigintString.transform((value) => value ?? defaultValue)
 }
 
+const optionalAddress = optionalEnvString.transform((value) =>
+  value === undefined ? null : value.toLowerCase()
+)
+
 const configSchema = z
   .object({
     CLOCK_OBJECT_ID: envString("0x6"),
@@ -67,34 +77,47 @@ const configSchema = z
     KEEPER_MAX_BATCH_SIZE: envPositiveInteger(10),
     KEEPER_MAX_CHECKPOINTS_PER_SCAN: envPositiveInteger(25),
     KEEPER_MIN_PAYOUT: envBigint(1n),
+    KEEPER_MIN_SUI_BALANCE: envBigint(50_000_000n),
     KEEPER_POLL_SECONDS: envPositiveInteger(15),
+    KEEPER_REWARD_COIN_TYPE: envString("0x2::sui::SUI"),
+    KEEPER_REWARD_PACKAGE_ID: optionalAddress,
+    KEEPER_REWARD_VAULT_ID: optionalAddress,
     KEEPER_START_CHECKPOINT: optionalBigintString,
     PREDICT_OBJECT_ID: requiredEnvString,
     PREDICT_PACKAGE_ID: requiredEnvString.transform((value) => value.toLowerCase()),
     PREDICT_QUOTE_ASSET: requiredEnvString,
     SUI_KEEPER_REDEEM_KEY: optionalEnvString.transform((value) => value ?? null),
-    SUI_NETWORK: envString("testnet").transform((value) => value as SuiClientTypes.Network),
+    SUI_NETWORK: optionalEnvString
+      .pipe(z.enum(SUI_NETWORKS).optional())
+      .transform((value): SuiClientTypes.Network => value ?? "testnet"),
     SUI_RPC_URL: envString("https://fullnode.testnet.sui.io:443"),
   })
   .transform(
-    (env): KeeperConfig => ({
+    (env): Config => ({
       clockObjectId: env.CLOCK_OBJECT_ID,
       dbPath: env.KEEPER_DB_PATH,
       dryRun: env.KEEPER_DRY_RUN,
       maxBatchSize: env.KEEPER_MAX_BATCH_SIZE,
       maxCheckpointsPerScan: env.KEEPER_MAX_CHECKPOINTS_PER_SCAN,
       minPayout: env.KEEPER_MIN_PAYOUT,
+      minSuiBalance: env.KEEPER_MIN_SUI_BALANCE,
       pollSeconds: env.KEEPER_POLL_SECONDS,
       predictObjectId: env.PREDICT_OBJECT_ID,
       predictPackageId: env.PREDICT_PACKAGE_ID,
       predictQuoteAsset: env.PREDICT_QUOTE_ASSET,
       redeemKey: env.SUI_KEEPER_REDEEM_KEY,
+      rewardCoinType: env.KEEPER_REWARD_COIN_TYPE,
+      rewardPackageId: env.KEEPER_REWARD_PACKAGE_ID,
+      rewardVaultId: env.KEEPER_REWARD_VAULT_ID,
       startCheckpoint: env.KEEPER_START_CHECKPOINT,
       suiNetwork: env.SUI_NETWORK,
       suiRpcUrl: env.SUI_RPC_URL,
     })
   )
+  .refine((config) => config.rewardVaultId === null || config.rewardPackageId !== null, {
+    error: "KEEPER_REWARD_PACKAGE_ID is required when KEEPER_REWARD_VAULT_ID is set",
+  })
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): KeeperConfig {
+export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return configSchema.parse(env)
 }

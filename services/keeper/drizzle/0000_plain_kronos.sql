@@ -7,9 +7,10 @@ CREATE TABLE `meta` (
 CREATE TABLE `oracles` (
 	`expiry` text NOT NULL,
 	`last_checkpoint` integer NOT NULL,
-	`oracle_id` text PRIMARY KEY NOT NULL,
+	`oracle_id` text NOT NULL,
 	`settlement_price` text NOT NULL,
-	`settled_at` integer NOT NULL
+	`settled_at` integer NOT NULL,
+	PRIMARY KEY(`oracle_id`, `expiry`)
 );
 --> statement-breakpoint
 CREATE TABLE `positions` (
@@ -44,6 +45,7 @@ CREATE TABLE `raw_events` (
 	`module` text NOT NULL,
 	`package_id` text NOT NULL,
 	`reconciled_at` integer,
+	`reconcile_error` text,
 	`sender` text NOT NULL,
 	`transaction_digest` text NOT NULL,
 	`transaction_index` integer NOT NULL

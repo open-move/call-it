@@ -6,10 +6,10 @@ import { Ed25519Keypair as Ed25519KeypairValue } from "@mysten/sui/keypairs/ed25
 import { Transaction } from "@mysten/sui/transactions"
 import { z } from "zod"
 
-import type { KeeperConfig } from "./config.ts"
+import type { Config } from "./config.ts"
 import type { RedemptionPlan } from "./redemptions.ts"
 
-export type KeeperSuiClient = SuiGrpcClient
+export type SuiClient = SuiGrpcClient
 
 export interface ExecutionResult {
   digest: string
@@ -44,14 +44,14 @@ const protobufJsonValueSchema: z.ZodType<unknown> = z.lazy(() =>
     .transform((value) => value.kind)
 )
 
-export function createSuiClient(config: KeeperConfig) {
+export function createSuiClient(config: Config) {
   return new SuiGrpcClient({
     baseUrl: config.suiRpcUrl,
     network: config.suiNetwork,
   })
 }
 
-export function loadRedeemKeypair(config: KeeperConfig) {
+export function loadRedeemKeypair(config: Config) {
   if (config.redeemKey === null) {
     throw new Error("SUI_KEEPER_REDEEM_KEY is required when KEEPER_DRY_RUN=false")
   }
@@ -68,7 +68,21 @@ export function protobufValueToJson(value: unknown): unknown {
   return value === undefined ? null : protobufJsonValueSchema.parse(value)
 }
 
-export function buildRedeemTransaction(config: KeeperConfig, plan: RedemptionPlan) {
+const suiBalanceSchema = z
+  .object({
+    balance: z.object({
+      balance: z.string().regex(/^\d+$/).optional(),
+      coinBalance: z.string().regex(/^\d+$/).optional(),
+    }),
+  })
+  .transform((response) => BigInt(response.balance.coinBalance ?? response.balance.balance ?? "0"))
+
+export async function getSuiBalance(client: SuiClient, owner: string): Promise<bigint> {
+  const response = await client.getBalance({ owner })
+  return suiBalanceSchema.parse(response)
+}
+
+export function buildRedeemTransaction(config: Config, plan: RedemptionPlan, recipient: string) {
   const tx = new Transaction()
   const key = tx.moveCall({
     arguments: [
@@ -79,6 +93,25 @@ export function buildRedeemTransaction(config: KeeperConfig, plan: RedemptionPla
     ],
     target: `${config.predictPackageId}::market_key::new`,
   })
+
+  // Reward path: redeem through our reward vault, which redeems the full
+  // settled position and returns a keeper reward coin we forward to ourselves.
+  if (config.rewardVaultId !== null && config.rewardPackageId !== null) {
+    const reward = tx.moveCall({
+      arguments: [
+        tx.object(config.rewardVaultId),
+        tx.object(config.predictObjectId),
+        tx.object(plan.position.managerId),
+        tx.object(plan.position.oracleId),
+        key,
+        tx.object(config.clockObjectId),
+      ],
+      target: `${config.rewardPackageId}::reward_vault::redeem_with_reward`,
+      typeArguments: [config.predictQuoteAsset, config.rewardCoinType],
+    })
+    tx.transferObjects([reward], recipient)
+    return tx
+  }
 
   tx.moveCall({
     arguments: [
@@ -96,7 +129,7 @@ export function buildRedeemTransaction(config: KeeperConfig, plan: RedemptionPla
   return tx
 }
 
-export async function simulateRedeem(client: KeeperSuiClient, transaction: Transaction): Promise<SimulationResult> {
+export async function simulateRedeem(client: SuiClient, transaction: Transaction): Promise<SimulationResult> {
   const result = await client.simulateTransaction({
     checksEnabled: true,
     include: { effects: true, events: true },
@@ -114,7 +147,7 @@ export async function simulateRedeem(client: KeeperSuiClient, transaction: Trans
 }
 
 export async function executeRedeem(
-  client: KeeperSuiClient,
+  client: SuiClient,
   signer: Ed25519Keypair,
   transaction: Transaction
 ): Promise<ExecutionResult> {
