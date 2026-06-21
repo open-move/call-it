@@ -14,7 +14,7 @@ use deepbook_predict::{
 use plp_collar_strategy::{
     pcollar::PCOLLAR,
     policy,
-    strategy::{Self as strategy, Strategy},
+    strategy::{Self as strategy, Strategy, StrategyAdminCap},
     test_quote::{Self, TEST_QUOTE},
 };
 use std::{option, unit_test::{assert_eq, destroy}};
@@ -41,6 +41,7 @@ const DOWN_QUANTITY: u64 = 10_000;
 const UP_QUANTITY: u64 = 10_000;
 const SEED_LIQUIDITY: u64 = 1_000_000_000_000_000;
 const MANAGER_BASELINE: u64 = 123_456_789;
+const DEFAULT_GRACE: u64 = 4;
 
 public struct Env has drop {
     base_vault_id: ID,
@@ -75,10 +76,14 @@ fun create_strategy_sets_policy_caps_and_manager() {
         assert_eq!(strategy.manager_id(), manager_id);
         assert_eq!(strategy.base_vault_id(), base_vault_id);
         assert_eq!(strategy.base_shares_amount(), 0);
+        assert_eq!(strategy.reserved_base_shares_amount(), 0);
+        assert_eq!(strategy.pending_shares_amount(), 0);
+        assert_eq!(strategy.plp_amount(), 0);
+        assert_eq!(strategy.plp_cost_basis(), 0);
         assert_eq!(strategy.nav(&base), 0);
         assert_eq!(strategy.share_supply(), 0);
-        assert_eq!(strategy.cash_value(), 0);
-        assert_eq!(strategy.plp_cost_basis(), 0);
+        assert_eq!(strategy.current_round(), 0);
+        assert_eq!(strategy.stale_withdrawal_grace_rounds(), DEFAULT_GRACE);
         assert!(!strategy.has_active_round());
         assert!(!strategy.paused());
         assert_eq!(policy::downside_budget_bps(&strategy.policy()), DOWNSIDE_BUDGET_BPS);
@@ -110,7 +115,6 @@ fun deposit_and_withdraw_round_trip_through_base() {
 
         assert_eq!(shares.value(), DEPOSIT_AMOUNT);
         assert_eq!(strategy.base_shares_amount(), DEPOSIT_AMOUNT);
-        assert_eq!(strategy.cash_value(), 0);
         assert_eq!(base.cash_value(), DEPOSIT_AMOUNT);
         assert_eq!(strategy.nav(&base), DEPOSIT_AMOUNT);
         assert_eq!(strategy.share_supply(), DEPOSIT_AMOUNT);
@@ -142,7 +146,6 @@ fun multiple_deposits_mint_proportional_shares() {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         assert_eq!(strategy.base_shares_amount(), 30_000_000_000);
-        assert_eq!(strategy.cash_value(), 0);
         assert_eq!(base.cash_value(), 30_000_000_000);
         assert_eq!(strategy.nav(&base), 30_000_000_000);
         assert_eq!(strategy.share_supply(), 30_000_000_000);
@@ -164,50 +167,79 @@ fun start_round_allocates_plp_and_opens_both_hedges() {
     test.next_tx(ADMIN);
     {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let down_key = market_key::new(env.oracle_id, EXPIRY_MS, DOWN_STRIKE, false);
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
         let round = option::destroy_some(strategy.active_round());
 
         assert!(strategy.has_active_round());
-        assert_eq!(strategy.base_shares_amount(), 0);
+        // PLP is funded; only the reserve plus any rounding sits back in base shares.
         assert_eq!(strategy.plp_cost_basis(), 8_000_000_000);
         assert!(strategy.plp_amount() > 0);
+        assert!(strategy.nav(&base) >= 1_000_000_000);
         assert_eq!(manager.position(down_key), DOWN_QUANTITY);
         assert_eq!(manager.position(up_key), UP_QUANTITY);
         assert_eq!(strategy::round_predict_id(&round), env.predict_id);
         assert_eq!(strategy::round_oracle_id(&round), env.oracle_id);
         assert_eq!(strategy::round_down_strike(&round), DOWN_STRIKE);
         assert_eq!(strategy::round_up_strike(&round), UP_STRIKE);
-        assert!(!strategy::round_settled(&round));
+        assert_eq!(strategy::round_down_quantity(&round), DOWN_QUANTITY);
+        assert_eq!(strategy::round_up_quantity(&round), UP_QUANTITY);
 
         return_shared(strategy);
+        return_shared(base);
         return_shared(manager);
     };
 
     end(test);
 }
 
-#[test, expected_failure(abort_code = 3)]
+#[test, expected_failure]
 fun deposit_aborts_while_round_active() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
     deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
-    abort
+
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 20)]
+#[test, expected_failure]
+fun withdraw_aborts_while_round_active() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    test.next_tx(USER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let shares = test.take_from_sender<Coin<PCOLLAR>>();
+        let out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+        transfer::public_transfer(out, USER);
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
 fun start_round_rejects_invalid_strikes() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+
     start_round(&mut test, &env, SPOT, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    abort
+
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 5)]
+#[test, expected_failure]
 fun start_round_aborts_on_wrong_manager() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -248,10 +280,10 @@ fun start_round_aborts_on_wrong_manager() {
         test.return_to_sender(cap);
     };
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 25)]
+#[test, expected_failure]
 fun start_round_aborts_on_wrong_keeper_cap() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -261,7 +293,13 @@ fun start_round_aborts_on_wrong_keeper_cap() {
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
-        let (_other_strategy, other_admin_cap, other_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(treasury, &base, &manager, default_policy(), test.ctx());
+        let (other_strategy, other_admin_cap, other_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+            treasury,
+            &base,
+            &manager,
+            default_policy(),
+            test.ctx(),
+        );
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base_mut = base;
         let mut manager_mut = manager;
@@ -269,7 +307,20 @@ fun start_round_aborts_on_wrong_keeper_cap() {
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
 
-        strategy::start_round(&mut strategy, &mut base_mut, &other_keeper_cap, &mut predict, &mut manager_mut, &oracle, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY, &clock, test.ctx());
+        strategy::start_round(
+            &mut strategy,
+            &mut base_mut,
+            &other_keeper_cap,
+            &mut predict,
+            &mut manager_mut,
+            &oracle,
+            DOWN_STRIKE,
+            DOWN_QUANTITY,
+            UP_STRIKE,
+            UP_QUANTITY,
+            &clock,
+            test.ctx(),
+        );
 
         return_shared(strategy);
         return_shared(base_mut);
@@ -277,14 +328,15 @@ fun start_round_aborts_on_wrong_keeper_cap() {
         return_shared(manager_mut);
         return_shared(oracle);
         return_shared(clock);
+        strategy::share_strategy(other_strategy);
         strategy::destroy_admin_cap_for_testing(other_admin_cap);
         strategy::destroy_keeper_cap_for_testing(other_keeper_cap);
     };
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 24)]
+#[test, expected_failure]
 fun deposit_aborts_on_wrong_base_vault() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -294,7 +346,9 @@ fun deposit_aborts_on_wrong_base_vault() {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base_treasury = coin::create_treasury_cap_for_testing<BASE_VAULT>(test.ctx());
         let (mut other_base, other_base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
-        let shares = strategy::deposit(&mut strategy, &mut other_base, coin::mint_for_testing<TEST_QUOTE>(DEPOSIT_AMOUNT, test.ctx()), test.ctx());
+        let funds = coin::mint_for_testing<TEST_QUOTE>(DEPOSIT_AMOUNT, test.ctx());
+
+        let shares = strategy::deposit(&mut strategy, &mut other_base, funds, test.ctx());
 
         transfer::public_transfer(shares, USER);
         return_shared(strategy);
@@ -302,67 +356,123 @@ fun deposit_aborts_on_wrong_base_vault() {
         base_vault::destroy_cap_for_testing(other_base_cap);
     };
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 7)]
+#[test, expected_failure]
 fun start_round_aborts_if_manager_not_empty() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     seed_manager_balance(&mut test, env.manager_id, MANAGER_BASELINE);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    abort
+
+    end(test);
 }
 
 #[test]
-fun settle_down_win_then_realize_reidles_in_base() {
+fun settle_down_win_returns_value_to_base_shares() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
     settle_oracle(&mut test, env.oracle_id, DOWN_STRIKE);
+
     settle_round(&mut test, &env);
 
     test.next_tx(ADMIN);
     {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
-        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
-        assert!(strategy.cash_value() >= DOWN_QUANTITY);
-        assert!(strategy.plp_amount() > 0);
-        return_shared(strategy);
-        return_shared(manager);
-    };
-
-    realize_round(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+        let down_key = market_key::new(env.oracle_id, EXPIRY_MS, DOWN_STRIKE, false);
+        let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
+
         assert!(!strategy.has_active_round());
-        assert_eq!(strategy.cash_value(), 0);
+        assert_eq!(strategy.current_round(), 1);
+        assert_eq!(manager.position(down_key), 0);
+        assert_eq!(manager.position(up_key), 0);
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
         assert_eq!(strategy.plp_amount(), 0);
         assert_eq!(strategy.plp_cost_basis(), 0);
         assert!(strategy.base_shares_amount() > 0);
-        assert_eq!(strategy.nav(&base), base.value_for_shares(strategy.base_shares_amount()));
+        // Reserve + recovered PLP + winning downside payout are all back in base.
+        assert!(strategy.nav(&base) >= 9_000_000_000 + DOWN_QUANTITY);
+
         return_shared(strategy);
         return_shared(base);
+        return_shared(manager);
     };
 
     end(test);
 }
 
 #[test]
-fun settle_up_win_sweeps_up_payout() {
+fun settle_up_win_clears_round_and_redeploys() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
     settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+
+        assert!(!strategy.has_active_round());
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert_eq!(strategy.plp_amount(), 0);
+        assert!(strategy.base_shares_amount() > 0);
+        assert_eq!(strategy.nav(&base), base.value_for_shares(strategy.base_shares_amount()));
+
+        return_shared(strategy);
+        return_shared(base);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test]
+fun settle_inside_collar_keeps_no_payout() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
+
+        assert!(!strategy.has_active_round());
+        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+        assert_eq!(strategy.plp_amount(), 0);
+
+        return_shared(strategy);
+        return_shared(manager);
+    };
+
+    end(test);
+}
+
+#[test]
+fun settle_after_permissionless_redeems() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
+
+    redeem_both_permissionless(&mut test, &env, OTHER);
     settle_round(&mut test, &env);
 
     test.next_tx(ADMIN);
@@ -371,63 +481,13 @@ fun settle_up_win_sweeps_up_payout() {
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let down_key = market_key::new(env.oracle_id, EXPIRY_MS, DOWN_STRIKE, false);
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
+
+        assert!(!strategy.has_active_round());
         assert_eq!(manager.position(down_key), 0);
         assert_eq!(manager.position(up_key), 0);
         assert_eq!(manager.balance<TEST_QUOTE>(), 0);
-        assert!(strategy.cash_value() >= UP_QUANTITY);
-        return_shared(strategy);
-        return_shared(manager);
-    };
-
-    end(test);
-}
-
-#[test]
-fun settle_inside_no_payout_then_realize_reidles_in_base() {
-    let mut test = begin(ADMIN);
-    let env = setup_strategy(&mut test);
-    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
-    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    settle_oracle(&mut test, env.oracle_id, SPOT);
-    settle_round(&mut test, &env);
-    realize_round(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        assert!(!strategy.has_active_round());
-        assert_eq!(strategy.cash_value(), 0);
         assert_eq!(strategy.plp_amount(), 0);
-        assert_eq!(strategy.plp_cost_basis(), 0);
-        assert!(strategy.base_shares_amount() > 0);
-        assert_eq!(strategy.nav(&base), base.value_for_shares(strategy.base_shares_amount()));
-        return_shared(strategy);
-        return_shared(base);
-    };
 
-    end(test);
-}
-
-#[test]
-fun settle_sweeps_after_permissionless_redeems() {
-    let mut test = begin(ADMIN);
-    let env = setup_strategy(&mut test);
-    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
-    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
-    redeem_both_permissionless(&mut test, &env, OTHER);
-    settle_round(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
-        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
         return_shared(strategy);
         return_shared(manager);
     };
@@ -442,21 +502,24 @@ fun settle_tolerates_partial_permissionless_redeem() {
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
     settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
-    redeem_up_partial_permissionless(&mut test, &env, OTHER);
 
+    redeem_up_partial_permissionless(&mut test, &env, OTHER);
     settle_round(&mut test, &env);
 
     test.next_tx(ADMIN);
     {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
+
+        assert!(!strategy.has_active_round());
         assert_eq!(manager.position(up_key), 0);
         assert_eq!(manager.balance<TEST_QUOTE>(), 0);
-        assert!(strategy.cash_value() >= UP_QUANTITY);
+        assert!(strategy.nav(&base) >= 9_000_000_000 + UP_QUANTITY);
+
         return_shared(strategy);
+        return_shared(base);
         return_shared(manager);
     };
 
@@ -477,39 +540,15 @@ fun settle_sweeps_post_start_manager_balance() {
     test.next_tx(ADMIN);
     {
         let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
+
+        assert!(!strategy.has_active_round());
         assert_eq!(manager.balance<TEST_QUOTE>(), 0);
-        assert!(strategy.cash_value() >= UP_QUANTITY + MANAGER_BASELINE);
+        assert!(strategy.nav(&base) >= 9_000_000_000 + UP_QUANTITY + MANAGER_BASELINE);
+
         return_shared(strategy);
-        return_shared(manager);
-    };
-
-    end(test);
-}
-
-#[test]
-fun settle_sweeps_permissionless_redeem_plus_extra_balance() {
-    let mut test = begin(ADMIN);
-    let env = setup_strategy(&mut test);
-    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
-    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
-    redeem_both_permissionless(&mut test, &env, OTHER);
-    seed_manager_balance(&mut test, env.manager_id, MANAGER_BASELINE);
-
-    settle_round(&mut test, &env);
-
-    test.next_tx(ADMIN);
-    {
-        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
-        assert_eq!(manager.balance<TEST_QUOTE>(), 0);
-        assert!(strategy.cash_value() >= UP_QUANTITY + MANAGER_BASELINE);
-        return_shared(strategy);
+        return_shared(base);
         return_shared(manager);
     };
 
@@ -533,11 +572,12 @@ fun settle_preserves_extra_same_market_positions() {
         let manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let down_key = market_key::new(env.oracle_id, EXPIRY_MS, DOWN_STRIKE, false);
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
-        let round = option::destroy_some(strategy.active_round());
-        assert!(strategy::round_settled(&round));
+
+        assert!(!strategy.has_active_round());
         assert_eq!(manager.position(down_key), DOWN_QUANTITY);
         assert_eq!(manager.position(up_key), UP_QUANTITY);
         assert_eq!(manager.balance<TEST_QUOTE>(), 0);
+
         return_shared(strategy);
         return_shared(manager);
     };
@@ -545,7 +585,7 @@ fun settle_preserves_extra_same_market_positions() {
     end(test);
 }
 
-#[test, expected_failure(abort_code = 10)]
+#[test, expected_failure]
 fun settle_round_requires_round_predict() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -555,45 +595,345 @@ fun settle_round_requires_round_predict() {
 
     tamper_round_predict_id(&mut test, &env);
     settle_round(&mut test, &env);
-    abort
+
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 19)]
+#[test, expected_failure]
 fun settle_aborts_if_redeemed_payout_is_missing() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
     settle_oracle(&mut test, env.oracle_id, UP_STRIKE + 1);
+
     redeem_both_permissionless(&mut test, &env, ADMIN);
     drain_manager_balance(&mut test, env.manager_id);
     settle_round(&mut test, &env);
-    abort
+
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 23)]
-fun realize_round_requires_settled_round() {
+#[test, expected_failure]
+fun settle_round_requires_active_round() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+
+    settle_round(&mut test, &env);
+
+    end(test);
+}
+
+// ----- withdrawal queue -----
+
+#[test]
+fun request_settle_claim_returns_fair_pro_rata() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
     deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
     start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
-    realize_round(&mut test, &env);
-    abort
+
+    // USER queues their entire stake mid-round.
+    request_withdraw_all(&mut test, &env, USER);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        assert!(strategy.has_withdrawal_request(USER));
+        assert_eq!(strategy.withdrawal_request_shares(USER), DEPOSIT_AMOUNT);
+        assert_eq!(strategy.pending_shares_amount(), DEPOSIT_AMOUNT);
+        assert!(!strategy.withdrawal_request_settled(USER));
+        return_shared(strategy);
+    };
+
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    // After settlement the escrow is burned and the reserve is set aside.
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        // USER was the only holder; all deployable shares are reserved.
+        assert_eq!(strategy.pending_shares_amount(), 0);
+        assert_eq!(strategy.share_supply(), 0);
+        assert_eq!(strategy.base_shares_amount(), 0);
+        assert!(strategy.reserved_base_shares_amount() > 0);
+        assert_eq!(strategy.nav(&base), 0);
+        assert!(strategy.withdrawal_request_settled(USER));
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    // USER claims fair value at the settled price (reserve + recovered PLP).
+    claim_withdrawal(&mut test, &env, USER);
+
+    test.next_tx(USER);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let out = test.take_from_sender<Coin<TEST_QUOTE>>();
+        assert!(out.value() >= 9_000_000_000);
+        assert_eq!(strategy.reserved_base_shares_amount(), 0);
+        assert!(!strategy.has_withdrawal_request(USER));
+        transfer::public_transfer(out, USER);
+        return_shared(strategy);
+    };
+
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 1)]
+#[test]
+fun two_requests_in_one_round_split_reserve_pro_rata() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    request_withdraw_all(&mut test, &env, USER);
+    request_withdraw_all(&mut test, &env, OTHER);
+
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    claim_withdrawal(&mut test, &env, USER);
+    let user_out = take_quote(&mut test, USER);
+
+    claim_withdrawal(&mut test, &env, OTHER);
+    let other_out = take_quote(&mut test, OTHER);
+
+    // OTHER deposited 2x USER, so should receive ~2x the proceeds.
+    assert!(other_out >= user_out * 2 - 4);
+    assert!(other_out <= user_out * 2 + 4);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        // Both claimed; nothing stranded.
+        assert_eq!(strategy.reserved_base_shares_amount(), 0);
+        assert_eq!(strategy.share_supply(), 0);
+        return_shared(strategy);
+    };
+
+    end(test);
+}
+
+#[test]
+fun cancel_before_settle_returns_escrowed_shares() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    request_withdraw_all(&mut test, &env, USER);
+
+    test.next_tx(USER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let refund = strategy::cancel_request(&mut strategy, test.ctx());
+        assert_eq!(refund.value(), DEPOSIT_AMOUNT);
+        assert_eq!(strategy.pending_shares_amount(), 0);
+        assert!(!strategy.has_withdrawal_request(USER));
+        transfer::public_transfer(refund, USER);
+        return_shared(strategy);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun cancel_after_settle_aborts() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    request_withdraw_all(&mut test, &env, USER);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    test.next_tx(USER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let refund = strategy::cancel_request(&mut strategy, test.ctx());
+        transfer::public_transfer(refund, USER);
+        return_shared(strategy);
+    };
+
+    end(test);
+}
+
+#[test]
+fun reserved_funds_are_excluded_from_deployable_capital() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    // USER exits; OTHER stays in.
+    request_withdraw_all(&mut test, &env, USER);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    // After settlement, USER's slice sits in `reserved_base_shares` and is NOT
+    // part of NAV / deployable `base_shares`. A subsequent `start_round` only
+    // ever redeems `base_shares`, so the reserve can never be re-deployed.
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let reserved = strategy.reserved_base_shares_amount();
+        let deployable = strategy.base_shares_amount();
+        assert!(reserved > 0);
+        assert!(deployable > 0);
+        // NAV counts only deployable shares.
+        assert_eq!(strategy.nav(&base), base.value_for_shares(deployable));
+        // Total backing in the base vault covers both pools.
+        assert_eq!(base.share_supply(), reserved + deployable);
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    // The reserve remains fully claimable by USER regardless of OTHER's activity.
+    claim_withdrawal(&mut test, &env, USER);
+    let user_out = take_quote(&mut test, USER);
+    assert!(user_out >= 9_000_000_000);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        assert_eq!(strategy.reserved_base_shares_amount(), 0);
+        // OTHER's shares remain outstanding and deployable.
+        assert_eq!(strategy.share_supply(), SECOND_DEPOSIT_AMOUNT);
+        return_shared(strategy);
+    };
+
+    end(test);
+}
+
+#[test]
+fun instant_withdraw_between_rounds_works() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    // Round closed: USER (who did not queue) exits instantly.
+    test.next_tx(USER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let shares = test.take_from_sender<Coin<PCOLLAR>>();
+        let out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+        assert!(out.value() >= 9_000_000_000);
+        assert_eq!(strategy.base_shares_amount(), 0);
+        assert_eq!(strategy.share_supply(), 0);
+        transfer::public_transfer(out, USER);
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    end(test);
+}
+
+#[test]
+fun stale_sweep_reenrolls_after_grace() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    set_grace(&mut test, &env, 1);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    request_withdraw_all(&mut test, &env, USER);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    // grace == 1; request settled in round 0, current round now 1, so stale.
+    test.next_tx(OTHER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        strategy::sweep_stale_withdrawal(&mut strategy, &base, USER, test.ctx());
+        assert!(!strategy.has_withdrawal_request(USER));
+        assert_eq!(strategy.reserved_base_shares_amount(), 0);
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    // USER is re-issued fresh PCOLLAR shares.
+    test.next_tx(USER);
+    {
+        let shares = test.take_from_sender<Coin<PCOLLAR>>();
+        assert!(shares.value() > 0);
+        transfer::public_transfer(shares, USER);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun stale_sweep_aborts_before_grace() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    // Default grace is 4; one settled round is not enough.
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    request_withdraw_all(&mut test, &env, USER);
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    settle_round(&mut test, &env);
+
+    test.next_tx(OTHER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        strategy::sweep_stale_withdrawal(&mut strategy, &base, USER, test.ctx());
+        return_shared(strategy);
+        return_shared(base);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun request_withdraw_aborts_without_active_round() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+
+    test.next_tx(USER);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let shares = test.take_from_sender<Coin<PCOLLAR>>();
+        strategy::request_withdraw(&mut strategy, shares, test.ctx());
+        return_shared(strategy);
+    };
+
+    end(test);
+}
+
+// ----- policy / admin -----
+
+#[test, expected_failure]
 fun invalid_policy_aborts() {
+    // `new` aborts on the zero leg-ask ceiling; the result is never reached.
     policy::new(DOWNSIDE_BUDGET_BPS, UPSIDE_BUDGET_BPS, STRIKE_BAND_BPS, RESERVE_BPS, MAX_PLP_ALLOCATION_BPS, 0);
-    abort
 }
 
-#[test, expected_failure(abort_code = 1)]
+#[test, expected_failure]
 fun invalid_wide_strike_band_policy_aborts() {
+    // `new` aborts on the over-wide strike band; the result is never reached.
     policy::new(DOWNSIDE_BUDGET_BPS, UPSIDE_BUDGET_BPS, 501, RESERVE_BPS, MAX_PLP_ALLOCATION_BPS, MAX_LEG_ASK_BPS);
-    abort
 }
 
-#[test, expected_failure(abort_code = 2)]
+#[test, expected_failure]
 fun wrong_strategy_cap_cannot_set_policy() {
     let mut test = begin(ADMIN);
     let manager_id = setup_manager(&mut test, ADMIN);
@@ -604,20 +944,82 @@ fun wrong_strategy_cap_cannot_set_policy() {
     let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
     let first_treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
     let second_treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
-    let (mut first_strategy, first_admin_cap, first_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(first_treasury, &base, &manager, default_policy(), test.ctx());
-    let (_second_strategy, second_admin_cap, second_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(second_treasury, &base, &manager, default_policy(), test.ctx());
+    let (mut first_strategy, first_admin_cap, first_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+        first_treasury,
+        &base,
+        &manager,
+        default_policy(),
+        test.ctx(),
+    );
+    let (second_strategy, second_admin_cap, second_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+        second_treasury,
+        &base,
+        &manager,
+        default_policy(),
+        test.ctx(),
+    );
 
+    // The second strategy's admin cap must not authorize the first strategy.
     strategy::set_policy(&mut first_strategy, &second_admin_cap, default_policy());
 
+    strategy::share_strategy(first_strategy);
+    strategy::share_strategy(second_strategy);
     strategy::destroy_admin_cap_for_testing(first_admin_cap);
     strategy::destroy_keeper_cap_for_testing(first_keeper_cap);
     strategy::destroy_admin_cap_for_testing(second_admin_cap);
     strategy::destroy_keeper_cap_for_testing(second_keeper_cap);
     base_vault::destroy_cap_for_testing(base_cap);
-    abort
+    return_shared(manager);
+    base_vault::share_vault(base);
+    end(test);
 }
 
-fun setup_strategy(test: &mut Scenario): Env { setup_strategy_with_policy(test, default_policy()) }
+#[test, expected_failure]
+fun wrong_strategy_cap_cannot_set_grace() {
+    let mut test = begin(ADMIN);
+    let manager_id = setup_manager(&mut test, ADMIN);
+
+    test.next_tx(ADMIN);
+    let manager = test.take_shared_by_id<PredictManager>(manager_id);
+    let base_treasury = coin::create_treasury_cap_for_testing<BASE_VAULT>(test.ctx());
+    let (base, base_cap) = base_vault::create_vault<TEST_QUOTE>(base_treasury, test.ctx());
+    let first_treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
+    let second_treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
+    let (mut first_strategy, first_admin_cap, first_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+        first_treasury,
+        &base,
+        &manager,
+        default_policy(),
+        test.ctx(),
+    );
+    let (second_strategy, second_admin_cap, second_keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+        second_treasury,
+        &base,
+        &manager,
+        default_policy(),
+        test.ctx(),
+    );
+
+    // The second strategy's admin cap must not authorize the first strategy.
+    strategy::set_stale_grace(&mut first_strategy, &second_admin_cap, 2);
+
+    strategy::share_strategy(first_strategy);
+    strategy::share_strategy(second_strategy);
+    strategy::destroy_admin_cap_for_testing(first_admin_cap);
+    strategy::destroy_keeper_cap_for_testing(first_keeper_cap);
+    strategy::destroy_admin_cap_for_testing(second_admin_cap);
+    strategy::destroy_keeper_cap_for_testing(second_keeper_cap);
+    base_vault::destroy_cap_for_testing(base_cap);
+    return_shared(manager);
+    base_vault::share_vault(base);
+    end(test);
+}
+
+// ----- harness -----
+
+fun setup_strategy(test: &mut Scenario): Env {
+    setup_strategy_with_policy(test, default_policy())
+}
 
 fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Policy): Env {
     setup_clock(test);
@@ -643,17 +1045,31 @@ fun setup_strategy_with_policy(test: &mut Scenario, strategy_policy: policy::Pol
     let treasury = coin::create_treasury_cap_for_testing<PCOLLAR>(test.ctx());
     let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(base_vault_id);
     let manager = test.take_shared_by_id<PredictManager>(manager_id);
-    let (strategy, admin_cap, keeper_cap) = strategy::create_strategy<TEST_QUOTE>(treasury, &base, &manager, strategy_policy, test.ctx());
+    let (strategy, admin_cap, keeper_cap) = strategy::create_strategy<TEST_QUOTE>(
+        treasury,
+        &base,
+        &manager,
+        strategy_policy,
+        test.ctx(),
+    );
     let strategy_id = strategy.id();
     strategy::share_strategy(strategy);
     transfer::public_transfer(admin_cap, ADMIN);
     transfer::public_transfer(keeper_cap, ADMIN);
     return_shared(base);
     return_shared(manager);
+
     Env { base_vault_id, strategy_id, predict_id, manager_id, oracle_id }
 }
 
-fun start_round(test: &mut Scenario, env: &Env, down_strike: u64, down_quantity: u64, up_strike: u64, up_quantity: u64) {
+fun start_round(
+    test: &mut Scenario,
+    env: &Env,
+    down_strike: u64,
+    down_quantity: u64,
+    up_strike: u64,
+    up_quantity: u64,
+) {
     test.next_tx(ADMIN);
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
@@ -663,7 +1079,22 @@ fun start_round(test: &mut Scenario, env: &Env, down_strike: u64, down_quantity:
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        strategy::start_round(&mut strategy, &mut base, &cap, &mut predict, &mut manager, &oracle, down_strike, down_quantity, up_strike, up_quantity, &clock, test.ctx());
+
+        strategy::start_round(
+            &mut strategy,
+            &mut base,
+            &cap,
+            &mut predict,
+            &mut manager,
+            &oracle,
+            down_strike,
+            down_quantity,
+            up_strike,
+            up_quantity,
+            &clock,
+            test.ctx(),
+        );
+
         return_shared(strategy);
         return_shared(base);
         return_shared(predict);
@@ -678,13 +1109,17 @@ fun settle_round(test: &mut Scenario, env: &Env) {
     test.next_tx(ADMIN);
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
         let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
         let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
         let mut manager = test.take_shared_by_id<PredictManager>(env.manager_id);
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        strategy::settle_round(&mut strategy, &cap, &mut predict, &mut manager, &oracle, &clock, test.ctx());
+
+        strategy::settle_round(&mut strategy, &mut base, &cap, &mut predict, &mut manager, &oracle, &clock, test.ctx());
+
         return_shared(strategy);
+        return_shared(base);
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
@@ -693,20 +1128,53 @@ fun settle_round(test: &mut Scenario, env: &Env) {
     }
 }
 
-fun realize_round(test: &mut Scenario, env: &Env) {
-    test.next_tx(ADMIN);
+fun request_withdraw_all(test: &mut Scenario, env: &Env, user: address) {
+    test.next_tx(user);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let shares = test.take_from_sender<Coin<PCOLLAR>>();
+        strategy::request_withdraw(&mut strategy, shares, test.ctx());
+        return_shared(strategy);
+    }
+}
+
+fun claim_withdrawal(test: &mut Scenario, env: &Env, user: address) {
+    test.next_tx(user);
     {
         let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
         let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
-        let cap = test.take_from_sender<strategy::StrategyKeeperCap>();
-        let mut predict = test.take_shared_by_id<Predict>(env.predict_id);
-        let clock = test.take_shared<Clock>();
-        strategy::realize_round(&mut strategy, &mut base, &cap, &mut predict, &clock, test.ctx());
+        let out = strategy::claim_withdrawal(&mut strategy, &mut base, test.ctx());
+        transfer::public_transfer(out, user);
         return_shared(strategy);
         return_shared(base);
-        return_shared(predict);
-        return_shared(clock);
+    }
+}
+
+fun take_quote(test: &mut Scenario, user: address): u64 {
+    test.next_tx(user);
+    let out = test.take_from_sender<Coin<TEST_QUOTE>>();
+    let value = out.value();
+    transfer::public_transfer(out, user);
+    value
+}
+
+fun set_grace(test: &mut Scenario, env: &Env, rounds: u64) {
+    test.next_tx(ADMIN);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let cap = test.take_from_sender<StrategyAdminCap>();
+        strategy::set_stale_grace(&mut strategy, &cap, rounds);
+        return_shared(strategy);
         test.return_to_sender(cap);
+    }
+}
+
+fun tamper_round_predict_id(test: &mut Scenario, env: &Env) {
+    test.next_tx(ADMIN);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        strategy::set_active_round_predict_id_for_testing(&mut strategy, env.manager_id);
+        return_shared(strategy);
     }
 }
 
@@ -719,8 +1187,10 @@ fun redeem_both_permissionless(test: &mut Scenario, env: &Env, sender: address) 
         let clock = test.take_shared<Clock>();
         let down_key = market_key::new(env.oracle_id, EXPIRY_MS, DOWN_STRIKE, false);
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
+
         predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, down_key, DOWN_QUANTITY, &clock, test.ctx());
         predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, up_key, UP_QUANTITY, &clock, test.ctx());
+
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
@@ -736,20 +1206,13 @@ fun redeem_up_partial_permissionless(test: &mut Scenario, env: &Env, sender: add
         let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
         let up_key = market_key::new(env.oracle_id, EXPIRY_MS, UP_STRIKE, true);
+
         predict.redeem_permissionless<TEST_QUOTE>(&mut manager, &oracle, up_key, UP_QUANTITY / 2, &clock, test.ctx());
+
         return_shared(predict);
         return_shared(manager);
         return_shared(oracle);
         return_shared(clock);
-    }
-}
-
-fun tamper_round_predict_id(test: &mut Scenario, env: &Env) {
-    test.next_tx(ADMIN);
-    {
-        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
-        strategy::set_active_round_predict_id_for_testing(&mut strategy, env.manager_id);
-        return_shared(strategy);
     }
 }
 
@@ -781,14 +1244,24 @@ fun mint_extra_same_market_positions(test: &mut Scenario, env: &Env, down_quanti
     }
 }
 
-fun setup_clock(test: &mut Scenario) { let clock = clock::create_for_testing(test.ctx()); clock::share_for_testing(clock); }
+fun setup_clock(test: &mut Scenario) {
+    let clock = clock::create_for_testing(test.ctx());
+    clock::share_for_testing(clock);
+}
 
 fun setup_predict(test: &mut Scenario, currency: &Currency<TEST_QUOTE>): ID {
     let mut registry = test.take_shared<Registry>();
     let admin_cap = test.take_from_sender<AdminCap>();
     let clock = test.take_shared<Clock>();
     let treasury_cap = coin::create_treasury_cap_for_testing<PLP>(test.ctx());
-    let predict_id = registry::create_predict<TEST_QUOTE>(&mut registry, &admin_cap, currency, treasury_cap, &clock, test.ctx());
+    let predict_id = registry::create_predict<TEST_QUOTE>(
+        &mut registry,
+        &admin_cap,
+        currency,
+        treasury_cap,
+        &clock,
+        test.ctx(),
+    );
     return_shared(registry);
     return_shared(clock);
     test.return_to_sender(admin_cap);
@@ -799,7 +1272,11 @@ fun seed_predict_liquidity(test: &mut Scenario, predict_id: ID) {
     test.next_tx(ADMIN);
     let mut predict = test.take_shared_by_id<Predict>(predict_id);
     let clock = test.take_shared<Clock>();
-    let seed_plp = predict.supply<TEST_QUOTE>(coin::mint_for_testing<TEST_QUOTE>(SEED_LIQUIDITY, test.ctx()), &clock, test.ctx());
+    let seed_plp = predict.supply<TEST_QUOTE>(
+        coin::mint_for_testing<TEST_QUOTE>(SEED_LIQUIDITY, test.ctx()),
+        &clock,
+        test.ctx(),
+    );
     transfer::public_transfer(seed_plp, ADMIN);
     return_shared(predict);
     return_shared(clock);
@@ -811,7 +1288,17 @@ fun setup_oracle(test: &mut Scenario, predict_id: ID): ID {
     let mut predict = test.take_shared_by_id<Predict>(predict_id);
     let admin_cap = test.take_from_sender<AdminCap>();
     let oracle_cap = registry::create_oracle_cap(&admin_cap, test.ctx());
-    let oracle_id = registry::create_oracle(&mut registry, &mut predict, &admin_cap, &oracle_cap, b"BTC".to_string(), EXPIRY_MS, DOWN_STRIKE, TICK_SIZE, test.ctx());
+    let oracle_id = registry::create_oracle(
+        &mut registry,
+        &mut predict,
+        &admin_cap,
+        &oracle_cap,
+        b"BTC".to_string(),
+        EXPIRY_MS,
+        DOWN_STRIKE,
+        TICK_SIZE,
+        test.ctx(),
+    );
     return_shared(registry);
     return_shared(predict);
     test.return_to_sender(admin_cap);
@@ -825,10 +1312,23 @@ fun activate_oracle(test: &mut Scenario, oracle_id: ID) {
     let clock = test.take_shared<Clock>();
     let admin_cap = test.take_from_sender<AdminCap>();
     let oracle_cap = test.take_from_sender<OracleSVICap>();
+
     registry::register_oracle_cap(&mut oracle, &admin_cap, &oracle_cap);
     oracle::update_prices(&mut oracle, &oracle_cap, oracle::new_price_data(SPOT, SPOT), &clock);
-    oracle::update_svi(&mut oracle, &oracle_cap, oracle::new_svi_params(100_000_000, 100_000_000, i64::zero(), i64::zero(), 100_000_000), &clock);
+    oracle::update_svi(
+        &mut oracle,
+        &oracle_cap,
+        oracle::new_svi_params(
+            100_000_000,
+            100_000_000,
+            i64::zero(),
+            i64::zero(),
+            100_000_000,
+        ),
+        &clock,
+    );
     oracle::activate(&mut oracle, &oracle_cap, &clock);
+
     return_shared(oracle);
     return_shared(clock);
     test.return_to_sender(admin_cap);
@@ -840,15 +1340,51 @@ fun settle_oracle(test: &mut Scenario, oracle_id: ID, settlement_price: u64) {
     let mut oracle = test.take_shared_by_id<OracleSVI>(oracle_id);
     let mut clock = test.take_shared<Clock>();
     let oracle_cap = test.take_from_sender<OracleSVICap>();
+
     clock.set_for_testing(EXPIRY_MS);
     oracle::update_prices(&mut oracle, &oracle_cap, oracle::new_price_data(settlement_price, settlement_price), &clock);
+
     return_shared(oracle);
     return_shared(clock);
     test.return_to_sender(oracle_cap);
 }
 
-fun setup_manager(test: &mut Scenario, owner: address): ID { test.next_tx(owner); predict::create_manager(test.ctx()) }
-fun seed_manager_balance(test: &mut Scenario, manager_id: ID, amount: u64) { test.next_tx(ADMIN); let mut manager = test.take_shared_by_id<PredictManager>(manager_id); manager.deposit<TEST_QUOTE>(coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx()), test.ctx()); return_shared(manager); }
-fun drain_manager_balance(test: &mut Scenario, manager_id: ID) { test.next_tx(ADMIN); let mut manager = test.take_shared_by_id<PredictManager>(manager_id); let amount = manager.balance<TEST_QUOTE>(); let drained = manager.withdraw<TEST_QUOTE>(amount, test.ctx()); transfer::public_transfer(drained, ADMIN); return_shared(manager); }
-fun deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) { test.next_tx(user); { let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id); let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id); let shares = strategy::deposit(&mut strategy, &mut base, coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx()), test.ctx()); transfer::public_transfer(shares, user); return_shared(strategy); return_shared(base); } }
-fun default_policy(): policy::Policy { policy::new(DOWNSIDE_BUDGET_BPS, UPSIDE_BUDGET_BPS, STRIKE_BAND_BPS, RESERVE_BPS, MAX_PLP_ALLOCATION_BPS, MAX_LEG_ASK_BPS) }
+fun setup_manager(test: &mut Scenario, owner: address): ID {
+    test.next_tx(owner);
+    predict::create_manager(test.ctx())
+}
+
+fun seed_manager_balance(test: &mut Scenario, manager_id: ID, amount: u64) {
+    test.next_tx(ADMIN);
+    let mut manager = test.take_shared_by_id<PredictManager>(manager_id);
+    manager.deposit<TEST_QUOTE>(coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx()), test.ctx());
+    return_shared(manager);
+}
+
+fun drain_manager_balance(test: &mut Scenario, manager_id: ID) {
+    test.next_tx(ADMIN);
+    let mut manager = test.take_shared_by_id<PredictManager>(manager_id);
+    let amount = manager.balance<TEST_QUOTE>();
+    let drained = manager.withdraw<TEST_QUOTE>(amount, test.ctx());
+    transfer::public_transfer(drained, ADMIN);
+    return_shared(manager);
+}
+
+fun deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) {
+    test.next_tx(user);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        let funds = coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx());
+
+        let shares = strategy::deposit(&mut strategy, &mut base, funds, test.ctx());
+
+        transfer::public_transfer(shares, user);
+        return_shared(strategy);
+        return_shared(base);
+    }
+}
+
+fun default_policy(): policy::Policy {
+    policy::new(DOWNSIDE_BUDGET_BPS, UPSIDE_BUDGET_BPS, STRIKE_BAND_BPS, RESERVE_BPS, MAX_PLP_ALLOCATION_BPS, MAX_LEG_ASK_BPS)
+}

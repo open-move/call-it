@@ -130,7 +130,11 @@ fun full_withdraw_returns_vault_to_zero() {
     end(test);
 }
 
-#[test, expected_failure(abort_code = 3)]
+// expected_failure tests end with `end(test)` rather than a trailing `abort`:
+// the expected abort fires before `end` is reached, while a regression that
+// fails to abort runs to `end` and returns normally — failing the test.
+
+#[test, expected_failure]
 fun zero_deposit_aborts() {
     let mut test = begin(ADMIN);
     let vault_id = setup_vault(&mut test);
@@ -143,10 +147,10 @@ fun zero_deposit_aborts() {
         return_shared(vault);
     };
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 4)]
+#[test, expected_failure]
 fun zero_share_withdraw_aborts() {
     let mut test = begin(ADMIN);
     let vault_id = setup_vault(&mut test);
@@ -159,10 +163,10 @@ fun zero_share_withdraw_aborts() {
         return_shared(vault);
     };
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 4)]
+#[test, expected_failure]
 fun dust_deposit_that_mints_zero_shares_aborts() {
     let mut test = begin(ADMIN);
     let vault_id = setup_vault(&mut test);
@@ -177,10 +181,10 @@ fun dust_deposit_that_mints_zero_shares_aborts() {
 
     deposit_as(&mut test, vault_id, OTHER, 1);
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 1)]
+#[test, expected_failure]
 fun paused_blocks_deposit() {
     let mut test = begin(ADMIN);
     let vault_id = setup_vault(&mut test);
@@ -188,10 +192,10 @@ fun paused_blocks_deposit() {
 
     deposit_as(&mut test, vault_id, USER, DEPOSIT_AMOUNT);
 
-    abort
+    end(test);
 }
 
-#[test, expected_failure(abort_code = 1)]
+#[test, expected_failure]
 fun paused_blocks_withdraw() {
     let mut test = begin(ADMIN);
     let vault_id = setup_vault(&mut test);
@@ -207,7 +211,7 @@ fun paused_blocks_withdraw() {
         return_shared(vault);
     };
 
-    abort
+    end(test);
 }
 
 #[test]

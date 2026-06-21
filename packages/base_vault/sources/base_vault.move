@@ -1,4 +1,16 @@
 /// Cash-only shared liquidity warehouse for CallIt strategies.
+///
+/// The base vault is deliberately dumb: it holds a single `Balance<Quote>` and
+/// mints/burns NAV-proportional share coins (`BASE_VAULT`) against it. NAV is
+/// just the cash on hand — there is no yield, P&L, or deployed capital here, so
+/// a share's value is effectively constant (1:1 minus integer-division dust).
+///
+/// Strategies are the only depositors: each parks its idle/reserve capital here
+/// as base shares and pulls it back when it needs quote. Holding the reserve in
+/// one shared pool (rather than as bare cash inside each strategy) keeps strategy
+/// accounting in a single unit and lets the withdrawal queue reserve in
+/// base-share terms. Because every base share is always fully backed by cash,
+/// one strategy's claims never interfere with another's.
 module base_vault::base_vault;
 
 use sui::{
@@ -8,21 +20,36 @@ use sui::{
     object::{Self, ID, UID},
 };
 
-const EPaused: u64 = 1;
-const EWrongBaseVaultCap: u64 = 2;
-const EZeroDeposit: u64 = 3;
-const EZeroShares: u64 = 4;
-const ECashLow: u64 = 5;
+#[error]
+const EPaused: vector<u8> = b"Vault is paused";
 
+#[error]
+const EWrongBaseVaultCap: vector<u8> = b"Cap does not authorize this vault";
+
+#[error]
+const EZeroDeposit: vector<u8> = b"Amount must resolve to a non-zero quote value";
+
+#[error]
+const EZeroShares: vector<u8> = b"Share amount must be non-zero";
+
+#[error]
+const ECashLow: vector<u8> = b"Vault cash is insufficient for this withdrawal";
+
+/// One-time witness for the `BASE_VAULT` share currency.
 public struct BASE_VAULT has drop {}
 
+/// The shared warehouse object. One per quote asset.
 public struct BaseVault<phantom Quote> has key {
     id: UID,
+    /// Mints on deposit, burns on withdraw; total supply == circulating shares.
     treasury: TreasuryCap<BASE_VAULT>,
+    /// The entire backing of the vault; NAV == `cash.value()`.
     cash: Balance<Quote>,
+    /// Emergency circuit breaker. Blocks deposit and withdraw while set.
     paused: bool,
 }
 
+/// Admin capability bound to a specific vault (pause control).
 public struct BaseVaultCap has key, store {
     id: UID,
     vault_id: ID,
@@ -54,6 +81,8 @@ public struct BasePaused has copy, drop {
     paused: bool,
 }
 
+/// Publishes the `BASE_VAULT` share currency and hands the treasury to the
+/// publisher, who then bootstraps a vault via `create_vault`.
 #[allow(deprecated_usage)]
 fun init(witness: BASE_VAULT, ctx: &mut TxContext) {
     let (treasury, metadata) = coin::create_currency(
@@ -69,6 +98,8 @@ fun init(witness: BASE_VAULT, ctx: &mut TxContext) {
     transfer::public_transfer(treasury, ctx.sender());
 }
 
+/// Bootstrap an empty vault. The returned cap controls pausing; the vault must
+/// be shared via `share_vault` before it can be used.
 public fun create_vault<Quote>(
     treasury: TreasuryCap<BASE_VAULT>,
     ctx: &mut TxContext,
@@ -91,6 +122,8 @@ public fun share_vault<Quote>(vault: BaseVault<Quote>) {
     transfer::share_object(vault);
 }
 
+/// Deposit `funds` and receive NAV-proportional share coins. Shares are priced
+/// against NAV *before* the deposit lands, so existing holders are not diluted.
 public fun deposit<Quote>(
     vault: &mut BaseVault<Quote>,
     funds: Coin<Quote>,
@@ -118,6 +151,9 @@ public fun deposit<Quote>(
     minted
 }
 
+/// Burn `shares` and receive the pro-rata slice of vault cash. Since NAV is
+/// cash, `ECashLow` is a defensive invariant check that should never bind for a
+/// cash-only vault; a paused vault is the only expected failure.
 public fun withdraw<Quote>(
     vault: &mut BaseVault<Quote>,
     shares: Coin<BASE_VAULT>,
@@ -146,12 +182,17 @@ public fun withdraw<Quote>(
     out
 }
 
+/// Toggle the emergency pause. Pausing blocks both deposit and withdraw, so it
+/// is a hard freeze — use only as a circuit breaker.
 public fun set_paused<Quote>(vault: &mut BaseVault<Quote>, cap: &BaseVaultCap, paused: bool) {
     assert_base_vault_cap(vault, cap);
     vault.paused = paused;
     event::emit(BasePaused { vault_id: vault.id.to_inner(), paused });
 }
 
+/// Shares minted for a deposit of `amount` into a vault at `nav_before` /
+/// `supply`. First deposit (empty vault) mints 1:1; thereafter pro-rata, with
+/// integer division rounding in the vault's favor.
 public fun shares_for_deposit(nav_before: u64, supply: u64, amount: u64): u64 {
     if (supply == 0 || nav_before == 0) {
         amount
@@ -160,11 +201,14 @@ public fun shares_for_deposit(nav_before: u64, supply: u64, amount: u64): u64 {
     }
 }
 
+/// Quote owed for burning `shares` against a vault at `nav_now` / `supply`.
+/// Rounds in the vault's favor.
 public fun amount_for_shares(nav_now: u64, supply: u64, shares: u64): u64 {
     assert!(supply > 0, EZeroShares);
     ((shares as u128) * (nav_now as u128) / (supply as u128)) as u64
 }
 
+/// Current quote value of `shares` at the live NAV.
 public fun value_for_shares<Quote>(vault: &BaseVault<Quote>, shares: u64): u64 {
     amount_for_shares(vault.nav(), vault.share_supply(), shares)
 }
@@ -173,6 +217,7 @@ public fun id<Quote>(vault: &BaseVault<Quote>): ID { vault.id.to_inner() }
 
 public fun paused<Quote>(vault: &BaseVault<Quote>): bool { vault.paused }
 
+/// NAV of a cash-only vault is simply the cash on hand.
 public fun nav<Quote>(vault: &BaseVault<Quote>): u64 { vault.cash.value() }
 
 public fun cash_value<Quote>(vault: &BaseVault<Quote>): u64 { vault.cash.value() }
@@ -183,6 +228,8 @@ public fun cap_id(cap: &BaseVaultCap): ID { cap.id.to_inner() }
 
 public fun cap_vault_id(cap: &BaseVaultCap): ID { cap.vault_id }
 
+/// Aborts unless `vault` is the one the caller expects. Strategies hold a vault
+/// id and use this to refuse a mismatched vault object passed into a call.
 public(package) fun assert_base_vault<Quote>(vault: &BaseVault<Quote>, expected_id: ID) {
     assert!(vault.id.to_inner() == expected_id, EWrongBaseVaultCap);
 }
