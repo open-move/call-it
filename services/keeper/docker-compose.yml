@@ -3,6 +3,10 @@ services:
     build: .
     command: ["watch"]
     env_file: .env
+    environment:
+      # Fresh container watches forward from now. Set KEEPER_START_CHECKPOINT in
+      # .env to backfill existing positions instead (it takes precedence).
+      KEEPER_START_FROM_LATEST: "true"
     restart: unless-stopped
     volumes:
       - keeper-data:/app/data

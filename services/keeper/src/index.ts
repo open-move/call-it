@@ -4,7 +4,7 @@ import { Repository } from "./db/repo.ts"
 import { logger, toLogFields } from "./logger.ts"
 import { reconcileEvents } from "./reconcile.ts"
 import { executeRedemptions, planRedemptions } from "./redemptions.ts"
-import { scanPredictEvents } from "./scan.ts"
+import { scanPredictEvents, seedStartCheckpointIfFresh } from "./scan.ts"
 import { startStatusServer } from "./server.ts"
 import { createSuiClient } from "./sui.ts"
 
@@ -88,6 +88,10 @@ async function watch(
   }
   process.on("SIGINT", stop)
   process.on("SIGTERM", stop)
+
+  // Seed the scan cursor once up front so a bootstrap misconfig fails fast here
+  // instead of erroring on every watch tick forever.
+  await seedStartCheckpointIfFresh(config, client, repo)
 
   // Serve the read-only status API alongside the keep loop so the live keeper
   // exposes its own dashboard.

@@ -18,6 +18,38 @@ export interface ScanResult {
   toCheckpoint: bigint | null
 }
 
+/// Seed the scan cursor on a fresh DB. Explicit by design: either pin a
+/// historical KEEPER_START_CHECKPOINT (to backfill existing positions) or set
+/// KEEPER_START_FROM_LATEST=true to watch forward from now. Starting silently
+/// from latest would skip every pre-existing redeemable — so with neither set
+/// this throws (fail fast) rather than guessing. Returns the seeded checkpoint,
+/// or null if the cursor already existed.
+export async function seedStartCheckpointIfFresh(
+  config: Config,
+  client: SuiClient,
+  repo: Repository
+): Promise<bigint | null> {
+  const lastScanned = await repo.getLastScannedCheckpoint()
+  if (lastScanned !== null) {
+    return null
+  }
+
+  let start: bigint
+  if (config.startCheckpoint !== null) {
+    start = config.startCheckpoint
+  } else if (config.startFromLatest) {
+    const serviceInfo = await client.ledgerService.getServiceInfo({}).response
+    start = serviceInfo.checkpointHeight ?? 0n
+  } else {
+    throw new Error(
+      "a start checkpoint is required for a new keeper DB: set KEEPER_START_CHECKPOINT=<checkpoint> to backfill, or KEEPER_START_FROM_LATEST=true to watch forward from now"
+    )
+  }
+
+  await repo.setLastScannedCheckpoint(start)
+  return start
+}
+
 export async function scanPredictEvents(
   config: Config,
   client: SuiClient,
@@ -25,18 +57,9 @@ export async function scanPredictEvents(
 ): Promise<ScanResult> {
   const serviceInfo = await client.ledgerService.getServiceInfo({}).response
   const latestCheckpoint = serviceInfo.checkpointHeight ?? 0n
-  const lastScanned = await repo.getLastScannedCheckpoint()
 
-  if (lastScanned === null) {
-    if (config.startCheckpoint === null) {
-      // Starting at "latest" would silently skip every pre-existing position —
-      // exactly the redeemables a keeper exists to find. Make the horizon explicit.
-      throw new Error(
-        "KEEPER_START_CHECKPOINT is required for a new keeper DB; the keeper only manages positions from this checkpoint forward"
-      )
-    }
-    const startingCheckpoint = config.startCheckpoint
-    await repo.setLastScannedCheckpoint(startingCheckpoint)
+  if ((await repo.getLastScannedCheckpoint()) === null) {
+    await seedStartCheckpointIfFresh(config, client, repo)
     return {
       fromCheckpoint: null,
       insertedEvents: 0,
@@ -44,6 +67,11 @@ export async function scanPredictEvents(
       scannedCheckpoints: 0,
       toCheckpoint: null,
     }
+  }
+
+  const lastScanned = await repo.getLastScannedCheckpoint()
+  if (lastScanned === null) {
+    throw new Error("scan cursor missing after seeding")
   }
 
   const fromCheckpoint = lastScanned + 1n
