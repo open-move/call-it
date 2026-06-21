@@ -1,0 +1,12 @@
+node_modules
+dist
+.output
+.wrangler
+.tanstack
+.vinxi
+.DS_Store
+*.tsbuildinfo
+# Local-only env; .env.production is intentionally kept (public VITE_* build vars).
+.env
+.env.local
+.env.*.local

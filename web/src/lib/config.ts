@@ -28,14 +28,16 @@ export const ARENA_ROOT_ID = ""
 
 export const ARENA_OBJECT_ID = "0x04fa00e9e39489bde2f6e3e7144548557c9272db589cdad6c65755ab808e9a9c"
 
-// CallIt backend (read/index/aggregate). Empty = not configured → Arena renders
-// empty. This is the HOST-mapped port (docker-compose maps 8799:8080), so the
-// browser must use 8799, not the in-container PORT (8080).
-export const BACKEND_URL: string = "http://localhost:8799"
+// CallIt backend (read/index/aggregate). Build-time env (VITE_*) so local and
+// prod point at different hosts; defaults to the local docker-mapped port.
+// Empty = not configured → Arena renders empty.
+export const BACKEND_URL: string =
+  import.meta.env.VITE_BACKEND_URL ?? "http://localhost:8799"
 
-// Settled-redeem keeper status API (read-only ops dashboard). Point at the
-// running keeper's KEEPER_HTTP_PORT (default 8801). Empty = treated as offline.
-export const KEEPER_API_URL = "http://localhost:8801"
+// Settled-redeem keeper status API (read-only ops dashboard). Defaults to the
+// local keeper's KEEPER_HTTP_PORT (8801). Empty = treated as offline.
+export const KEEPER_API_URL: string =
+  import.meta.env.VITE_KEEPER_API_URL ?? "http://localhost:8801"
 
 export const BASE_VAULT_ID =
   "0x582b9a78622d39637896496e00a02ea122879c0f18ead1d693ddc86db2ce10e3"

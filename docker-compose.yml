@@ -57,6 +57,17 @@ services:
         required: false
     restart: unless-stopped
 
+  web:
+    build: ./web
+    # SSR + static server. Talks to the backend/keeper over their public URLs
+    # (baked into the bundle at build time from web/.env.production), so it
+    # needs no compose-network links. Point trycallit.xyz at this service.
+    environment:
+      PORT: "3000"
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    restart: unless-stopped
+
   keeper:
     build: ./services/keeper
     command: ["watch"]
