@@ -883,6 +883,67 @@ export function RiskSkeleton() {
   )
 }
 
+export function ArenaSkeleton() {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="min-w-0">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <PulsingBlock className="h-4 w-32 rounded" />
+            <PulsingBlock className="h-8 w-28 rounded-md" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                className="flex flex-col gap-3 rounded-lg bg-card p-4"
+                key={i}
+              >
+                <div className="flex items-center gap-1.5">
+                  <PulsingBlock className="size-5 rounded-full" />
+                  <PulsingBlock className="h-3 w-20 rounded" />
+                  <PulsingBlock className="h-3 w-10 rounded" />
+                </div>
+                <div className="space-y-2">
+                  <PulsingBlock className="h-4 w-3/4 rounded" />
+                  <PulsingBlock className="h-3 w-1/2 rounded" />
+                </div>
+                <PulsingBlock className="h-1.5 w-full rounded-full" />
+                <div className="grid grid-cols-2 gap-2">
+                  <PulsingBlock className="h-8 rounded-md" />
+                  <PulsingBlock className="h-8 rounded-md" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-3">
+          {Array.from({ length: 2 }).map((_, panel) => (
+            <div className="rounded-lg bg-card" key={panel}>
+              <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+                <PulsingBlock className="h-3.5 w-24 rounded" />
+                <PulsingBlock className="size-4 rounded" />
+              </div>
+              <div className="px-2 py-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div className="flex items-center gap-3 px-2 py-2" key={i}>
+                    <PulsingBlock className="size-5 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <PulsingBlock className="h-3 w-20 rounded" />
+                      <PulsingBlock className="h-2.5 w-28 max-w-full rounded" />
+                    </div>
+                    <PulsingBlock className="h-3 w-8 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </main>
+  )
+}
+
 export function LeaderboardSkeleton() {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">

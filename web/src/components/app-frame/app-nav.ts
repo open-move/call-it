@@ -22,6 +22,7 @@ export type AppNavHref =
 
 export const appNavItems: AppNavItem[] = [
   { href: "/markets", label: "Trade", status: AppNavStatus.Active },
+  { href: "/arena", label: "Arena", status: AppNavStatus.Available },
   { href: "/earn", label: "Earn", status: AppNavStatus.Available },
   { href: "/strategies", label: "Strategies", status: AppNavStatus.Available },
   { href: "/risk", label: "Risk", status: AppNavStatus.Available },

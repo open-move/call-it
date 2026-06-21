@@ -11,9 +11,11 @@ export interface ArenaCall {
   creatorAvatarSeed: string
   creatorHandle: string
   creatorName: string
+  creatorWinRate: number
   direction: ArenaDirection
-  expiryLabel: string
+  expiryMs: number
   faders: number
+  fairUpProbability: number
   id: string
   market: string
   status: ArenaCallStatus
