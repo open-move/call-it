@@ -13,5 +13,8 @@ RUN bun run typecheck
 ENV KEEPER_DB_PATH=/app/data/keeper.sqlite
 VOLUME ["/app/data"]
 
+# Read-only status API (watch + serve)
+EXPOSE 4000
+
 ENTRYPOINT ["node", "--import", "tsx", "src/index.ts"]
 CMD ["watch"]

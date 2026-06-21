@@ -5,9 +5,10 @@ import { logger, toLogFields } from "./logger.ts"
 import { reconcileEvents } from "./reconcile.ts"
 import { executeRedemptions, planRedemptions } from "./redemptions.ts"
 import { scanPredictEvents } from "./scan.ts"
+import { startStatusServer } from "./server.ts"
 import { createSuiClient } from "./sui.ts"
 
-const VALID_COMMANDS = new Set(["once", "reconcile", "scan", "status", "watch"])
+const VALID_COMMANDS = new Set(["once", "reconcile", "scan", "serve", "status", "watch"])
 
 async function main() {
   const command = process.argv[2] ?? "once"
@@ -45,6 +46,17 @@ async function main() {
     return
   }
 
+  if (command === "serve") {
+    // Read-only status API only. Hold the process open until a signal.
+    startStatusServer(config, client, repo)
+    await new Promise<void>((resolve) => {
+      process.on("SIGINT", () => resolve())
+      process.on("SIGTERM", () => resolve())
+    })
+    logger.info("keeper serve stopped")
+    return
+  }
+
   await watch(config, client, repo)
 }
 
@@ -76,6 +88,10 @@ async function watch(
   }
   process.on("SIGINT", stop)
   process.on("SIGTERM", stop)
+
+  // Serve the read-only status API alongside the keep loop so the live keeper
+  // exposes its own dashboard.
+  startStatusServer(config, client, repo)
 
   while (!stopping) {
     try {

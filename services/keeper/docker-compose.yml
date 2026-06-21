@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     volumes:
       - keeper-data:/app/data
+    ports:
+      - 4000:4000
 
 volumes:
   keeper-data:

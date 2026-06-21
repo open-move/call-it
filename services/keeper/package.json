@@ -9,14 +9,18 @@
     "scan": "tsx src/index.ts scan",
     "once": "tsx src/index.ts once",
     "status": "tsx src/index.ts status",
+    "serve": "tsx src/index.ts serve",
     "reconcile": "tsx src/index.ts reconcile",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@elysiajs/cors": "latest",
+    "@elysiajs/node": "latest",
     "@mysten/sui": "^2.19.0",
     "better-sqlite3": "^12.5.0",
     "drizzle-orm": "^0.45.1",
+    "elysia": "latest",
     "pino": "^10.1.0",
     "tsx": "^4.21.0",
     "zod": "^4.4.3"

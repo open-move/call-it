@@ -1018,3 +1018,93 @@ export function LeaderboardSkeleton() {
     </main>
   )
 }
+
+const keeperTableColumns = "grid-cols-[minmax(9rem,1fr)_7rem_7rem_8rem_8rem_7rem]"
+
+export function KeeperSkeleton() {
+  return (
+    <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
+      <section className="space-y-3">
+        {/* Header */}
+        <div className="rounded-md bg-card px-4 py-3">
+          <div className="flex items-center gap-2">
+            <PulsingBlock className="h-4 w-48 rounded" />
+            <PulsingBlock className="h-5 w-14 rounded-md" />
+            <PulsingBlock className="h-5 w-16 rounded-md" />
+          </div>
+          <PulsingBlock className="mt-2 h-3 w-96 max-w-full rounded" />
+        </div>
+
+        {/* Heartbeat strip */}
+        <div className="overflow-hidden rounded-md bg-card">
+          <div className="grid bg-muted/10 md:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div
+                className="border-b border-border/35 px-4 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0"
+                key={i}
+              >
+                <PulsingBlock className="h-2.5 w-16 rounded" />
+                <PulsingBlock className="mt-2 h-5 w-24 rounded" />
+                <PulsingBlock className="mt-1.5 h-2.5 w-20 rounded" />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Two tables */}
+        {Array.from({ length: 2 }).map((_, table) => (
+          <div
+            className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0"
+            key={table}
+          >
+            <div className="flex items-center justify-between gap-3 px-4 pt-4 pb-3">
+              <PulsingBlock className="h-3.5 w-32 rounded" />
+              <PulsingBlock className="h-2.5 w-16 rounded" />
+            </div>
+            <div className="border-t border-border/45">
+              <div className={cn("grid gap-4 bg-muted/45 px-3 py-2", keeperTableColumns)}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <PulsingBlock className="h-2.5 rounded" key={i} />
+                ))}
+              </div>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div
+                  className={cn(
+                    "grid gap-4 border-b border-border/35 px-3 py-2.5 last:border-b-0",
+                    keeperTableColumns
+                  )}
+                  key={i}
+                >
+                  {Array.from({ length: 6 }).map((__, j) => (
+                    <PulsingBlock className="h-3 rounded" key={j} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Two panels */}
+        <div className="grid items-start gap-3 lg:grid-cols-2">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <div className="space-y-3 rounded-md border border-border bg-card/86 p-5" key={i}>
+              <div className="flex items-center justify-between gap-3">
+                <PulsingBlock className="h-3.5 w-28 rounded" />
+                <PulsingBlock className="h-5 w-20 rounded-md" />
+              </div>
+              <PulsingBlock className="h-3 w-full max-w-sm rounded" />
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((__, j) => (
+                  <div className="flex items-center justify-between gap-4" key={j}>
+                    <PulsingBlock className="h-2.5 w-20 rounded" />
+                    <PulsingBlock className="h-2.5 w-24 rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+  )
+}

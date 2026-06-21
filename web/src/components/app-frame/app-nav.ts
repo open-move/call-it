@@ -19,6 +19,7 @@ export type AppNavHref =
   | "/portfolio"
   | "/risk"
   | "/leaderboard"
+  | "/keeper"
 
 export const appNavItems: AppNavItem[] = [
   { href: "/markets", label: "Trade", status: AppNavStatus.Active },
@@ -32,4 +33,5 @@ export const appNavItems: AppNavItem[] = [
     status: AppNavStatus.Available,
   },
   { href: "/portfolio", label: "Portfolio", status: AppNavStatus.Available },
+  { href: "/keeper", label: "Keeper", status: AppNavStatus.Available },
 ]

@@ -5,6 +5,7 @@ export interface Config {
   clockObjectId: string
   dbPath: string
   dryRun: boolean
+  httpPort: number
   maxBatchSize: number
   maxCheckpointsPerScan: number
   minPayout: bigint
@@ -74,6 +75,7 @@ const configSchema = z
     CLOCK_OBJECT_ID: envString("0x6"),
     KEEPER_DB_PATH: envString("./data/keeper.sqlite"),
     KEEPER_DRY_RUN: envBoolean(true),
+    KEEPER_HTTP_PORT: envPositiveInteger(4000),
     KEEPER_MAX_BATCH_SIZE: envPositiveInteger(10),
     KEEPER_MAX_CHECKPOINTS_PER_SCAN: envPositiveInteger(25),
     KEEPER_MIN_PAYOUT: envBigint(1n),
@@ -97,6 +99,7 @@ const configSchema = z
       clockObjectId: env.CLOCK_OBJECT_ID,
       dbPath: env.KEEPER_DB_PATH,
       dryRun: env.KEEPER_DRY_RUN,
+      httpPort: env.KEEPER_HTTP_PORT,
       maxBatchSize: env.KEEPER_MAX_BATCH_SIZE,
       maxCheckpointsPerScan: env.KEEPER_MAX_CHECKPOINTS_PER_SCAN,
       minPayout: env.KEEPER_MIN_PAYOUT,

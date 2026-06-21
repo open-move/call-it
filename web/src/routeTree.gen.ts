@@ -16,6 +16,7 @@ import { Route as RangeLadderRouteRouteImport } from './routes/range-ladder/rout
 import { Route as PortfolioRouteRouteImport } from './routes/portfolio/route'
 import { Route as MarketsRouteRouteImport } from './routes/markets/route'
 import { Route as LeaderboardRouteRouteImport } from './routes/leaderboard/route'
+import { Route as KeeperRouteRouteImport } from './routes/keeper/route'
 import { Route as EarnRouteRouteImport } from './routes/earn/route'
 import { Route as ArenaRouteRouteImport } from './routes/arena/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -60,6 +61,11 @@ const MarketsRouteRoute = MarketsRouteRouteImport.update({
 const LeaderboardRouteRoute = LeaderboardRouteRouteImport.update({
   id: '/leaderboard',
   path: '/leaderboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KeeperRouteRoute = KeeperRouteRouteImport.update({
+  id: '/keeper',
+  path: '/keeper',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EarnRouteRoute = EarnRouteRouteImport.update({
@@ -117,6 +123,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/arena': typeof ArenaRouteRouteWithChildren
   '/earn': typeof EarnRouteRoute
+  '/keeper': typeof KeeperRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
@@ -135,6 +142,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/earn': typeof EarnRouteRoute
+  '/keeper': typeof KeeperRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
   '/portfolio': typeof PortfolioRouteRoute
   '/risk': typeof RiskRouteRoute
@@ -152,6 +160,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/arena': typeof ArenaRouteRouteWithChildren
   '/earn': typeof EarnRouteRoute
+  '/keeper': typeof KeeperRouteRoute
   '/leaderboard': typeof LeaderboardRouteRoute
   '/markets': typeof MarketsRouteRouteWithChildren
   '/portfolio': typeof PortfolioRouteRoute
@@ -173,6 +182,7 @@ export interface FileRouteTypes {
     | '/'
     | '/arena'
     | '/earn'
+    | '/keeper'
     | '/leaderboard'
     | '/markets'
     | '/portfolio'
@@ -191,6 +201,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/earn'
+    | '/keeper'
     | '/leaderboard'
     | '/portfolio'
     | '/risk'
@@ -207,6 +218,7 @@ export interface FileRouteTypes {
     | '/'
     | '/arena'
     | '/earn'
+    | '/keeper'
     | '/leaderboard'
     | '/markets'
     | '/portfolio'
@@ -227,6 +239,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ArenaRouteRoute: typeof ArenaRouteRouteWithChildren
   EarnRouteRoute: typeof EarnRouteRoute
+  KeeperRouteRoute: typeof KeeperRouteRoute
   LeaderboardRouteRoute: typeof LeaderboardRouteRoute
   MarketsRouteRoute: typeof MarketsRouteRouteWithChildren
   PortfolioRouteRoute: typeof PortfolioRouteRoute
@@ -285,6 +298,13 @@ declare module '@tanstack/react-router' {
       path: '/leaderboard'
       fullPath: '/leaderboard'
       preLoaderRoute: typeof LeaderboardRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/keeper': {
+      id: '/keeper'
+      path: '/keeper'
+      fullPath: '/keeper'
+      preLoaderRoute: typeof KeeperRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/earn': {
@@ -417,6 +437,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ArenaRouteRoute: ArenaRouteRouteWithChildren,
   EarnRouteRoute: EarnRouteRoute,
+  KeeperRouteRoute: KeeperRouteRoute,
   LeaderboardRouteRoute: LeaderboardRouteRoute,
   MarketsRouteRoute: MarketsRouteRouteWithChildren,
   PortfolioRouteRoute: PortfolioRouteRoute,

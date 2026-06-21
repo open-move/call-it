@@ -32,6 +32,10 @@ export const ARENA_OBJECT_ID = ""
 // back to mock data. Set e.g. "http://localhost:8080" to read live indexed data.
 export const BACKEND_URL = ""
 
+// Settled-redeem keeper status API (read-only ops dashboard). Point at the
+// running keeper's KEEPER_HTTP_PORT (default 4000). Empty = treated as offline.
+export const KEEPER_API_URL = "http://localhost:4000"
+
 export const BASE_VAULT_ID =
   "0xdbe679688a9cd9d3a5f0c1e5be147956f0ddbaa8ab01731e8fded01584807122"
 

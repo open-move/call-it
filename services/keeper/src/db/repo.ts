@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from "drizzle-orm"
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
 
 import type { Database, PositionState, StoredRawEvent, TransactionStatus } from "./database.ts"
 import { checkpointValueSchema, countRowSchema, positionFromRow, rawEventFromRow } from "./database.ts"
@@ -233,6 +233,28 @@ export class Repository {
         set: { error: input.error ?? null, status: input.status, updatedAt: now },
         target: txs.digest,
       })
+  }
+
+  async listTxs(limit = 200) {
+    return this.database.db.query.txs.findMany({
+      limit,
+      orderBy: (table, { desc }) => [desc(table.createdAt)],
+    })
+  }
+
+  async listReconcileErrors(limit = 200) {
+    const rows = await this.database.db.query.rawEvents.findMany({
+      limit,
+      orderBy: (table, { desc }) => [desc(table.checkpoint)],
+      where: isNotNull(rawEvents.reconcileError),
+    })
+    return rows.map((row) => ({
+      checkpoint: row.checkpoint,
+      error: row.reconcileError,
+      eventType: row.eventType,
+      id: row.id,
+      transactionDigest: row.transactionDigest,
+    }))
   }
 
   async counts() {
