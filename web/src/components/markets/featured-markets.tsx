@@ -35,8 +35,8 @@ export function FeaturedMarkets({
   predictionActivity: PredictionActivity
 }) {
   return (
-    <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
-      <div className="flex flex-col rounded-lg bg-card p-3">
+    <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
+      <div className="flex flex-col rounded-xl bg-card p-3">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
             <FlameIcon className="size-3.5 translate-y-px text-outcome-down" />
@@ -101,8 +101,8 @@ export function FeaturedMarkets({
         </div>
       </div>
 
-      <div className="rounded-lg bg-card p-4">
-        <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col rounded-xl bg-card p-4">
+        <div className="flex flex-1 flex-col gap-2.5">
           <div className="flex items-center gap-1.5 text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
             <TimerIcon className="size-3.5 translate-y-px text-primary" />
             Prediction activity
@@ -131,7 +131,7 @@ export function FeaturedMarkets({
 
           {nearestMarket && (
             <Link
-              className="group inline-flex w-fit items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/85"
+              className="group mt-auto inline-flex w-fit items-center gap-1 pt-1 text-xs font-medium text-primary transition-colors hover:text-primary/85"
               params={{ oracleId: nearestMarket.oracleId }}
               to="/markets/$oracleId"
             >

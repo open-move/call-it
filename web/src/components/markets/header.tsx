@@ -120,7 +120,7 @@ function FilterMenu({
         render={
           <Button
             aria-label="Filters"
-            className="border-border/35 bg-muted/25 text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-1"
+            className="border-border/35 bg-muted/25 text-muted-foreground shadow-none ring-0 transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
             size="icon-sm"
             type="button"
             variant="outline"
@@ -182,7 +182,7 @@ function ExpirySelect({
       <DropdownMenuTrigger
         render={
           <Button
-            className="h-8 gap-1.5 border border-border/35 bg-muted/25 px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-1"
+            className="h-8 gap-1.5 border border-border/35 bg-muted/25 px-2.5 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color] duration-150 hover:border-border/50 hover:bg-muted/30 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40"
             type="button"
             variant="ghost"
           />
@@ -230,7 +230,7 @@ function ToolbarTabs({
         return (
           <Button
             className={cn(
-              "gap-1.5 border border-transparent px-2 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color,transform] duration-150 hover:border-border/45 hover:bg-muted/25 hover:text-foreground active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
+              "gap-1.5 border border-transparent px-2 text-xs font-medium text-muted-foreground shadow-none transition-[background-color,border-color,color,transform] duration-150 hover:border-border/45 hover:bg-muted/25 hover:text-foreground active:scale-[0.97] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none",
               isSelected &&
                 "border-primary/30 bg-primary/8 text-primary hover:border-primary/40 hover:bg-primary/12"
             )}

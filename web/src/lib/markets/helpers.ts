@@ -6,6 +6,9 @@ export type MarketSort = "expiry" | "move" | "volume"
 
 export const defaultSort: MarketSort = "expiry"
 
+/** Sentinel expiry-filter value that swaps the table to resolved/expired markets. */
+export const EXPIRED_EXPIRY = "expired"
+
 export const expiryTabs = [
   { label: "All", value: undefined },
   { label: "15m", value: "15m" },
@@ -13,6 +16,7 @@ export const expiryTabs = [
   { label: "4h", value: "4h" },
   { label: "1d", value: "1d" },
   { label: "7d", value: "7d" },
+  { label: "Expired", value: EXPIRED_EXPIRY },
 ] satisfies ToolbarOption[]
 
 export const expiryMsByValue: Record<string, number> = {
@@ -48,6 +52,9 @@ export function getSelectedAsset(assetOptions: ToolbarOption[], assetParam?: str
 }
 
 export function getSelectedExpiry(expiryParam: string | null) {
+  if (expiryParam === EXPIRED_EXPIRY) {
+    return EXPIRED_EXPIRY
+  }
   return expiryParam && expiryParam in expiryMsByValue ? expiryParam : undefined
 }
 

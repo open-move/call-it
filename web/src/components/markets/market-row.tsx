@@ -20,20 +20,22 @@ import { Metric } from "./metric"
 import { Sparkline } from "./sparkline"
 
 export interface RowProps {
+  expired?: boolean
   market: TradeMarket
 }
 
-export function Row({ market }: RowProps) {
+export function Row({ expired = false, market }: RowProps) {
   const distance = getDistance(market)
-  const isAboveStrike = distance.distanceUsd >= 0
   const priceChangedUp = market.priceChangePercent >= 0
+  // Settled/expired markets are view-only; only live markets can be traded.
+  const ctaLabel = expired ? "Open" : "Trade"
 
   return (
     <div className="lg:border-b lg:border-border/25 lg:last:border-b-0">
       {/* Desktop row */}
       <Link
         aria-label={`Open ${market.assetName} market`}
-        className="group hidden min-h-[3.75rem] px-3 py-2.5 transition-[background-color,transform] duration-150 hover:bg-muted/25 active:scale-[0.997] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center"
+        className="group hidden min-h-[3.75rem] px-3 py-2.5 transition-[background-color,transform] duration-150 hover:bg-muted/25 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none lg:grid lg:grid-cols-[minmax(15rem,1.5fr)_7rem_0.6fr_0.7fr_0.75fr_0.75fr_7rem] lg:items-center"
         params={{ oracleId: market.oracleId }}
         to="/markets/$oracleId"
       >
@@ -65,12 +67,7 @@ export function Row({ market }: RowProps) {
 
         {/* Column 3: Prob. */}
         <div className="border-l border-border/20 pl-3 text-right font-mono tabular-nums">
-          <div
-            className={cn(
-              "text-sm leading-5 font-semibold text-foreground",
-              priceChangedUp ? "text-outcome-up" : "text-outcome-down"
-            )}
-          >
+          <div className="text-sm leading-5 font-semibold text-foreground">
             {formatProbability(market.fairUpProbability)}
           </div>
           <div
@@ -96,20 +93,10 @@ export function Row({ market }: RowProps) {
 
         {/* Column 5: Distance */}
         <div className="border-l border-border/20 pl-3 text-right font-mono tabular-nums">
-          <div
-            className={cn(
-              "text-xs leading-5 font-medium text-foreground",
-              isAboveStrike ? "text-outcome-up" : "text-outcome-down"
-            )}
-          >
+          <div className="text-xs leading-5 font-medium text-foreground">
             {formatSignedUsd(distance.distanceUsd)}
           </div>
-          <div
-            className={cn(
-              "text-[11px] leading-4",
-              isAboveStrike ? "text-outcome-up" : "text-outcome-down"
-            )}
-          >
+          <div className="text-[11px] leading-4 text-muted-foreground">
             {formatSignedPercent(distance.distancePercent)}
           </div>
         </div>
@@ -127,7 +114,7 @@ export function Row({ market }: RowProps) {
         {/* Column 7: Action */}
         <div className="flex items-center justify-end lg:border-l lg:border-border/20 lg:pl-3">
           <span className="inline-flex h-8 min-w-[4.5rem] items-center justify-center rounded-md border border-border/40 bg-muted/25 px-3 text-xs font-medium text-foreground shadow-xs transition-[background-color,border-color,color] duration-150 group-hover:border-primary/30 group-hover:bg-primary/8 group-hover:text-primary">
-            Trade
+            {ctaLabel}
           </span>
         </div>
       </Link>
@@ -160,12 +147,7 @@ export function Row({ market }: RowProps) {
             </div>
           </div>
           <div className="text-right font-mono tabular-nums">
-            <div
-              className={cn(
-                "text-sm leading-5 font-semibold text-foreground",
-                priceChangedUp ? "text-outcome-up" : "text-outcome-down"
-              )}
-            >
+            <div className="text-sm leading-5 font-semibold text-foreground">
               {formatProbability(market.fairUpProbability)}
             </div>
             <div
@@ -188,7 +170,6 @@ export function Row({ market }: RowProps) {
             value={formatCompactUsd(market.volumeUsd)}
           />
           <Metric
-            className={isAboveStrike ? "text-outcome-up" : "text-outcome-down"}
             label="Distance"
             value={formatSignedUsd(distance.distanceUsd)}
           />
@@ -203,7 +184,7 @@ export function Row({ market }: RowProps) {
         </div>
 
         <span className="inline-flex w-full items-center justify-center rounded-md border border-border/40 bg-muted/25 px-3 py-2 text-xs font-medium text-foreground shadow-xs transition-[background-color,border-color,color] duration-150 group-hover:border-primary/30 group-hover:bg-primary/8 group-hover:text-primary">
-          Trade
+          {ctaLabel}
         </span>
       </Link>
     </div>

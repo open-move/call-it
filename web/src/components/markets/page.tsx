@@ -4,6 +4,7 @@ import { useAppSearchParams } from "@/lib/hooks/router"
 import type { PredictionActivity, TradeMarket } from "@/lib/types/trade"
 import {
   defaultSort,
+  EXPIRED_EXPIRY,
   expiryTabs,
   filterMarketsByAsset,
   filterMarketsByExpiry,
@@ -22,11 +23,12 @@ import { Table } from "./table"
 import { MarketSearchControls, Toolbar } from "./header"
 
 export interface PageProps {
+  expiredMarkets: TradeMarket[]
   markets: TradeMarket[]
   predictionActivity: PredictionActivity
 }
 
-export function Page({ markets, predictionActivity }: PageProps) {
+export function Page({ expiredMarkets, markets, predictionActivity }: PageProps) {
   const [searchParams, setSearchParams] = useAppSearchParams()
   const [searchQuery, setSearchQuery] = useState("")
   const assetOptions = getAssetOptions(markets)
@@ -35,17 +37,26 @@ export function Page({ markets, predictionActivity }: PageProps) {
   const selectedExpiry = getSelectedExpiry(searchParams.get("expiry"))
   const selectedSort = getSelectedSort(searchParams.get("sort"))
   const withTradesOnly = searchParams.get("traded") === "1"
-  const assetFilteredMarkets = filterMarketsByAsset(markets, selectedAsset)
-  const visibleMarkets = sortMarkets(
-    filterMarketsByRecentTrades(
-      filterMarketsBySearch(
-        filterMarketsByExpiry(assetFilteredMarkets, selectedExpiry),
-        searchQuery
-      ),
-      withTradesOnly
-    ),
-    selectedSort
+  const isExpiredView = selectedExpiry === EXPIRED_EXPIRY
+
+  const assetFilteredMarkets = filterMarketsByAsset(
+    isExpiredView ? expiredMarkets : markets,
+    selectedAsset
   )
+  const searchedMarkets = filterMarketsByRecentTrades(
+    filterMarketsBySearch(
+      isExpiredView
+        ? assetFilteredMarkets
+        : filterMarketsByExpiry(assetFilteredMarkets, selectedExpiry),
+      searchQuery
+    ),
+    withTradesOnly
+  )
+  // Expired snapshots arrive newest-first; preserve that for the default sort.
+  const visibleMarkets =
+    isExpiredView && selectedSort === defaultSort
+      ? searchedMarkets
+      : sortMarkets(searchedMarkets, selectedSort)
   const topMarkets = getTopMarkets(markets)
   const nearestMarket = sortMarkets(markets)[0]
 
@@ -90,14 +101,16 @@ export function Page({ markets, predictionActivity }: PageProps) {
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
       <section className="space-y-3">
-        {markets.length > 0 ? (
+        {markets.length > 0 || expiredMarkets.length > 0 ? (
           <div className="flex flex-col gap-5 lg:gap-6">
-            <FeaturedMarkets
-              liveMarketCount={markets.length}
-              markets={topMarkets}
-              nearestMarket={nearestMarket}
-              predictionActivity={predictionActivity}
-            />
+            {markets.length > 0 && (
+              <FeaturedMarkets
+                liveMarketCount={markets.length}
+                markets={topMarkets}
+                nearestMarket={nearestMarket}
+                predictionActivity={predictionActivity}
+              />
+            )}
 
             <div className="flex flex-col gap-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -123,7 +136,11 @@ export function Page({ markets, predictionActivity }: PageProps) {
                 />
               </div>
 
-              <Table markets={visibleMarkets} onResetFilters={resetFilters} />
+              <Table
+                expired={isExpiredView}
+                markets={visibleMarkets}
+                onResetFilters={resetFilters}
+              />
             </div>
           </div>
         ) : (

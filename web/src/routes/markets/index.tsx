@@ -5,7 +5,10 @@ import {
   buildPredictionActivity,
   INDEX_ACTIVITY_LIMIT,
 } from "@/features/index/activity"
-import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
+import {
+  loadActiveMarketSnapshots,
+  loadExpiredMarketSnapshots,
+} from "@/lib/market-loaders"
 import { presentTradeMarkets } from "@/lib/trade-presenter"
 import {
   getDirectionalPositionMints,
@@ -15,11 +18,13 @@ import {
 export const Route = createFileRoute("/markets/")({
   pendingComponent: MarketsSkeleton,
   loader: async () => {
-    const [markets, positionMints, rangeMints] = await Promise.all([
-      loadActiveMarketSnapshots(),
-      getDirectionalPositionMints(INDEX_ACTIVITY_LIMIT),
-      getRangeMints(INDEX_ACTIVITY_LIMIT),
-    ])
+    const [markets, positionMints, rangeMints, expiredMarkets] =
+      await Promise.all([
+        loadActiveMarketSnapshots(),
+        getDirectionalPositionMints(INDEX_ACTIVITY_LIMIT),
+        getRangeMints(INDEX_ACTIVITY_LIMIT),
+        loadExpiredMarketSnapshots(),
+      ])
     const { activityByOracleId, predictionActivity } = buildPredictionActivity(
       positionMints,
       rangeMints
@@ -27,6 +32,7 @@ export const Route = createFileRoute("/markets/")({
 
     return {
       markets: await presentTradeMarkets(markets, activityByOracleId),
+      expiredMarkets: await presentTradeMarkets(expiredMarkets, activityByOracleId),
       predictionActivity,
     }
   },
@@ -34,6 +40,12 @@ export const Route = createFileRoute("/markets/")({
 })
 
 function Markets() {
-  const { markets, predictionActivity } = Route.useLoaderData()
-  return <MarketsPage markets={markets} predictionActivity={predictionActivity} />
+  const { markets, expiredMarkets, predictionActivity } = Route.useLoaderData()
+  return (
+    <MarketsPage
+      expiredMarkets={expiredMarkets}
+      markets={markets}
+      predictionActivity={predictionActivity}
+    />
+  )
 }

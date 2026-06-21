@@ -1,3 +1,4 @@
+import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
 function PulsingBlock({ className }: { className?: string }) {
@@ -28,57 +29,94 @@ export function MarketsSkeleton() {
       <section className="space-y-3">
         <div className="flex flex-col gap-5 lg:gap-6">
           {/* Featured: top markets + prediction activity */}
-          <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
-            <div className="flex flex-col rounded-lg bg-card p-3">
+          <div className="grid items-stretch gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.58fr)]">
+            <div className="flex flex-col rounded-xl bg-card p-3">
+              {/* header: size-3.5 icon + text-sm leading-none label */}
               <div className="mb-2 flex items-center gap-1.5">
-                <PulsingBlock className="size-3.5 rounded" />
-                <PulsingBlock className="h-3.5 w-24 rounded" />
+                <Skeleton className="size-3.5" />
+                <Skeleton className="h-3.5 w-24" />
               </div>
 
+              {/* rows: two-line identity (leading-5 + leading-4) + two-line prob.
+                  getTopMarkets() returns 3, so match that exactly. */}
               <div className="space-y-0.5">
-                {Array.from({ length: 5 }).map((_, i) => (
+                {Array.from({ length: 3 }).map((_, i) => (
                   <div
                     className="grid grid-cols-[1.25rem_auto_minmax(0,1fr)_auto] items-center gap-2.5 px-2 py-1.5"
                     key={i}
                   >
-                    <PulsingBlock className="mx-auto h-3 w-3 rounded" />
-                    <PulsingBlock className="size-6 rounded-full" />
-                    <PulsingBlock className="h-3 w-44 max-w-full rounded" />
-                    <PulsingBlock className="ml-auto h-3 w-12 rounded" />
+                    <Skeleton className="mx-auto size-3" />
+                    <Skeleton className="size-6 rounded-full" />
+                    <div className="min-w-0">
+                      <div className="flex h-5 items-center">
+                        <Skeleton className="h-3 w-44 max-w-full" />
+                      </div>
+                      <div className="flex h-4 items-center">
+                        <Skeleton className="h-2.5 w-28" />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex h-5 items-center justify-end">
+                        <Skeleton className="h-3 w-12" />
+                      </div>
+                      <div className="flex h-4 items-center justify-end">
+                        <Skeleton className="h-2.5 w-10" />
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
 
+              {/* footer: single text-[11px] line */}
               <div className="mt-3 flex items-center justify-between border-t border-border/30 pt-2.5">
-                <PulsingBlock className="h-2.5 w-28 rounded" />
-                <PulsingBlock className="h-2.5 w-12 rounded" />
+                <div className="flex h-4 items-center">
+                  <Skeleton className="h-2.5 w-28" />
+                </div>
+                <div className="flex h-4 items-center">
+                  <Skeleton className="h-2.5 w-12" />
+                </div>
               </div>
             </div>
 
-            <div className="rounded-lg bg-card p-4">
-              <div className="flex flex-col gap-2.5">
+            <div className="flex flex-col rounded-xl bg-card p-4">
+              <div className="flex flex-1 flex-col gap-2.5">
+                {/* header */}
                 <div className="flex items-center gap-1.5">
-                  <PulsingBlock className="size-3.5 rounded" />
-                  <PulsingBlock className="h-3.5 w-32 rounded" />
+                  <Skeleton className="size-3.5" />
+                  <Skeleton className="h-3.5 w-32" />
                 </div>
 
-                <div className="space-y-1.5">
-                  <PulsingBlock className="h-2.5 w-24 rounded" />
-                  <PulsingBlock className="h-5 w-28 rounded" />
+                {/* recent volume: text-xs label + text-lg leading-none value */}
+                <div>
+                  <div className="flex h-4 items-center">
+                    <Skeleton className="h-2.5 w-24" />
+                  </div>
+                  <div className="mt-1 flex h-[18px] items-center">
+                    <Skeleton className="h-4 w-28" />
+                  </div>
                 </div>
 
-                <PulsingBlock className="h-12 w-full rounded" />
+                {/* sparkline */}
+                <Skeleton className="h-12 w-full" />
 
+                {/* 3 stats: text-xs label + text-sm value */}
                 <div className="grid grid-cols-3 gap-3">
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <div className="space-y-1.5" key={i}>
-                      <PulsingBlock className="h-2.5 w-10 rounded" />
-                      <PulsingBlock className="h-3.5 w-12 rounded" />
+                    <div key={i}>
+                      <div className="flex h-4 items-center">
+                        <Skeleton className="h-2.5 w-10" />
+                      </div>
+                      <div className="mt-1 flex h-5 items-center">
+                        <Skeleton className="h-3.5 w-12" />
+                      </div>
                     </div>
                   ))}
                 </div>
 
-                <PulsingBlock className="h-3 w-36 rounded" />
+                {/* next-expiry link: text-xs line, pinned to the bottom */}
+                <div className="mt-auto flex h-4 items-center pt-1">
+                  <Skeleton className="h-3 w-36" />
+                </div>
               </div>
             </div>
           </div>
@@ -88,14 +126,14 @@ export function MarketsSkeleton() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-nowrap items-center gap-1.5 overflow-hidden">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <PulsingBlock key={i} className="h-8 w-16 shrink-0 rounded-md" />
+                  <Skeleton key={i} className="h-8 w-14 shrink-0" />
                 ))}
               </div>
 
               <div className="flex w-full items-center gap-2 sm:w-auto">
-                <PulsingBlock className="h-8 min-w-0 flex-1 rounded-md sm:w-72 sm:flex-none" />
-                <PulsingBlock className="h-8 w-20 shrink-0 rounded-md" />
-                <PulsingBlock className="size-8 shrink-0 rounded-md" />
+                <Skeleton className="h-8 min-w-0 flex-1 sm:w-72 sm:flex-none" />
+                <Skeleton className="h-8 w-20 shrink-0" />
+                <Skeleton className="size-8 shrink-0" />
               </div>
             </div>
 
@@ -111,9 +149,9 @@ export function MarketsSkeleton() {
                   i === 1 ? (
                     <div key={i} />
                   ) : (
-                    <PulsingBlock
+                    <Skeleton
                       key={i}
-                      className={cn("h-2.5 w-12 rounded", i > 1 && "ml-auto")}
+                      className={cn("h-2.5 w-12", i > 1 && "ml-auto")}
                     />
                   )
                 )}
@@ -130,17 +168,17 @@ export function MarketsSkeleton() {
                     key={i}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <PulsingBlock className="size-6 shrink-0 rounded-full" />
-                      <PulsingBlock className="h-3 w-44 max-w-full rounded" />
+                      <Skeleton className="size-6 shrink-0 rounded-full" />
+                      <Skeleton className="h-3 w-44 max-w-full" />
                     </div>
                     <div className="pl-3">
-                      <PulsingBlock className="h-7 w-full rounded" />
+                      <Skeleton className="h-7 w-full" />
                     </div>
                     {Array.from({ length: 4 }).map((__, j) => (
-                      <PulsingBlock key={j} className="ml-auto h-3 w-12 rounded" />
+                      <Skeleton key={j} className="ml-auto h-3 w-12" />
                     ))}
                     <div className="flex justify-end pl-3">
-                      <PulsingBlock className="h-8 w-18 rounded-md" />
+                      <Skeleton className="h-8 w-18" />
                     </div>
                   </div>
                 ))}
@@ -152,21 +190,21 @@ export function MarketsSkeleton() {
                   <div className="space-y-2 rounded-lg bg-card p-3" key={i}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-2.5">
-                        <PulsingBlock className="size-6 shrink-0 rounded-full" />
-                        <PulsingBlock className="h-3 w-40 max-w-full rounded" />
+                        <Skeleton className="size-6 shrink-0 rounded-full" />
+                        <Skeleton className="h-3 w-40 max-w-full" />
                       </div>
-                      <PulsingBlock className="ml-auto h-3 w-12 rounded" />
+                      <Skeleton className="ml-auto h-3 w-12" />
                     </div>
 
-                    <PulsingBlock className="h-7 w-full rounded" />
+                    <Skeleton className="h-7 w-full" />
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4">
                       {Array.from({ length: 4 }).map((__, j) => (
-                        <PulsingBlock key={j} className="h-3 w-16 rounded" />
+                        <Skeleton key={j} className="h-3 w-16" />
                       ))}
                     </div>
 
-                    <PulsingBlock className="h-8 w-full rounded-md" />
+                    <Skeleton className="h-8 w-full" />
                   </div>
                 ))}
               </div>
