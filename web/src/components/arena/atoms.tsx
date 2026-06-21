@@ -189,9 +189,10 @@ export function CallStatusBadge({
 
 const activityDotClassName: Record<ArenaActivity["kind"], string> = {
   backed: "bg-primary",
+  claimed: "bg-amber-500",
   faded: "bg-outcome-down",
   launched: "bg-outcome-up",
-  settled: "bg-muted-foreground",
+  reclaimed: "bg-muted-foreground",
 }
 
 export function DetailStat({

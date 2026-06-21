@@ -37,7 +37,7 @@ export interface ArenaActivity {
   actor: string
   callLabel: string
   id: string
-  kind: "launched" | "backed" | "faded" | "settled"
+  kind: "launched" | "backed" | "faded" | "claimed" | "reclaimed"
   timestamp: string
 }
 

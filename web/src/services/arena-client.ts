@@ -1,8 +1,4 @@
-import {
-  ARENA_OBJECT_ID,
-  ARENA_PACKAGE_ID,
-  ARENA_ROOT_ID,
-} from "@/lib/config"
+import { BACKEND_URL } from "@/lib/config"
 import { arenaPageModel } from "@/lib/arena/mock-data"
 import type {
   ArenaActivity,
@@ -11,58 +7,10 @@ import type {
   ArenaPageModel,
 } from "@/lib/arena/types"
 
-export interface ArenaClientConfig {
-  arenaObjectId: string
-  arenaPackageId: string
-  arenaRootId: string
-  isConfigured: boolean
-}
-
-export function getArenaClientConfig() {
-  return {
-    arenaObjectId: ARENA_OBJECT_ID,
-    arenaPackageId: ARENA_PACKAGE_ID,
-    arenaRootId: ARENA_ROOT_ID,
-    isConfigured: !!ARENA_PACKAGE_ID && !!ARENA_ROOT_ID && !!ARENA_OBJECT_ID,
-  } satisfies ArenaClientConfig
-}
-
-export async function getArenaPageModel(): Promise<ArenaPageModel> {
-  const config = getArenaClientConfig()
-
-  if (!config.isConfigured) {
-    return arenaPageModel
-  }
-
-  // Live Arena object/event reads will replace this model once deployment IDs
-  // and an event indexing strategy are configured.
-  return arenaPageModel
-}
-
 export interface ArenaCallDetail {
   activity: ArenaActivity[]
   call: ArenaCall
   creator?: ArenaCreator
-}
-
-export async function getArenaCall(
-  callId: string
-): Promise<ArenaCallDetail | undefined> {
-  const model = await getArenaPageModel()
-  const call = model.calls.find((entry) => entry.id === callId)
-
-  if (!call) {
-    return undefined
-  }
-
-  const creator = model.creators.find(
-    (entry) => entry.handle === call.creatorHandle
-  )
-  const activity = model.activity.filter(
-    (entry) => entry.callLabel === call.market
-  )
-
-  return { activity, call, creator }
 }
 
 export interface ArenaCreatorDetail {
@@ -70,17 +18,74 @@ export interface ArenaCreatorDetail {
   creator: ArenaCreator
 }
 
-export async function getArenaCreator(
-  handle: string
-): Promise<ArenaCreatorDetail | undefined> {
-  const model = await getArenaPageModel()
-  const creator = model.creators.find((entry) => entry.handle === handle)
+// Reads go through the backend when BACKEND_URL is configured; otherwise (or on
+// any failure) Arena falls back to the local mock so the app stays usable.
+async function fetchBackend<T>(path: string): Promise<T | null> {
+  if (BACKEND_URL === "") {
+    return null
+  }
 
+  try {
+    const response = await fetch(`${BACKEND_URL}${path}`)
+    if (!response.ok) {
+      return null
+    }
+    return (await response.json()) as T
+  } catch {
+    return null
+  }
+}
+
+export async function getArenaPageModel(): Promise<ArenaPageModel> {
+  const live = await fetchBackend<ArenaPageModel>("/arena")
+  return live ?? arenaPageModel
+}
+
+function findMockCall(callId: string): ArenaCallDetail | undefined {
+  const call = arenaPageModel.calls.find((entry) => entry.id === callId)
+  if (!call) {
+    return undefined
+  }
+
+  const creator = arenaPageModel.creators.find(
+    (entry) => entry.handle === call.creatorHandle
+  )
+  const activity = arenaPageModel.activity.filter(
+    (entry) => entry.callLabel === call.market
+  )
+
+  return { activity, call, creator }
+}
+
+export async function getArenaCall(
+  callId: string
+): Promise<ArenaCallDetail | undefined> {
+  const live = await fetchBackend<ArenaCallDetail>(
+    `/arena/calls/${encodeURIComponent(callId)}`
+  )
+  return live ?? findMockCall(callId)
+}
+
+function findMockCreator(handle: string): ArenaCreatorDetail | undefined {
+  const creator = arenaPageModel.creators.find(
+    (entry) => entry.handle === handle
+  )
   if (!creator) {
     return undefined
   }
 
-  const calls = model.calls.filter((entry) => entry.creatorHandle === handle)
+  const calls = arenaPageModel.calls.filter(
+    (entry) => entry.creatorHandle === handle
+  )
 
   return { calls, creator }
+}
+
+export async function getArenaCreator(
+  addressOrHandle: string
+): Promise<ArenaCreatorDetail | undefined> {
+  const live = await fetchBackend<ArenaCreatorDetail>(
+    `/arena/creators/${encodeURIComponent(addressOrHandle)}`
+  )
+  return live ?? findMockCreator(addressOrHandle)
 }

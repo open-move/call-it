@@ -142,8 +142,8 @@ export const arenaActivity = [
   {
     actor: "glyphdesk",
     callLabel: "BTC below 99,000",
-    id: "activity-settle-btc-99000",
-    kind: "settled",
+    id: "activity-claim-btc-99000",
+    kind: "claimed",
     timestamp: "2h ago",
   },
 ] satisfies ArenaActivity[]

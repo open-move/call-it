@@ -35,12 +35,19 @@ const EWrongPublisher: vector<u8> = b"Publisher does not belong to the Arena mod
 #[error]
 const ENotCreator: vector<u8> = b"Only the call creator can claim the bond";
 
+const RECLAIM_GRACE_MS: u64 = 604_800_000; // 7 days after expiry
+
+#[error]
+const EOracleNotSettled: vector<u8> = b"Oracle has not settled yet";
+
+#[error]
+const EReclaimTooEarly: vector<u8> = b"Bond can only be reclaimed after the expiry grace period";
+
 public struct ARENA has drop {}
 
 public struct Arena has key {
     id: UID,
     total_calls: u64,
-    total_settled_calls: u64,
     min_bond_quote_amount: u64,
 }
 
@@ -90,18 +97,17 @@ public struct CallFaded<phantom Quote> has copy, drop {
     recorded_at_ms: u64,
 }
 
-public struct CallSettled<phantom Quote> has copy, drop {
-    call_id: ID,
-    oracle_id: ID,
-    settlement_price: u64,
-    won: bool,
-    settled_at_ms: u64,
-}
-
 public struct CreatorBondClaimed<phantom Quote> has copy, drop {
     call_id: ID,
+    oracle_id: ID,
     bond_plp_amount: u64,
     claimed_at_ms: u64,
+}
+
+public struct CreatorBondReclaimed<phantom Quote> has copy, drop {
+    call_id: ID,
+    bond_plp_amount: u64,
+    reclaimed_at_ms: u64,
 }
 
 fun init(otw: ARENA, ctx: &mut TxContext) {
@@ -124,7 +130,6 @@ public fun bootstrap(
     let arena = Arena {
         id: object::new(ctx),
         total_calls: 0,
-        total_settled_calls: 0,
         min_bond_quote_amount,
     };
 
@@ -173,6 +178,7 @@ public fun launch_call<Quote>(
         creator,
         object::id(predict),
         oracle.id(),
+        oracle.expiry(),
         strike,
         is_up,
         bond,
@@ -269,39 +275,44 @@ public fun fade_call<Quote>(
     refund
 }
 
-public fun settle_call<Quote>(
-    arena: &mut Arena,
-    oracle: &OracleSVI,
+public fun claim_bond<Quote>(
     call: &mut Call<Quote>,
+    oracle: &OracleSVI,
     clock: &Clock,
-) {
-    let settlement_price = oracle.settlement_price().destroy_some();
-    let won = call.settle(oracle.id(), settlement_price);
-    arena.total_settled_calls = arena.total_settled_calls + 1;
+    ctx: &mut TxContext,
+): Coin<PLP> {
+    assert!(ctx.sender() == call.creator(), ENotCreator);
+    call.assert_oracle(oracle.id());
+    assert!(oracle.settlement_price().is_some(), EOracleNotSettled);
+    let call_id = call.id();
+    let bond_plp_amount = call.bond_plp_amount();
+    let bond = call.withdraw_bond(ctx);
 
-    event::emit(CallSettled<Quote> {
-        call_id: call.id(),
+    event::emit(CreatorBondClaimed<Quote> {
+        call_id,
         oracle_id: oracle.id(),
-        settlement_price,
-        won,
-        settled_at_ms: clock.timestamp_ms(),
+        bond_plp_amount,
+        claimed_at_ms: clock.timestamp_ms(),
     });
+
+    bond
 }
 
-public fun claim_bond<Quote>(
+public fun reclaim_bond<Quote>(
     call: &mut Call<Quote>,
     clock: &Clock,
     ctx: &mut TxContext,
 ): Coin<PLP> {
     assert!(ctx.sender() == call.creator(), ENotCreator);
+    assert!(clock.timestamp_ms() >= call.expiry() + RECLAIM_GRACE_MS, EReclaimTooEarly);
     let call_id = call.id();
     let bond_plp_amount = call.bond_plp_amount();
-    let bond = call.claim_bond(ctx);
+    let bond = call.withdraw_bond(ctx);
 
-    event::emit(CreatorBondClaimed<Quote> {
+    event::emit(CreatorBondReclaimed<Quote> {
         call_id,
         bond_plp_amount,
-        claimed_at_ms: clock.timestamp_ms(),
+        reclaimed_at_ms: clock.timestamp_ms(),
     });
 
     bond
@@ -314,8 +325,6 @@ public fun admin_cap_id(cap: &ArenaAdminCap): ID { cap.id.to_inner() }
 public fun min_bond_quote_amount(arena: &Arena): u64 { arena.min_bond_quote_amount }
 
 public fun total_calls(arena: &Arena): u64 { arena.total_calls }
-
-public fun total_settled_calls(arena: &Arena): u64 { arena.total_settled_calls }
 
 fun assert_valid_bond(arena: &Arena, bond_quote_amount: u64) {
     assert!(bond_quote_amount >= arena.min_bond_quote_amount, EInvalidBond);

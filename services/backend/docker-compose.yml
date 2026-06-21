@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: .
+    command: ["serve"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://callit:callit@postgres:5432/callit_backend
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: callit_backend
+      POSTGRES_PASSWORD: callit
+      POSTGRES_USER: callit
+    healthcheck:
+      interval: 5s
+      retries: 10
+      test: ["CMD-SHELL", "pg_isready -U callit -d callit_backend"]
+      timeout: 5s
+    ports:
+      - "5432:5432"
+    volumes:
+      - backend-postgres:/var/lib/postgresql/data
+
+volumes:
+  backend-postgres:

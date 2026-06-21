@@ -1,0 +1,31 @@
+{
+  "name": "@callit/backend",
+  "packageManager": "bun@1.2.10",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --watch src/index.ts serve",
+    "serve": "bun src/index.ts serve",
+    "ingest": "bun src/index.ts ingest",
+    "once": "bun src/index.ts once",
+    "status": "bun src/index.ts status",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@mysten/bcs": "^1.7.0",
+    "@mysten/sui": "^2.19.0",
+    "drizzle-orm": "^0.45.1",
+    "elysia": "^1.2.0",
+    "pg": "^8.13.1",
+    "pino": "^10.1.0",
+    "ulid": "^2.3.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.0",
+    "@types/pg": "^8.11.10",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^6.0.0"
+  }
+}

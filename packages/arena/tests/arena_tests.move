@@ -31,6 +31,7 @@ const BACKER: address = @0xC;
 const FADER: address = @0xD;
 
 const EXPIRY_MS: u64 = 1_000_000;
+const RECLAIM_GRACE_MS: u64 = 604_800_000;
 const SPOT: u64 = 100_000_000_000;
 const SETTLEMENT_SPOT: u64 = 120_000_000_000;
 const STRIKE: u64 = 110_000_000_000;
@@ -63,7 +64,6 @@ fun bootstrap_creates_arena_and_admin_cap() {
         assert!(arena::id(&arena).to_address() != @0x0);
         assert!(arena::admin_cap_id(&cap).to_address() != @0x0);
         assert_eq!(arena::total_calls(&arena), 0);
-        assert_eq!(arena::total_settled_calls(&arena), 0);
 
         return_shared(arena);
         test.return_to_sender(cap);
@@ -250,7 +250,7 @@ fun back_call_aborts_after_settlement() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
     launch_call(&mut test, &env);
-    settle_call(&mut test, env.oracle_id);
+    settle_oracle(&mut test, env.oracle_id);
 
     test.next_tx(BACKER);
     {
@@ -316,111 +316,6 @@ fun back_call_aborts_on_wrong_oracle() {
     end(test);
 }
 
-#[test]
-fun settle_call_records_win() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    launch_call(&mut test, &env);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(BACKER);
-    {
-        let mut arena = test.take_shared<Arena>();
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut call = test.take_shared<Call<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        arena::settle_call<TEST_QUOTE>(&mut arena, &oracle, &mut call, &clock);
-
-        assert_eq!(arena::total_settled_calls(&arena), 1);
-        assert!(call::settled(&call));
-        assert_eq!(call::status(&call), call::status_settled());
-
-        return_shared(arena);
-        return_shared(oracle);
-        return_shared(call);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test]
-fun settle_call_records_loss() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    // is_up = false call wins when settlement <= strike, so an up move is a loss.
-    attempt_launch_with_direction(&mut test, &env, BOND_QUOTE_AMOUNT, STRIKE, false);
-    settle_oracle(&mut test, env.oracle_id);
-
-    test.next_tx(BACKER);
-    {
-        let mut arena = test.take_shared<Arena>();
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut call = test.take_shared<Call<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        arena::settle_call<TEST_QUOTE>(&mut arena, &oracle, &mut call, &clock);
-
-        assert_eq!(arena::total_settled_calls(&arena), 1);
-        assert!(call::settled(&call));
-
-        return_shared(arena);
-        return_shared(oracle);
-        return_shared(call);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun settle_call_aborts_before_oracle_settlement() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    launch_call(&mut test, &env);
-
-    test.next_tx(BACKER);
-    {
-        let mut arena = test.take_shared<Arena>();
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut call = test.take_shared<Call<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-
-        arena::settle_call<TEST_QUOTE>(&mut arena, &oracle, &mut call, &clock);
-
-        return_shared(arena);
-        return_shared(oracle);
-        return_shared(call);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
-#[test, expected_failure]
-fun double_settle_aborts() {
-    let mut test = begin(ADMIN);
-    let env = setup(&mut test);
-    launch_call(&mut test, &env);
-    settle_call(&mut test, env.oracle_id);
-
-    test.next_tx(BACKER);
-    {
-        let mut arena = test.take_shared<Arena>();
-        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
-        let mut call = test.take_shared<Call<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-        arena::settle_call<TEST_QUOTE>(&mut arena, &oracle, &mut call, &clock);
-        return_shared(arena);
-        return_shared(oracle);
-        return_shared(call);
-        return_shared(clock);
-    };
-
-    end(test);
-}
-
 #[test, expected_failure]
 fun claim_bond_aborts_before_settlement() {
     let mut test = begin(ADMIN);
@@ -430,10 +325,12 @@ fun claim_bond_aborts_before_settlement() {
     test.next_tx(CREATOR);
     {
         let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &oracle, &clock, test.ctx());
         coin::burn_for_testing(bond);
         return_shared(call);
+        return_shared(oracle);
         return_shared(clock);
     };
 
@@ -445,15 +342,17 @@ fun claim_bond_aborts_for_wrong_creator() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
     launch_call(&mut test, &env);
-    settle_call(&mut test, env.oracle_id);
+    settle_oracle(&mut test, env.oracle_id);
 
     test.next_tx(BACKER);
     {
         let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &oracle, &clock, test.ctx());
         coin::burn_for_testing(bond);
         return_shared(call);
+        return_shared(oracle);
         return_shared(clock);
     };
 
@@ -465,21 +364,23 @@ fun claim_bond_returns_same_plp_shares() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
     launch_call(&mut test, &env);
-    settle_call(&mut test, env.oracle_id);
+    settle_oracle(&mut test, env.oracle_id);
 
     test.next_tx(CREATOR);
     {
         let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
         let expected_bond = call.bond_plp_amount();
-        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &oracle, &clock, test.ctx());
 
         assert_eq!(bond.value(), expected_bond);
-        assert_eq!(call.bond_plp_amount(), 0);
+        assert!(call::is_bond_claimed(&call));
         assert_eq!(call::status(&call), call::status_bond_claimed());
         coin::burn_for_testing(bond);
 
         return_shared(call);
+        return_shared(oracle);
         return_shared(clock);
     };
 
@@ -491,23 +392,92 @@ fun double_bond_claim_aborts() {
     let mut test = begin(ADMIN);
     let env = setup(&mut test);
     launch_call(&mut test, &env);
-    settle_call(&mut test, env.oracle_id);
+    settle_oracle(&mut test, env.oracle_id);
 
     test.next_tx(CREATOR);
     {
         let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &oracle, &clock, test.ctx());
         coin::burn_for_testing(bond);
         return_shared(call);
+        return_shared(oracle);
         return_shared(clock);
     };
 
     test.next_tx(CREATOR);
     {
         let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let oracle = test.take_shared_by_id<OracleSVI>(env.oracle_id);
         let clock = test.take_shared<Clock>();
-        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        let bond = arena::claim_bond<TEST_QUOTE>(&mut call, &oracle, &clock, test.ctx());
+        coin::burn_for_testing(bond);
+        return_shared(call);
+        return_shared(oracle);
+        return_shared(clock);
+    };
+
+    end(test);
+}
+
+#[test]
+fun reclaim_bond_after_grace_returns_plp() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    launch_call(&mut test, &env);
+
+    test.next_tx(CREATOR);
+    {
+        let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let mut clock = test.take_shared<Clock>();
+        clock.set_for_testing(EXPIRY_MS + RECLAIM_GRACE_MS);
+        let expected_bond = call.bond_plp_amount();
+        let bond = arena::reclaim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+
+        assert_eq!(bond.value(), expected_bond);
+        assert!(call::is_bond_claimed(&call));
+        coin::burn_for_testing(bond);
+
+        return_shared(call);
+        return_shared(clock);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun reclaim_bond_aborts_before_grace() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    launch_call(&mut test, &env);
+
+    test.next_tx(CREATOR);
+    {
+        let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let mut clock = test.take_shared<Clock>();
+        clock.set_for_testing(EXPIRY_MS + RECLAIM_GRACE_MS - 1);
+        let bond = arena::reclaim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
+        coin::burn_for_testing(bond);
+        return_shared(call);
+        return_shared(clock);
+    };
+
+    end(test);
+}
+
+#[test, expected_failure]
+fun reclaim_bond_aborts_for_wrong_creator() {
+    let mut test = begin(ADMIN);
+    let env = setup(&mut test);
+    launch_call(&mut test, &env);
+
+    test.next_tx(BACKER);
+    {
+        let mut call = test.take_shared<Call<TEST_QUOTE>>();
+        let mut clock = test.take_shared<Clock>();
+        clock.set_for_testing(EXPIRY_MS + RECLAIM_GRACE_MS);
+        let bond = arena::reclaim_bond<TEST_QUOTE>(&mut call, &clock, test.ctx());
         coin::burn_for_testing(bond);
         return_shared(call);
         return_shared(clock);
@@ -576,22 +546,6 @@ fun attempt_launch_with_direction(
         return_shared(arena);
         return_shared(predict);
         return_shared(oracle);
-        return_shared(clock);
-    }
-}
-
-fun settle_call(test: &mut Scenario, oracle_id: ID) {
-    settle_oracle(test, oracle_id);
-    test.next_tx(BACKER);
-    {
-        let mut arena = test.take_shared<Arena>();
-        let oracle = test.take_shared_by_id<OracleSVI>(oracle_id);
-        let mut call = test.take_shared<Call<TEST_QUOTE>>();
-        let clock = test.take_shared<Clock>();
-        arena::settle_call<TEST_QUOTE>(&mut arena, &oracle, &mut call, &clock);
-        return_shared(arena);
-        return_shared(oracle);
-        return_shared(call);
         return_shared(clock);
     }
 }
