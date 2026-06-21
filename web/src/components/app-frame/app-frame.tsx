@@ -1,5 +1,6 @@
 import type { ReactNode } from "react"
 
+import { AppFooter } from "./app-footer"
 import { AppHeader } from "./app-header"
 
 export interface AppFrameProps {
@@ -8,9 +9,10 @@ export interface AppFrameProps {
 
 export function AppFrame({ children }: AppFrameProps) {
   return (
-    <div className="min-h-svh w-full">
+    <div className="flex min-h-svh w-full flex-col">
       <AppHeader />
-      {children}
+      <div className="flex flex-1 flex-col">{children}</div>
+      <AppFooter />
     </div>
   )
 }

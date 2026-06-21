@@ -1,5 +1,6 @@
 import { DataRow } from "@/components/primitives/data-row"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
+import { RoundCountdown } from "@/components/shared/round-countdown"
 import { formatExpiryDistance, formatUsd } from "@/lib/format"
 import { formatAddress, formatDusdc } from "@/lib/range-ladder/format"
 import {
@@ -99,6 +100,12 @@ export function RoundProgressCard({
         {roundCopy}
       </p>
 
+      {product ? (
+        <div className="mt-3">
+          <RoundCountdown expiryMs={product.market.expiryMs} />
+        </div>
+      ) : null}
+
       <div className="mt-4 grid grid-cols-4 gap-2">
         {roundSteps.map((step) => (
           <RoundStep
@@ -126,7 +133,11 @@ export function RoundProgressCard({
         {contextProduct ? (
           <DataRow
             label={`${contextProduct.market.assetSymbol} ladder`}
-            value={`${formatExpiryDistance(contextProduct.market.expiryMs)} · ${contextProduct.rungs.length} rungs`}
+            value={
+              product
+                ? `${contextProduct.rungs.length} rungs`
+                : `${formatExpiryDistance(contextProduct.market.expiryMs)} · ${contextProduct.rungs.length} rungs`
+            }
           />
         ) : null}
       </div>

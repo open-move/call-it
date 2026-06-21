@@ -23,16 +23,20 @@ import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 outline-none hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
-    status === AppNavStatus.Active && "bg-primary/8 text-primary",
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-[background-color,color] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    status === AppNavStatus.Active
+      ? "text-primary"
+      : "text-muted-foreground hover:bg-muted/25 hover:text-foreground",
     status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
 
 function getMobileNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/25 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
-    status === AppNavStatus.Active && "bg-primary/8 text-primary",
+    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    status === AppNavStatus.Active
+      ? "text-primary"
+      : "text-muted-foreground hover:bg-muted/25 hover:text-foreground",
     status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
@@ -46,6 +50,7 @@ function isHrefActive(pathname: string, href: string) {
 export function AppHeader() {
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const { pathname } = useLocation()
+  const onLanding = pathname === "/"
 
   function getItemStatus(item: (typeof appNavItems)[number]) {
     if (item.status === AppNavStatus.Soon) {
@@ -59,7 +64,14 @@ export function AppHeader() {
 
   return (
     <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
-      <header className="sticky top-0 z-40 border-b border-border/35 bg-background/92 text-foreground backdrop-blur-xl">
+      <header
+        className={cn(
+          "sticky top-0 z-40 text-foreground",
+          onLanding
+            ? "bg-transparent"
+            : "border-b border-border/35 bg-background/92 backdrop-blur-xl"
+        )}
+      >
         <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-5">
             <Link
@@ -68,8 +80,8 @@ export function AppHeader() {
               onClick={() => setIsMobileNavOpen(false)}
             >
               <BrandMark />
-              <span className="text-base leading-none font-semibold tracking-[-0.02em] text-foreground">
-                CallIt
+              <span className="text-base leading-none font-semibold tracking-[-0.03em] text-foreground">
+                Call<span className="text-primary">It</span>
               </span>
             </Link>
 
@@ -122,7 +134,7 @@ export function AppHeader() {
           </div>
         </div>
 
-        <CollapsibleContent className="border-t border-border/35 md:hidden">
+        <CollapsibleContent className="border-t border-border/35 bg-background/95 backdrop-blur-xl md:hidden">
           <nav
             aria-label="Mobile navigation"
             className="mx-auto flex w-full max-w-[96rem] flex-col gap-1 px-4 py-3 sm:px-6"

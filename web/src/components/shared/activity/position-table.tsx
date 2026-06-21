@@ -102,7 +102,7 @@ export function PositionTable({
   isLoading = false,
   loadingMessage,
   rows,
-  unavailableValueMessage = "Live exit values are unavailable. Entry and premium are shown from trade history.",
+  unavailableValueMessage,
 }: {
   emptyMessage: string
   isLoading?: boolean

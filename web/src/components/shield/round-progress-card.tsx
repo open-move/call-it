@@ -14,6 +14,7 @@ import type { ShieldProduct } from "@/lib/types/shield"
 import { cn } from "@/lib/utils"
 import type { HedgedPlpStrategyState } from "@/services/shield-client"
 import { DataRow } from "@/components/primitives/data-row"
+import { RoundCountdown } from "@/components/shared/round-countdown"
 
 function RoundStep({
   label,
@@ -73,6 +74,12 @@ export function RoundProgressCard({
       <p className="mt-2 text-xs leading-5 text-pretty text-muted-foreground">
         {roundCopy}
       </p>
+
+      {product ? (
+        <div className="mt-3">
+          <RoundCountdown expiryMs={product.market.expiryMs} />
+        </div>
+      ) : null}
 
       <div className="mt-4 grid grid-cols-4 gap-2">
         {roundSteps.map((step) => (

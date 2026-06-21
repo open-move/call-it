@@ -70,7 +70,7 @@ export function formatRange(
 }
 
 export function getSideLabel(side: "above" | "below") {
-  return side === "above" ? "Up" : "Down"
+  return side === "above" ? "Above" : "Below"
 }
 
 export function getPositionContract(
@@ -180,9 +180,7 @@ export function getPositionRedeemParams({
       }
 }
 
-export function getPositionAddIntent(
-  position: PositionRow
-): AddPositionIntent {
+export function getPositionAddIntent(position: PositionRow): AddPositionIntent {
   return position.kind === "directional"
     ? {
         kind: "binary",
@@ -258,10 +256,7 @@ export function getActivityTradeContract(
     : `${assetSymbol} ${formatRange(trade.lowerStrikePriceUsd, trade.higherStrikePriceUsd)} Range`
 }
 
-export function isWalletTrade(
-  trade: TradeActivityRow,
-  walletAddress: string
-) {
+export function isWalletTrade(trade: TradeActivityRow, walletAddress: string) {
   return addressMatches(trade.trader, walletAddress)
 }
 
@@ -288,7 +283,7 @@ export function isWalletRedemption(
 }
 
 export function getModeLabel(mode: TicketMode) {
-  return mode === "binary" ? "Up/Down" : "Range"
+  return mode === "binary" ? "Binary" : "Range"
 }
 
 export function getModeIcon(mode: TicketMode) {
@@ -325,10 +320,7 @@ export function parseStrikeInput(value: string) {
     : undefined
 }
 
-export function normalizeStrikePrice(
-  value: number,
-  market: MarketSnapshot
-) {
+export function normalizeStrikePrice(value: number, market: MarketSnapshot) {
   const tickSizeUsd = market.tickSizeUsd > 0 ? market.tickSizeUsd : 1
   const minStrikeUsd = Math.max(market.minStrikeUsd, tickSizeUsd)
   const roundedValue = Math.round(value / tickSizeUsd) * tickSizeUsd
@@ -349,10 +341,7 @@ export function getRangeStrikeDefaults(
       selectedStrikePriceUsd + rangeWidthUsd,
       market
     ),
-    lower: normalizeStrikePrice(
-      selectedStrikePriceUsd - rangeWidthUsd,
-      market
-    ),
+    lower: normalizeStrikePrice(selectedStrikePriceUsd - rangeWidthUsd, market),
   }
 }
 
