@@ -4,8 +4,7 @@ dist
 dist-ssr
 *.local
 .env*
-# Prod build vars are public (VITE_* URLs + Dynamic env id); commit so CI builds have them.
-!.env.production
+
 .tanstack
 .wrangler
 .output
