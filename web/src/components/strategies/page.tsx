@@ -40,7 +40,7 @@ const strategyCards: StrategyCardData[] = [
       description: meta.tagline,
       slug: meta.key,
       key,
-      shareToken: meta.shareSymbol,
+      shareToken: "Shares",
       status: "Live",
       title: meta.name,
     }
@@ -125,7 +125,7 @@ function StrategyCard({
                 stat.sharePrice === undefined ? (
                   "—"
                 ) : (
-                  sharePriceFormatter.format(stat.sharePrice)
+                  `$${sharePriceFormatter.format(stat.sharePrice)}`
                 )
               ) : (
                 <SkeletonBar className="h-5 w-16" />

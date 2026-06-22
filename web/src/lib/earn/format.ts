@@ -40,6 +40,28 @@ export function formatQuoteAmount(value: number, symbol = "DUSDC") {
   return formatTokenAmount(toQuoteUsd(value), symbol)
 }
 
+// Render a quote (DUSDC) amount as a USD value: "$1,234.56". DUSDC is a USD
+// stablecoin, so monetary figures read as dollars across the product surfaces.
+// `formatQuoteUsd` takes quote base units (server numbers); `formatUsd` takes an
+// already-USD number; `formatWalletUsd` takes wallet base units (bigint).
+export function formatQuoteUsd(value: number, maximumFractionDigits = 2) {
+  return `$${toQuoteUsd(value).toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 2,
+  })}`
+}
+
+export function formatUsd(value: number, maximumFractionDigits = 2) {
+  return `$${value.toLocaleString("en-US", {
+    maximumFractionDigits,
+    minimumFractionDigits: 2,
+  })}`
+}
+
+export function formatWalletUsd(value: bigint, maxDecimals = 2) {
+  return `$${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, maxDecimals)}`
+}
+
 export function formatWalletAmount(value: bigint, symbol: string, maxDecimals = 4) {
   return `${formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, maxDecimals)} ${symbol}`
 }

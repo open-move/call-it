@@ -24,7 +24,7 @@ import {
   minBigInt,
 } from "./quote"
 import type { EarnAction, WalletBalances } from "./quote"
-import { formatTokenAmount, formatWalletAmount } from "./format"
+import { formatUsd, formatWalletAmount, formatWalletUsd } from "./format"
 
 export function useEarnAction(summary: VaultSummary) {
   const { primaryWallet, setShowAuthFlow } = useDynamicContext()
@@ -83,13 +83,11 @@ export function useEarnAction(summary: VaultSummary) {
   const plpValue =
     (Number(plpBalance) / 10 ** PREDICT_QUOTE_DECIMALS) *
     summary.plp_share_price
-  const dusdcBalanceValue = balances
-    ? formatWalletAmount(dusdcBalance, "DUSDC")
-    : "--"
+  const dusdcBalanceValue = balances ? formatWalletUsd(dusdcBalance) : "--"
   const plpBalanceValue = balances
     ? formatWalletAmount(plpBalance, "PLP")
     : "--"
-  const plpValueLabel = balances ? formatTokenAmount(plpValue, "DUSDC") : "--"
+  const plpValueLabel = balances ? formatUsd(plpValue) : "--"
   const actionBalanceLabel =
     action === "supply" ? "DUSDC balance" : "PLP balance"
   const actionBalanceValue =

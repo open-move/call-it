@@ -1,8 +1,7 @@
 import type { ReactNode } from "react"
 
 import { Button } from "@/components/ui/button"
-import { formatDusdc, formatShares } from "@/lib/strategies/format"
-import type { StrategyMeta } from "@/lib/strategies/registry"
+import { formatShares, formatUsd } from "@/lib/strategies/format"
 import type { useStrategyAction } from "@/lib/strategies/use-strategy-action"
 
 /**
@@ -59,10 +58,8 @@ function LifecycleRow({
 
 export function StrategyLifecycle({
   controller,
-  meta,
 }: {
   controller: ReturnType<typeof useStrategyAction>
-  meta: StrategyMeta
 }) {
   const {
     handleCancelPending,
@@ -82,10 +79,6 @@ export function StrategyLifecycle({
 
   return (
     <div className="mt-4 space-y-2">
-      <div className="font-mono text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-        In flight
-      </div>
-
       {pendingDeposit ? (
         <LifecycleRow
           action={
@@ -101,12 +94,12 @@ export function StrategyLifecycle({
           }
           hint={
             pendingDeposit.settled
-              ? `Settled — claim your ${meta.shareSymbol}`
+              ? "Settled — claim your shares"
               : "Converts to shares at the next settlement"
           }
           ready={pendingDeposit.settled}
           title="Pending deposit"
-          value={`${formatDusdc(pendingDeposit.amount, 2)} DUSDC`}
+          value={formatUsd(pendingDeposit.amount, 2)}
         />
       ) : null}
 
@@ -130,7 +123,7 @@ export function StrategyLifecycle({
           }
           ready={pendingWithdrawal.settled}
           title="Withdrawing"
-          value={`${formatShares(pendingWithdrawal.shares)} ${meta.shareSymbol}`}
+          value={`${formatShares(pendingWithdrawal.shares)} shares`}
         />
       ) : null}
     </div>

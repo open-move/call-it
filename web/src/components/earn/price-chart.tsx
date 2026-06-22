@@ -28,7 +28,7 @@ export function VaultPriceChart({
           PLP Price
         </div>
         <div className="font-mono text-xs font-medium text-foreground tabular-nums">
-          {formatSharePrice(summary.plp_share_price)} DUSDC
+          ${formatSharePrice(summary.plp_share_price)}
         </div>
       </div>
       <div className="h-28 sm:h-32">

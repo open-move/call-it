@@ -1,7 +1,7 @@
 import { AllocationBar } from "@/components/primitives/allocation-bar"
 import type { AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
-import { formatQuoteAmount, formatSharePrice } from "@/lib/earn/format"
+import { formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
 import type {
   VaultPerformanceResponse,
   VaultSummary,
@@ -34,13 +34,13 @@ export function VaultStatsCard({
         <div className="min-w-0">
           <div className="text-xs text-muted-foreground">NAV</div>
           <div className="mt-1 truncate font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
-            {formatQuoteAmount(summary.vault_value)}
+            {formatQuoteUsd(summary.vault_value)}
           </div>
         </div>
         <div className="min-w-0 text-right">
           <div className="text-xs text-muted-foreground">PLP price</div>
           <div className="mt-1 truncate font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
-            {formatSharePrice(summary.plp_share_price)}
+            ${formatSharePrice(summary.plp_share_price)}
           </div>
         </div>
       </div>
@@ -52,7 +52,7 @@ export function VaultStatsCard({
       <div className="mt-5">
         <DataRow
           label="Withdrawable"
-          value={formatQuoteAmount(summary.available_withdrawal)}
+          value={formatQuoteUsd(summary.available_withdrawal)}
         />
         <DataRow
           label="PLP supply"

@@ -14,7 +14,8 @@ import type { EarnAction } from "@/lib/earn/quote"
 import {
   formatTokenAmount,
   formatSharePrice,
-  formatQuoteAmount,
+  formatQuoteUsd,
+  formatUsd,
 } from "@/lib/earn/format"
 
 export function EarnActionDialog({
@@ -98,21 +99,19 @@ export function EarnActionDialog({
             value={
               estimatedOutput === undefined
                 ? "--"
-                : formatTokenAmount(
-                    estimatedOutput,
-                    action === "supply" ? "PLP" : "DUSDC",
-                    6
-                  )
+                : action === "supply"
+                  ? formatTokenAmount(estimatedOutput, "PLP", 6)
+                  : formatUsd(estimatedOutput)
             }
           />
           <PanelRow
             label="PLP price"
-            value={`${formatSharePrice(summary.plp_share_price)} DUSDC`}
+            value={`$${formatSharePrice(summary.plp_share_price)}`}
           />
           {action === "withdraw" && (
             <PanelRow
               label="Strategy withdrawable"
-              value={formatQuoteAmount(summary.available_withdrawal)}
+              value={formatQuoteUsd(summary.available_withdrawal)}
             />
           )}
         </div>

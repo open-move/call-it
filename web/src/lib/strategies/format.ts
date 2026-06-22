@@ -15,6 +15,15 @@ export function formatDusdc(baseUnits: bigint, fractionDigits = 2): string {
   })} DUSDC`
 }
 
+// Quote (DUSDC) value rendered as dollars: "$1,234.56". Used across the strategy
+// surfaces, where monetary figures read as USD rather than the token ticker.
+export function formatUsd(baseUnits: bigint, fractionDigits = 2): string {
+  return `$${(Number(baseUnits) / QUOTE_SCALE).toLocaleString("en-US", {
+    maximumFractionDigits: fractionDigits,
+    minimumFractionDigits: fractionDigits,
+  })}`
+}
+
 export function formatShares(units: bigint): string {
   return (Number(units) / SHARE_SCALE).toLocaleString("en-US", {
     maximumFractionDigits: 4,

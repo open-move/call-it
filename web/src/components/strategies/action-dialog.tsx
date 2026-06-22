@@ -8,7 +8,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { formatDusdc, formatShares, getStrategyStatus, sharePriceFormatter } from "@/lib/strategies/format"
+import { formatShares, formatUsd, getStrategyStatus, sharePriceFormatter } from "@/lib/strategies/format"
 import type { StrategyMeta } from "@/lib/strategies/registry"
 import type { StrategyState } from "@/lib/strategies/types"
 import type { useStrategyAction } from "@/lib/strategies/use-strategy-action"
@@ -61,7 +61,7 @@ export function StrategyActionDialog({
   // While a round is live, both sides queue: deposits convert at the next
   // settlement, withdrawals settle at the next round.
   const queued = duringRound
-  const token = isDeposit ? "DUSDC" : meta.shareSymbol
+  const token = isDeposit ? "DUSDC" : "Shares"
 
   const title = isDeposit
     ? queued
@@ -69,7 +69,7 @@ export function StrategyActionDialog({
       : "Deposit DUSDC"
     : queued
       ? "Request withdrawal"
-      : `Withdraw ${meta.shareSymbol}`
+      : "Withdraw shares"
 
   const submitLabel = isSubmitting
     ? "Submitting"
@@ -83,14 +83,14 @@ export function StrategyActionDialog({
 
   // Plain-language notice explaining the queued lifecycle (shown only mid-round).
   const queueNotice = isDeposit
-    ? `A round is live, so this deposit is parked and converts to ${meta.shareSymbol} at the next settlement — at that round's price, not today's. Refundable 1:1 until then.`
-    : `A round is live, so this exits through the withdrawal queue and settles at the next round's price. Cancellable until then.`
+    ? "A round is live, so this deposit is parked and converts to shares at the next settlement — at that round's price, not today's. Refundable 1:1 until then."
+    : "A round is live, so this exits through the withdrawal queue and settles at the next round's price. Cancellable until then."
 
   const estLabel = isDeposit
     ? queued
-      ? `Est. ${meta.shareSymbol} (next settlement)`
-      : `Est. ${meta.shareSymbol}`
-    : "Est. DUSDC"
+      ? "Est. shares (next settlement)"
+      : "Est. shares"
+    : "Est. value"
 
   return (
     <Dialog onOpenChange={handleDialogOpenChange} open={dialogOpen}>
@@ -132,7 +132,7 @@ export function StrategyActionDialog({
               actionBalance === undefined
                 ? "--"
                 : isDeposit
-                  ? formatDusdc(actionBalance, 4)
+                  ? formatUsd(actionBalance, 4)
                   : formatShares(actionBalance)
             }
           />
@@ -143,10 +143,10 @@ export function StrategyActionDialog({
                 ? depositSharesQuote
                   ? formatShares(depositSharesQuote)
                   : "--"
-                : formatDusdc(withdrawQuote, 4)
+                : formatUsd(withdrawQuote, 4)
             }
           />
-          <PanelRow label={`${meta.shareSymbol} price`} value={`${sharePriceFormatter.format(state.sharePrice)} DUSDC`} />
+          <PanelRow label="Share price" value={`$${sharePriceFormatter.format(state.sharePrice)}`} />
           <PanelRow label="Status" value={getStrategyStatus(state)} />
           {queued ? (
             <PanelRow label={isDeposit ? "Converts" : "Settles"} value="Next round" />

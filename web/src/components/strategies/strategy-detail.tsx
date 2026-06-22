@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button"
 import {
   formatBps,
   formatCount,
-  formatDusdc,
   formatShares,
   formatStrikeUsd,
+  formatUsd,
   getStrategyStatus,
   positionValue,
   sharePriceFormatter,
@@ -60,13 +60,13 @@ function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyStat
         <div className="min-w-0">
           <div className="text-xs text-muted-foreground">NAV</div>
           <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
-            {formatDusdc(state.nav)}
+            {formatUsd(state.nav)}
           </div>
         </div>
         <div className="min-w-0 text-right">
-          <div className="text-xs text-muted-foreground">{meta.shareSymbol} price</div>
+          <div className="text-xs text-muted-foreground">Share price</div>
           <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
-            {sharePriceFormatter.format(state.sharePrice)}
+            ${sharePriceFormatter.format(state.sharePrice)}
           </div>
         </div>
       </div>
@@ -77,9 +77,9 @@ function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyStat
 
       <div className="mt-5">
         {meta.hasPlp ? (
-          <DataRow label="PLP deployed" value={formatDusdc(state.plpCostBasis ?? 0n)} />
+          <DataRow label="PLP deployed" value={formatUsd(state.plpCostBasis ?? 0n)} />
         ) : null}
-        <DataRow label={`${meta.shareSymbol} supply`} value={formatShares(state.shareSupply)} />
+        <DataRow label="Share supply" value={formatShares(state.shareSupply)} />
         {state.reservedBaseShares > 0n ? (
           <DataRow label="Reserved (claims)" value={formatShares(state.reservedBaseShares)} />
         ) : null}
@@ -172,11 +172,11 @@ function useMounted() {
   return mounted
 }
 
-function PositionPromptStatic({ shareSymbol }: { shareSymbol: string }) {
+function PositionPromptStatic() {
   return (
     <div className="mt-4 flex flex-1 flex-col">
       <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-        Connect your wallet to deposit DUSDC and hold {shareSymbol}. No borrowing, no liquidation.
+        Connect your wallet to deposit DUSDC and hold shares. No borrowing, no liquidation.
       </p>
       <div className="mt-auto pt-5">
         <div aria-hidden="true" className="h-9 w-full animate-pulse rounded-md bg-muted/40" />
@@ -195,7 +195,7 @@ function PositionPanel({ meta, state }: { meta: StrategyMeta; state: StrategySta
       {mounted ? (
         <PositionBody meta={meta} state={state} />
       ) : (
-        <PositionPromptStatic shareSymbol={meta.shareSymbol} />
+        <PositionPromptStatic />
       )}
     </div>
   )
@@ -213,14 +213,14 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
           <div className="mt-4">
             <div className="text-xs text-muted-foreground">Position value</div>
             <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
-              {formatDusdc(value)}
+              {formatUsd(value)}
             </div>
           </div>
           <div className="mt-5">
-            <DataRow label="DUSDC balance" value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "—"} />
-            <DataRow label={`${meta.shareSymbol} balance`} value={wallet ? formatShares(wallet.shareBalance) : "—"} />
+            <DataRow label="DUSDC balance" value={wallet ? formatUsd(wallet.dusdcBalance, 4) : "—"} />
+            <DataRow label="Share balance" value={wallet ? formatShares(wallet.shareBalance) : "—"} />
           </div>
-          <StrategyLifecycle controller={controller} meta={meta} />
+          <StrategyLifecycle controller={controller} />
           <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
             <Button className="active:scale-[0.96]" onClick={() => openDialog("deposit")} type="button">
               Deposit DUSDC
@@ -233,7 +233,7 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
       ) : (
         <div className="mt-4 flex flex-1 flex-col">
           <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-            Connect your wallet to deposit DUSDC and hold {meta.shareSymbol}. No borrowing, no liquidation.
+            Connect your wallet to deposit DUSDC and hold shares. No borrowing, no liquidation.
           </p>
           <div className="mt-auto pt-5">
             <Button className="w-full active:scale-[0.96]" onClick={connect} type="button">

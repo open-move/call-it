@@ -3,7 +3,7 @@ import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { formatRelativeTime } from "@/lib/format"
-import { formatQuoteAmount, formatAddress } from "@/lib/earn/format"
+import { formatQuoteAmount, formatQuoteUsd, formatAddress } from "@/lib/earn/format"
 import { getAccountUrl, getTransactionUrl } from "@/lib/earn/activity"
 import type { LpActivity } from "@/lib/earn/activity"
 import { cn } from "@/lib/utils"
@@ -71,7 +71,7 @@ export function ActivityCard({ activity }: { activity: LpActivity[] }) {
                 />
                 <LabeledActivityValue
                   label="DUSDC"
-                  value={formatQuoteAmount(event.amount)}
+                  value={formatQuoteUsd(event.amount)}
                 />
                 <LabeledActivityValue
                   label="PLP"
