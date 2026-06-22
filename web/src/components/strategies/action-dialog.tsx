@@ -63,10 +63,12 @@ export function StrategyActionDialog({
   const queued = duringRound
   const token = isDeposit ? "DUSDC" : "Shares"
 
+  // A deposit is a deposit whether or not a round is live; the only difference is
+  // when the shares land, which the preview shows quietly. So the action keeps
+  // its plain name instead of becoming "Queue deposit". Withdrawing mid-round is
+  // a genuinely deferred action, so it stays "Request withdrawal".
   const title = isDeposit
-    ? queued
-      ? "Queue deposit"
-      : "Deposit DUSDC"
+    ? "Deposit DUSDC"
     : queued
       ? "Request withdrawal"
       : "Withdraw shares"
@@ -74,23 +76,18 @@ export function StrategyActionDialog({
   const submitLabel = isSubmitting
     ? "Submitting"
     : isDeposit
-      ? queued
-        ? "Queue deposit"
-        : "Deposit DUSDC"
+      ? "Deposit DUSDC"
       : queued
         ? "Request withdrawal"
         : "Withdraw"
 
-  // Plain-language notice explaining the queued lifecycle (shown only mid-round).
+  // One calm line of reassurance mid-round (not an alarm); the timing itself is
+  // in the preview's "Available"/"Settles" row.
   const queueNotice = isDeposit
-    ? "Parked now, converted to shares at the next settlement. Refundable until then."
-    : "Exits through the queue and settles at the next round. Cancellable until then."
+    ? "Refundable until it settles next round."
+    : "Settles at the next round. Cancellable until then."
 
-  const estLabel = isDeposit
-    ? queued
-      ? "Est. shares (next settlement)"
-      : "Est. shares"
-    : "Est. value"
+  const estLabel = isDeposit ? "Est. shares" : "Est. value"
 
   return (
     <Dialog onOpenChange={handleDialogOpenChange} open={dialogOpen}>
@@ -149,7 +146,7 @@ export function StrategyActionDialog({
           <PanelRow label="Share price" value={`$${sharePriceFormatter.format(state.sharePrice)}`} />
           <PanelRow label="Status" value={getStrategyStatus(state)} />
           {queued ? (
-            <PanelRow label={isDeposit ? "Converts" : "Settles"} value="Next round" />
+            <PanelRow label={isDeposit ? "Available" : "Settles"} value="Next round" />
           ) : null}
         </div>
 
