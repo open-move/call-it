@@ -17,7 +17,12 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "CallIt Predict",
+        title: "CallIt — The prediction superapp for Sui",
+      },
+      {
+        name: "description",
+        content:
+          "CallIt is the prediction superapp for DeepBook Predict on Sui: a trading terminal, a social arena, strategy vaults, a liquidity pool, and keeper infrastructure in one app. On-chain, oracle-settled, non-custodial.",
       },
     ],
     links: [

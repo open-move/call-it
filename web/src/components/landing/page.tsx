@@ -444,7 +444,7 @@ function Hero() {
             : { filter: heroBlur, opacity: heroOpacity, scale: heroScale }
         }
       >
-        <Eyebrow>The hub for prediction on Sui</Eyebrow>
+        <Eyebrow>The prediction superapp for Sui</Eyebrow>
         <h1 className="mt-5 text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
           Make your call.
         </h1>
@@ -454,7 +454,7 @@ function Hero() {
           <span className="font-mono font-medium text-primary">
             DeepBook Predict
           </span>
-          , in one place.
+          , in one app.
         </p>
         <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
           <PrimaryCta>Open app</PrimaryCta>
@@ -677,13 +677,16 @@ function Protocol() {
       <div className="mx-auto grid max-w-[80rem] gap-10 px-4 py-24 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-32">
         <Reveal>
           <h2 className="text-3xl leading-[1.05] font-semibold tracking-tight text-balance text-foreground md:text-5xl">
-            Settled on DeepBook Predict.
+            Built on DeepBook Predict.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
-            CallIt is the consumer hub for DeepBook Predict on Sui. One place to
-            trade, follow, provide liquidity, or keep the market running. Markets,
-            premiums and settlement all live on-chain, so every outcome is
-            transparent and can't be quietly changed.
+            CallIt is the prediction superapp for DeepBook Predict: a terminal,
+            an arena, strategy vaults, a liquidity pool, and keeper
+            infrastructure in one app. Every position is a native Predict
+            position and every deposit is book liquidity, so CallIt composes the
+            protocol instead of competing with it. Markets, premiums and
+            settlement all stay on-chain, transparent and impossible to quietly
+            change.
           </p>
         </Reveal>
         <Reveal className="space-y-6" delay={0.12}>
