@@ -1,4 +1,5 @@
 import { PREDICT_OBJECT_ID, PREDICT_SERVER_URL } from "@/lib/config"
+import { type CacheOptions, TtlCache } from "@/lib/server-cache"
 import type {
   DirectionalPositionMintEvent,
   DirectionalPositionRedeemEvent,
@@ -693,7 +694,24 @@ function parseLpWithdrawalEventArray(value: unknown): LpWithdrawalEvent[] {
   return value.map(parseLpWithdrawalEvent)
 }
 
-async function readPredictJson<T>(
+// Shared cache for read-only Predict stats. Keyed by request path (which
+// includes query params), so distinct ranges / limits cache independently.
+const predictCache = new TtlCache()
+
+// Tunable cache windows. Short enough that stats still feel live, long enough to
+// collapse bursts of identical SSR loads into a single upstream call. Each entry
+// keeps serving for STALE_GRACE_MS past expiry if the Predict server errors.
+const STALE_GRACE_MS = 5 * 60_000
+export const PREDICT_CACHE = {
+  /** Vault summary, oracle list — move often, want near-live. */
+  STATS: { staleMs: STALE_GRACE_MS, ttlMs: 30_000 },
+  /** LP supply / withdrawal feeds. */
+  ACTIVITY: { staleMs: STALE_GRACE_MS, ttlMs: 60_000 },
+  /** Vault performance history — coarse, changes slowly. */
+  HISTORY: { staleMs: STALE_GRACE_MS, ttlMs: 5 * 60_000 },
+} satisfies Record<string, CacheOptions>
+
+async function fetchPredictJson<T>(
   path: string,
   parse: (value: unknown) => T
 ): Promise<T> {
@@ -712,10 +730,25 @@ async function readPredictJson<T>(
   return parse(await response.json())
 }
 
+/// Read a Predict endpoint. Pass `cache` to serve through the shared TTL cache
+/// (deduped + stale-on-error); omit it for always-fresh, per-request reads.
+async function readPredictJson<T>(
+  path: string,
+  parse: (value: unknown) => T,
+  cache?: CacheOptions
+): Promise<T> {
+  if (cache === undefined) {
+    return fetchPredictJson(path, parse)
+  }
+
+  return predictCache.fetch(path, () => fetchPredictJson(path, parse), cache)
+}
+
 export function getPredictOracles() {
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/oracles`,
-    parseOracleInfoArray
+    parseOracleInfoArray,
+    PREDICT_CACHE.STATS
   )
 }
 
@@ -737,7 +770,8 @@ export function getOraclePrices(oracleId: string, limit: number) {
 export function getPredictVaultSummary() {
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/vault/summary`,
-    parseVaultSummary
+    parseVaultSummary,
+    PREDICT_CACHE.STATS
   )
 }
 
@@ -746,7 +780,8 @@ export function getPredictVaultPerformance(range = "ALL") {
 
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/vault/performance?${params.toString()}`,
-    parseVaultPerformanceResponse
+    parseVaultPerformanceResponse,
+    PREDICT_CACHE.HISTORY
   )
 }
 
@@ -759,7 +794,8 @@ export function getDirectionalPositionMints(limit: number, oracleId?: string) {
 
   return readPredictJson(
     `/positions/minted?${params.toString()}`,
-    parseDirectionalPositionMintEventArray
+    parseDirectionalPositionMintEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -775,7 +811,8 @@ export function getDirectionalPositionRedeems(
 
   return readPredictJson(
     `/positions/redeemed?${params.toString()}`,
-    parseDirectionalPositionRedeemEventArray
+    parseDirectionalPositionRedeemEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -788,7 +825,8 @@ export function getRangeMints(limit: number, oracleId?: string) {
 
   return readPredictJson(
     `/ranges/minted?${params.toString()}`,
-    parseRangeMintEventArray
+    parseRangeMintEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -801,7 +839,8 @@ export function getRangeRedeems(limit: number, oracleId?: string) {
 
   return readPredictJson(
     `/ranges/redeemed?${params.toString()}`,
-    parseRangeRedeemEventArray
+    parseRangeRedeemEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -810,7 +849,8 @@ export function getLpSupplies(limit: number) {
 
   return readPredictJson(
     `/lp/supplies?${params.toString()}`,
-    parseLpSupplyEventArray
+    parseLpSupplyEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -819,7 +859,8 @@ export function getLpWithdrawals(limit: number) {
 
   return readPredictJson(
     `/lp/withdrawals?${params.toString()}`,
-    parseLpWithdrawalEventArray
+    parseLpWithdrawalEventArray,
+    PREDICT_CACHE.ACTIVITY
   )
 }
 
