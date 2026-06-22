@@ -3,18 +3,40 @@ import { node } from "@elysiajs/node"
 import { Elysia } from "elysia"
 
 import type { Config } from "./config.ts"
-import type { Repository } from "./db/repo.ts"
+import type { PositionStatusFilter, Repository } from "./db/repo.ts"
 import { logger, toLogFields } from "./logger.ts"
 import type { SuiClient } from "./sui.ts"
 import { getSuiBalance, loadRedeemKeypair } from "./sui.ts"
+
+const DEFAULT_LIMIT = 25
+const MAX_LIMIT = 100
+
+function parseLimit(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.min(Math.trunc(parsed), MAX_LIMIT)
+    : DEFAULT_LIMIT
+}
+
+function parseOffset(value: unknown): number {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : 0
+}
+
+function parsePositionStatus(value: unknown): PositionStatusFilter {
+  return value === "open" || value === "settled" || value === "redeemable"
+    ? value
+    : "all"
+}
 
 /// Read-only operational snapshot: DB counts, scan lag vs chain head, keeper gas
 /// balance, and reward-vault binding. Degrades gracefully if the chain is
 /// unreachable so the dashboard still renders DB state.
 async function buildStatus(config: Config, client: SuiClient, repo: Repository) {
-  const [counts, lastScannedCheckpoint] = await Promise.all([
+  const [counts, lastScannedCheckpoint, summary] = await Promise.all([
     repo.counts(),
     repo.getLastScannedCheckpoint(),
+    repo.summaryCounts(),
   ])
 
   let latestCheckpoint: bigint | null = null
@@ -48,6 +70,8 @@ async function buildStatus(config: Config, client: SuiClient, repo: Repository) 
     lastScannedCheckpoint,
     latestCheckpoint,
     minSuiBalance: config.minSuiBalance,
+    redeemableCount: summary.redeemable,
+    redeemedCount: summary.redeemed,
     rewardVaultId: config.rewardVaultId,
   }
 }
@@ -57,8 +81,24 @@ export function buildStatusApp(config: Config, client: SuiClient, repo: Reposito
     .use(cors())
     .get("/healthz", () => ({ ok: true }))
     .get("/status", () => buildStatus(config, client, repo).then(toLogFields))
-    .get("/positions", () => repo.listPositions().then(toLogFields))
-    .get("/txs", () => repo.listTxs().then(toLogFields))
+    .get("/positions", ({ query }) =>
+      repo
+        .listPositions({
+          limit: parseLimit(query.limit),
+          offset: parseOffset(query.offset),
+          status: parsePositionStatus(query.status),
+        })
+        .then(toLogFields)
+    )
+    .get("/txs", ({ query }) =>
+      repo
+        .listTxs({
+          limit: parseLimit(query.limit),
+          offset: parseOffset(query.offset),
+          status: typeof query.status === "string" && query.status ? query.status : "all",
+        })
+        .then(toLogFields)
+    )
     .get("/reconcile-errors", () => repo.listReconcileErrors().then(toLogFields))
 }
 

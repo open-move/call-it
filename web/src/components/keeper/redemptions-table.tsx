@@ -1,4 +1,5 @@
 import { ArrowUpRightIcon } from "lucide-react"
+import { useEffect, useState } from "react"
 
 import { Badge } from "@/components/primitives/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -10,9 +11,21 @@ import {
   truncateMiddle,
   txStatusMeta,
 } from "@/lib/keeper/helpers"
-import type { KeeperTx } from "@/services/keeper-client"
+import { fetchKeeperTxs, type KeeperTx } from "@/services/keeper-client"
+
+import { KEEPER_PAGE_SIZE, Pager, StatusFilter } from "./table-controls"
 
 const COLUMNS = "grid-cols-[7rem_minmax(9rem,1fr)_7rem_8rem_7rem_6rem]"
+
+// Fixed keeper tx statuses, used as server-side filter values.
+const STATUS_OPTIONS = [
+  { label: "All", value: "all" },
+  { label: txStatusMeta("succeeded").label, value: "succeeded" },
+  { label: txStatusMeta("submitted").label, value: "submitted" },
+  { label: txStatusMeta("sim_failed").label, value: "sim_failed" },
+  { label: txStatusMeta("failed").label, value: "failed" },
+  { label: txStatusMeta("dry_run").label, value: "dry_run" },
+]
 
 function sideFromKey(positionKey: string): string {
   const side = positionKey.split("|").at(-1)
@@ -64,7 +77,37 @@ function RedemptionRow({ tx }: { tx: KeeperTx }) {
   )
 }
 
-export function RedemptionsLedger({ txs }: { txs: KeeperTx[] }) {
+export function RedemptionsLedger() {
+  const [status, setStatus] = useState("all")
+  const [page, setPage] = useState(0)
+  const [rows, setRows] = useState<KeeperTx[]>([])
+  const [total, setTotal] = useState(0)
+  const [state, setState] = useState<"error" | "loading" | "ready">("loading")
+
+  useEffect(() => {
+    let stale = false
+    setState("loading")
+    fetchKeeperTxs({ page, pageSize: KEEPER_PAGE_SIZE, status })
+      .then((result) => {
+        if (stale) {
+          return
+        }
+        setRows(result.rows)
+        setTotal(result.total)
+        setState("ready")
+      })
+      .catch(() => {
+        if (!stale) {
+          setState("error")
+        }
+      })
+    return () => {
+      stale = true
+    }
+  }, [page, status])
+
+  const pageCount = Math.max(1, Math.ceil(total / KEEPER_PAGE_SIZE))
+
   return (
     <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
       <CardContent className="p-0">
@@ -72,9 +115,14 @@ export function RedemptionsLedger({ txs }: { txs: KeeperTx[] }) {
           <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
             Redemptions
           </div>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
-            {txs.length.toLocaleString("en-US")} attempts
-          </div>
+          <StatusFilter
+            onChange={(next) => {
+              setStatus(next)
+              setPage(0)
+            }}
+            options={STATUS_OPTIONS}
+            value={status}
+          />
         </div>
         <div className="overflow-auto border-t border-border/45">
           <div className="min-w-[48rem]">
@@ -86,16 +134,34 @@ export function RedemptionsLedger({ txs }: { txs: KeeperTx[] }) {
               <span className="text-right">Tx</span>
               <span className="text-right">When</span>
             </div>
-            {txs.length > 0 ? (
-              txs.map((tx) => <RedemptionRow key={tx.digest} tx={tx} />)
+            {state === "error" ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Couldn't reach the keeper API.
+              </div>
+            ) : state === "loading" ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Loading redemptions…
+              </div>
+            ) : rows.length > 0 ? (
+              rows.map((tx) => <RedemptionRow key={tx.digest} tx={tx} />)
             ) : (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                No redemptions yet. The keeper records one here each time it
-                redeems a settled position.
+                {status === "all"
+                  ? "No redemptions yet. The keeper records one here each time it redeems a settled position."
+                  : "No redemptions match this filter."}
               </div>
             )}
           </div>
         </div>
+        {state === "ready" ? (
+          <Pager
+            onPage={setPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={KEEPER_PAGE_SIZE}
+            total={total}
+          />
+        ) : null}
       </CardContent>
     </Card>
   )

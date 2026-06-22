@@ -1,10 +1,21 @@
+import { useEffect, useState } from "react"
+
 import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { PREDICT_PRICE_SCALE } from "@/lib/config"
 import { formatCount, formatDusdc, sideLabel, truncateMiddle } from "@/lib/keeper/helpers"
-import type { KeeperPosition } from "@/services/keeper-client"
+import { fetchKeeperPositions, type KeeperPosition } from "@/services/keeper-client"
+
+import { KEEPER_PAGE_SIZE, Pager, StatusFilter } from "./table-controls"
 
 const COLUMNS = "grid-cols-[minmax(9rem,1fr)_7rem_7rem_8rem_8rem_7rem]"
+
+const STATUS_OPTIONS = [
+  { label: "All states", value: "all" },
+  { label: "Open", value: "open" },
+  { label: "Settled", value: "settled" },
+  { label: "Redeemable", value: "redeemable" },
+]
 
 export function isRedeemable(position: KeeperPosition): boolean {
   if (!position.settled || position.settlementPrice === null || Number(position.openQty) <= 0) {
@@ -58,13 +69,36 @@ function PositionRow({ position }: { position: KeeperPosition }) {
   )
 }
 
-export function PositionsTable({ positions }: { positions: KeeperPosition[] }) {
-  // Surface redeemable-now and open positions first.
-  const ordered = [...positions].sort((left, right) => {
-    const score = (position: KeeperPosition) =>
-      (isRedeemable(position) ? 2 : 0) + (Number(position.openQty) > 0 ? 1 : 0)
-    return score(right) - score(left)
-  })
+export function PositionsTable() {
+  const [status, setStatus] = useState("all")
+  const [page, setPage] = useState(0)
+  const [rows, setRows] = useState<KeeperPosition[]>([])
+  const [total, setTotal] = useState(0)
+  const [state, setState] = useState<"error" | "loading" | "ready">("loading")
+
+  useEffect(() => {
+    let stale = false
+    setState("loading")
+    fetchKeeperPositions({ page, pageSize: KEEPER_PAGE_SIZE, status })
+      .then((result) => {
+        if (stale) {
+          return
+        }
+        setRows(result.rows)
+        setTotal(result.total)
+        setState("ready")
+      })
+      .catch(() => {
+        if (!stale) {
+          setState("error")
+        }
+      })
+    return () => {
+      stale = true
+    }
+  }, [page, status])
+
+  const pageCount = Math.max(1, Math.ceil(total / KEEPER_PAGE_SIZE))
 
   return (
     <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
@@ -73,9 +107,14 @@ export function PositionsTable({ positions }: { positions: KeeperPosition[] }) {
           <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
             Tracked positions
           </div>
-          <div className="font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
-            {positions.length.toLocaleString("en-US")} indexed
-          </div>
+          <StatusFilter
+            onChange={(next) => {
+              setStatus(next)
+              setPage(0)
+            }}
+            options={STATUS_OPTIONS}
+            value={status}
+          />
         </div>
         <div className="overflow-auto border-t border-border/45">
           <div className="min-w-[48rem]">
@@ -87,15 +126,34 @@ export function PositionsTable({ positions }: { positions: KeeperPosition[] }) {
               <span className="text-right">Payout</span>
               <span className="text-right">Action</span>
             </div>
-            {ordered.length > 0 ? (
-              ordered.map((position) => <PositionRow key={position.key} position={position} />)
+            {state === "error" ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Couldn't reach the keeper API.
+              </div>
+            ) : state === "loading" ? (
+              <div className="px-3 py-8 text-center text-sm text-muted-foreground">
+                Loading positions…
+              </div>
+            ) : rows.length > 0 ? (
+              rows.map((position) => <PositionRow key={position.key} position={position} />)
             ) : (
               <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-                No positions indexed yet from the keeper's start checkpoint.
+                {status === "all"
+                  ? "No positions indexed yet from the keeper's start checkpoint."
+                  : "No positions match this filter."}
               </div>
             )}
           </div>
         </div>
+        {state === "ready" ? (
+          <Pager
+            onPage={setPage}
+            page={page}
+            pageCount={pageCount}
+            pageSize={KEEPER_PAGE_SIZE}
+            total={total}
+          />
+        ) : null}
       </CardContent>
     </Card>
   )

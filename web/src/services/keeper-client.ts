@@ -29,6 +29,8 @@ const statusSchema = z.object({
   lastScannedCheckpoint: z.string().nullable(),
   latestCheckpoint: z.string().nullable(),
   minSuiBalance: z.string(),
+  redeemableCount: z.number(),
+  redeemedCount: z.number(),
   rewardVaultId: z.string().nullable(),
 })
 
@@ -68,20 +70,30 @@ const reconcileErrorSchema = z.object({
   transactionDigest: z.string(),
 })
 
-const positionsSchema = z.array(positionSchema)
-const txsSchema = z.array(txSchema)
 const reconcileErrorsSchema = z.array(reconcileErrorSchema)
+
+const positionsPageSchema = z.object({
+  rows: z.array(positionSchema),
+  total: z.number(),
+})
+const txsPageSchema = z.object({
+  rows: z.array(txSchema),
+  total: z.number(),
+})
 
 export type KeeperStatus = z.infer<typeof statusSchema>
 export type KeeperPosition = z.infer<typeof positionSchema>
 export type KeeperTx = z.infer<typeof txSchema>
 export type KeeperReconcileError = z.infer<typeof reconcileErrorSchema>
 
+export interface KeeperPage<T> {
+  rows: T[]
+  total: number
+}
+
 export interface KeeperSnapshot {
-  positions: KeeperPosition[]
   reconcileErrors: KeeperReconcileError[]
   status: KeeperStatus
-  txs: KeeperTx[]
 }
 
 async function fetchKeeper<T>(path: string, schema: z.ZodType<T>): Promise<T> {
@@ -108,14 +120,43 @@ async function fetchKeeper<T>(path: string, schema: z.ZodType<T>): Promise<T> {
 /// fabricated data.
 export async function getKeeperSnapshot(): Promise<KeeperSnapshot | null> {
   try {
-    const [status, positions, txs, reconcileErrors] = await Promise.all([
+    const [status, reconcileErrors] = await Promise.all([
       fetchKeeper("/status", statusSchema),
-      fetchKeeper("/positions", positionsSchema),
-      fetchKeeper("/txs", txsSchema),
       fetchKeeper("/reconcile-errors", reconcileErrorsSchema),
     ])
-    return { positions, reconcileErrors, status, txs }
+    return { reconcileErrors, status }
   } catch {
     return null
   }
+}
+
+function buildPageQuery(params: {
+  page: number
+  pageSize: number
+  status: string
+}): string {
+  const search = new URLSearchParams({
+    limit: String(params.pageSize),
+    offset: String(params.page * params.pageSize),
+  })
+  if (params.status !== "all") {
+    search.set("status", params.status)
+  }
+  return search.toString()
+}
+
+export function fetchKeeperPositions(params: {
+  page: number
+  pageSize: number
+  status: string
+}): Promise<KeeperPage<KeeperPosition>> {
+  return fetchKeeper(`/positions?${buildPageQuery(params)}`, positionsPageSchema)
+}
+
+export function fetchKeeperTxs(params: {
+  page: number
+  pageSize: number
+  status: string
+}): Promise<KeeperPage<KeeperTx>> {
+  return fetchKeeper(`/txs?${buildPageQuery(params)}`, txsPageSchema)
 }

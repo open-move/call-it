@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm"
 
 import type { Database, PositionState, StoredRawEvent, TransactionStatus } from "./database.ts"
 import { checkpointValueSchema, countRowSchema, positionFromRow, rawEventFromRow } from "./database.ts"
@@ -7,6 +7,46 @@ import type { OracleSettledEvent, PositionMintedEvent, PositionRedeemedEvent } f
 import { positionKey } from "../predict.ts"
 
 const LAST_SCANNED_CHECKPOINT = "last_scanned_checkpoint"
+
+export type PositionStatusFilter = "all" | "open" | "redeemable" | "settled"
+
+export interface PageOptions {
+  limit: number
+  offset: number
+}
+
+export interface Page<T> {
+  rows: T[]
+  total: number
+}
+
+// "Redeemable now": settled, still open, settlement known, and the held side
+// won. Numeric columns are TEXT (bigint strings), so CAST for comparisons —
+// Predict prices/quantities fit comfortably in a signed 64-bit integer.
+const redeemablePredicate = sql`
+  ${positions.settled} = 1
+  AND CAST(${positions.openQty} AS INTEGER) > 0
+  AND ${positions.settlementPrice} IS NOT NULL
+  AND (
+    (${positions.isUp} = 1 AND CAST(${positions.settlementPrice} AS INTEGER) > CAST(${positions.strike} AS INTEGER))
+    OR (${positions.isUp} = 0 AND CAST(${positions.settlementPrice} AS INTEGER) <= CAST(${positions.strike} AS INTEGER))
+  )
+`
+
+function positionWhere(status: PositionStatusFilter) {
+  switch (status) {
+    case "open":
+      return eq(positions.settled, false)
+    case "settled":
+      // Settled but not yet redeemable (lost, or already redeemed) — mutually
+      // exclusive with the "redeemable" bucket shown in the UI.
+      return and(eq(positions.settled, true), sql`NOT (${redeemablePredicate})`)
+    case "redeemable":
+      return redeemablePredicate
+    default:
+      return undefined
+  }
+}
 
 export class Repository {
   constructor(private readonly database: Database) {}
@@ -181,9 +221,41 @@ export class Repository {
       .where(eq(positions.key, key))
   }
 
-  async listPositions() {
-    const rows = await this.database.db.query.positions.findMany()
-    return rows.map(positionFromRow)
+  async listPositions(
+    options: PageOptions & { status: PositionStatusFilter }
+  ): Promise<Page<PositionState>> {
+    const where = positionWhere(options.status)
+    const rows = await this.database.db.query.positions.findMany({
+      limit: options.limit,
+      offset: options.offset,
+      // Redeemable-now first, then still-open, then most recently touched.
+      orderBy: [
+        sql`(CASE WHEN (${redeemablePredicate}) THEN 2 ELSE 0 END) + (CASE WHEN CAST(${positions.openQty} AS INTEGER) > 0 THEN 1 ELSE 0 END) DESC`,
+        desc(positions.lastCheckpoint),
+      ],
+      where,
+    })
+    const totalResult = await this.database.db
+      .select({ total: sql<number>`count(*)` })
+      .from(positions)
+      .where(where)
+    return { rows: rows.map(positionFromRow), total: totalResult[0]?.total ?? 0 }
+  }
+
+  /// Heartbeat figures the dashboard needs without paging the whole table.
+  async summaryCounts() {
+    const redeemableResult = await this.database.db
+      .select({ count: sql<number>`count(*)` })
+      .from(positions)
+      .where(redeemablePredicate)
+    const redeemedResult = await this.database.db
+      .select({ count: sql<number>`count(*)` })
+      .from(txs)
+      .where(eq(txs.status, "succeeded"))
+    return {
+      redeemable: redeemableResult[0]?.count ?? 0,
+      redeemed: redeemedResult[0]?.count ?? 0,
+    }
   }
 
   async listOpenSettledPositions() {
@@ -235,11 +307,21 @@ export class Repository {
       })
   }
 
-  async listTxs(limit = 200) {
-    return this.database.db.query.txs.findMany({
-      limit,
-      orderBy: (table, { desc }) => [desc(table.createdAt)],
+  async listTxs(
+    options: PageOptions & { status: string }
+  ): Promise<Page<typeof txs.$inferSelect>> {
+    const where = options.status === "all" ? undefined : eq(txs.status, options.status)
+    const rows = await this.database.db.query.txs.findMany({
+      limit: options.limit,
+      offset: options.offset,
+      orderBy: (table, { desc: descend }) => [descend(table.createdAt)],
+      where,
     })
+    const totalResult = await this.database.db
+      .select({ total: sql<number>`count(*)` })
+      .from(txs)
+      .where(where)
+    return { rows, total: totalResult[0]?.total ?? 0 }
   }
 
   async listReconcileErrors(limit = 200) {
