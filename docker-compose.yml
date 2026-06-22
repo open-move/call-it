@@ -47,6 +47,20 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-callit}:${POSTGRES_PASSWORD:-callit}@postgres:5432/${POSTGRES_DB:-callit_backend}
     ports:
       - "8799:8080"
+    # Traefik routing for Coolify (api.trycallit.xyz -> container :8080). The
+    # coolify-proxy shares this stack's network; these labels are what tell it
+    # which host maps to which service. Ignored by plain `docker-compose up`.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.callit-api-http.entrypoints=http"
+      - "traefik.http.routers.callit-api-http.rule=Host(`api.trycallit.xyz`)"
+      - "traefik.http.routers.callit-api-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.callit-api-https.entrypoints=https"
+      - "traefik.http.routers.callit-api-https.rule=Host(`api.trycallit.xyz`)"
+      - "traefik.http.routers.callit-api-https.tls=true"
+      - "traefik.http.routers.callit-api-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.callit-api-https.service=callit-api"
+      - "traefik.http.services.callit-api.loadbalancer.server.port=8080"
     restart: unless-stopped
 
   operator:
@@ -66,6 +80,20 @@ services:
       PORT: "3000"
     ports:
       - "${WEB_PORT:-3000}:3000"
+    # Traefik routing for Coolify (trycallit.xyz -> container :3000). This
+    # service also declares the shared redirect-to-https middleware.
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.callit-web-http.entrypoints=http"
+      - "traefik.http.routers.callit-web-http.rule=Host(`trycallit.xyz`)"
+      - "traefik.http.routers.callit-web-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.callit-web-https.entrypoints=https"
+      - "traefik.http.routers.callit-web-https.rule=Host(`trycallit.xyz`)"
+      - "traefik.http.routers.callit-web-https.tls=true"
+      - "traefik.http.routers.callit-web-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.callit-web-https.service=callit-web"
+      - "traefik.http.services.callit-web.loadbalancer.server.port=3000"
     restart: unless-stopped
 
   keeper:
@@ -80,6 +108,18 @@ services:
       KEEPER_START_FROM_LATEST: "true"
     ports:
       - "8801:8801"
+    # Traefik routing for Coolify (keeper-api.trycallit.xyz -> container :8801).
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.callit-keeper-http.entrypoints=http"
+      - "traefik.http.routers.callit-keeper-http.rule=Host(`keeper-api.trycallit.xyz`)"
+      - "traefik.http.routers.callit-keeper-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.callit-keeper-https.entrypoints=https"
+      - "traefik.http.routers.callit-keeper-https.rule=Host(`keeper-api.trycallit.xyz`)"
+      - "traefik.http.routers.callit-keeper-https.tls=true"
+      - "traefik.http.routers.callit-keeper-https.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.callit-keeper-https.service=callit-keeper"
+      - "traefik.http.services.callit-keeper.loadbalancer.server.port=8801"
     volumes:
       - callit-keeper:/app/data
     restart: unless-stopped
