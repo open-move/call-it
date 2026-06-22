@@ -1,18 +1,28 @@
-import { Badge, BadgeTone } from "@/components/primitives/badge"
+import { BadgeTone } from "@/components/primitives/badge"
 import { Panel } from "@/components/primitives/panel"
 import { formatCount, truncateMiddle } from "@/lib/keeper/helpers"
 import type { KeeperReconcileError } from "@/services/keeper-client"
 
-export function QuarantinePanel({ errors }: { errors: KeeperReconcileError[] }) {
+import { StatusDot } from "./table-controls"
+
+export function QuarantinePanel({
+  errors,
+}: {
+  errors: KeeperReconcileError[]
+}) {
   return (
     <Panel className="space-y-3">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Reconcile quarantine
         </div>
-        <Badge tone={errors.length > 0 ? BadgeTone.Warning : BadgeTone.Neutral}>
-          {errors.length > 0 ? `${formatCount(errors.length)} quarantined` : "Clean"}
-        </Badge>
+        <StatusDot
+          tone={errors.length > 0 ? BadgeTone.Warning : BadgeTone.Neutral}
+        >
+          {errors.length > 0
+            ? `${formatCount(errors.length)} quarantined`
+            : "Clean"}
+        </StatusDot>
       </div>
 
       {errors.length > 0 ? (
@@ -37,7 +47,7 @@ export function QuarantinePanel({ errors }: { errors: KeeperReconcileError[] }) 
           ))}
         </ul>
       ) : (
-        <p className="text-xs leading-5 text-muted-foreground text-pretty">
+        <p className="text-xs leading-5 text-pretty text-muted-foreground">
           No quarantined events. A malformed event is isolated here instead of
           stalling reconciliation, so the keeper keeps making progress.
         </p>

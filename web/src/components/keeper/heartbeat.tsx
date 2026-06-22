@@ -1,4 +1,10 @@
-import { StatusIndicator, StatusTone } from "@/components/primitives/status-indicator"
+import { RefreshCwIcon } from "lucide-react"
+
+import {
+  StatusIndicator,
+  StatusTone,
+} from "@/components/primitives/status-indicator"
+import { Button } from "@/components/ui/button"
 import type { KeeperStatus } from "@/services/keeper-client"
 import { formatCount, formatSui } from "@/lib/keeper/helpers"
 import { cn } from "@/lib/utils"
@@ -42,26 +48,52 @@ function StatCell({
   )
 }
 
-export function KeeperHeader({ status }: { status: KeeperStatus }) {
+export function KeeperHeader({
+  onRefresh,
+  refreshing = false,
+  status,
+}: {
+  onRefresh?: () => void
+  refreshing?: boolean
+  status: KeeperStatus
+}) {
   const live = !status.dryRun
   return (
     <div className="px-1 pt-1 pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
-            Settled-Redeem Keeper
+            Predict Keeper
           </h1>
           <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
-            Anyone can run it. It finds settled markets, redeems the winning
-            positions owners left unclaimed, and earns a tip from the reward vault.
+            Anyone can run it. It finds settled markets, redeems winning
+            positions their owners never claimed, and earns a tip from the
+            reward vault.
           </p>
         </div>
-        <StatusIndicator
-          className="shrink-0"
-          tone={live ? StatusTone.Live : StatusTone.Simulated}
-        >
-          {live ? "Executing redemptions" : "Simulating only"}
-        </StatusIndicator>
+        <div className="flex shrink-0 items-center gap-3">
+          <StatusIndicator
+            pulse={live}
+            tone={live ? StatusTone.Live : StatusTone.Simulated}
+          >
+            {live ? "Running" : "Simulating only"}
+          </StatusIndicator>
+          {onRefresh ? (
+            <Button
+              aria-label="Refresh"
+              className="size-7 text-muted-foreground shadow-none hover:text-foreground"
+              disabled={refreshing}
+              onClick={onRefresh}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            >
+              <RefreshCwIcon
+                className={cn("size-4", refreshing && "animate-spin")}
+              />
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>
   )
@@ -76,17 +108,27 @@ export function HeartbeatStrip({
   redeemableCount: number
   status: KeeperStatus
 }) {
-  const lag = status.checkpointLag === null ? null : Number(status.checkpointLag)
+  const lag =
+    status.checkpointLag === null ? null : Number(status.checkpointLag)
   const synced = lag !== null && lag <= 5
-  const syncValue = lag === null ? "--" : synced ? "Synced" : `${formatCount(lag)} behind`
+  const syncValue =
+    lag === null ? "--" : synced ? "Synced" : `${formatCount(lag)} behind`
   const syncMeta =
     status.latestCheckpoint === null
       ? "chain head unavailable"
       : `head ${formatCount(status.latestCheckpoint)}`
 
-  const gasValue = status.keeper ? formatSui(status.keeper.suiBalance) : "Dry run"
-  const gasMeta = status.keeper ? `min ${formatSui(status.minSuiBalance)}` : "no redeem key"
-  const gasTone: CellTone = status.keeper?.belowMinimum ? "warning" : status.keeper ? "up" : "muted"
+  const gasValue = status.keeper
+    ? formatSui(status.keeper.suiBalance)
+    : "Dry run"
+  const gasMeta = status.keeper
+    ? `min ${formatSui(status.minSuiBalance)}`
+    : "no redeem key"
+  const gasTone: CellTone = status.keeper?.belowMinimum
+    ? "warning"
+    : status.keeper
+      ? "up"
+      : "muted"
 
   return (
     <div className="overflow-hidden rounded-md bg-card">
@@ -97,7 +139,12 @@ export function HeartbeatStrip({
           tone={lag === null ? "muted" : synced ? "up" : "warning"}
           value={syncValue}
         />
-        <StatCell label="Gas tank" meta={gasMeta} tone={gasTone} value={gasValue} />
+        <StatCell
+          label="Gas tank"
+          meta={gasMeta}
+          tone={gasTone}
+          value={gasValue}
+        />
         <StatCell
           label="Redeemable now"
           meta={`${formatCount(status.counts.positions)} tracked positions`}

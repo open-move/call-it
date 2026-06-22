@@ -11,6 +11,7 @@ export enum StatusTone {
 
 export interface StatusIndicatorProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode
+  pulse?: boolean
   tone?: StatusTone
 }
 
@@ -24,6 +25,7 @@ const statusToneClassName: Record<StatusTone, string> = {
 export function StatusIndicator({
   children,
   className,
+  pulse = false,
   tone = StatusTone.Neutral,
   ...props
 }: StatusIndicatorProps) {
@@ -35,10 +37,22 @@ export function StatusIndicator({
       )}
       {...props}
     >
-      <span
-        aria-hidden="true"
-        className={cn("size-2 rounded-full", statusToneClassName[tone])}
-      />
+      <span aria-hidden="true" className="relative flex size-2">
+        {pulse ? (
+          <span
+            className={cn(
+              "absolute inset-0 animate-ping rounded-full opacity-75",
+              statusToneClassName[tone]
+            )}
+          />
+        ) : null}
+        <span
+          className={cn(
+            "relative size-2 rounded-full",
+            statusToneClassName[tone]
+          )}
+        />
+      </span>
       <span>{children}</span>
     </div>
   )

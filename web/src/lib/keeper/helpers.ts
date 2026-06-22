@@ -15,11 +15,15 @@ export function formatSui(mist: string): string {
   })} SUI`
 }
 
-export function formatDusdc(baseUnits: string): string {
-  return `${fromBaseUnits(baseUnits, PREDICT_QUOTE_DECIMALS).toLocaleString("en-US", {
+export function formatDusdc(baseUnits: string, withUnit = true): string {
+  const amount = fromBaseUnits(
+    baseUnits,
+    PREDICT_QUOTE_DECIMALS
+  ).toLocaleString("en-US", {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,
-  })} dUSDC`
+  })
+  return withUnit ? `${amount} dUSDC` : amount
 }
 
 export function formatCount(value: string | number | null): string {
@@ -42,6 +46,10 @@ export function sideLabel(isUp: boolean): string {
 
 export function suivisionTxUrl(digest: string): string {
   return `https://testnet.suivision.xyz/txblock/${digest}`
+}
+
+export function suivisionObjectUrl(objectId: string): string {
+  return `https://testnet.suivision.xyz/object/${objectId}`
 }
 
 export interface TxStatusMeta {
