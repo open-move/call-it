@@ -17,7 +17,7 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "CallIt — The prediction superapp for Sui",
+        title: "CallIt: The prediction superapp for Sui",
       },
       {
         name: "description",

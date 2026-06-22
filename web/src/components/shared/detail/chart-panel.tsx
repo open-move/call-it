@@ -210,7 +210,7 @@ export function ChartPanel({
         </div>
       ) : (
         <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm text-muted-foreground">
-          No oracle price history is available for this market yet.
+          No price history yet.
         </div>
       )}
     </div>

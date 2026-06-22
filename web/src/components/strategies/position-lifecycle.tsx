@@ -94,7 +94,7 @@ export function StrategyLifecycle({
           }
           hint={
             pendingDeposit.settled
-              ? "Settled — claim your shares"
+              ? "Settled. Claim your shares."
               : "Converts to shares at the next settlement"
           }
           ready={pendingDeposit.settled}
@@ -118,7 +118,7 @@ export function StrategyLifecycle({
           }
           hint={
             pendingWithdrawal.settled
-              ? "Settled — claim your DUSDC"
+              ? "Settled. Claim your DUSDC."
               : "Settles at the next round"
           }
           ready={pendingWithdrawal.settled}

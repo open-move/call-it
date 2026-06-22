@@ -41,7 +41,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
   "hedged-plp": {
     key: "hedged-plp",
     name: "Tail-Hedge PLP",
-    tagline: "Provide Predict liquidity with a downside hedge — PLP yield minus crash insurance.",
+    tagline: "Provide Predict liquidity with a downside hedge: PLP yield minus crash insurance.",
     shareSymbol: "hPLP",
     shape: "single",
     hasPlp: true,
@@ -61,7 +61,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
   "plp-collar": {
     key: "plp-collar",
     name: "PLP Collar",
-    tagline: "Provide liquidity inside a collar — buy downside, sell upside, keep the middle.",
+    tagline: "Provide liquidity inside a collar: buy downside, sell upside, keep the middle.",
     shareSymbol: "PCOLLAR",
     shape: "dual",
     hasPlp: true,
@@ -83,7 +83,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
   strangle: {
     key: "strangle",
     name: "Short Strangle",
-    tagline: "Sell both tails — collect premium when price stays in the middle.",
+    tagline: "Sell both tails: collect premium when price stays in the middle.",
     shareSymbol: "STRANGLE",
     shape: "dual",
     hasPlp: false,
@@ -101,7 +101,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
   "bullish-upside": {
     key: "bullish-upside",
     name: "Bullish Upside",
-    tagline: "Sell the upside binary — earn premium on a capped bullish view.",
+    tagline: "Sell the upside binary: earn premium on a capped bullish view.",
     shareSymbol: "BUP",
     shape: "single",
     hasPlp: false,
@@ -119,7 +119,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
   "range-ladder": {
     key: "range-ladder",
     name: "Range Ladder",
-    tagline: "A ladder of range positions around spot — premium from staying in range.",
+    tagline: "A ladder of range positions around spot: premium from staying in range.",
     shareSymbol: "RLADDER",
     shape: "ladder",
     hasPlp: false,

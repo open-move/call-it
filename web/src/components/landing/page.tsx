@@ -762,7 +762,7 @@ export function Page({ stats }: { stats: LandingStatsResult }) {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Supply DUSDC to the DeepBook Predict pool and earn from every trade that crosses the book. It's the liquidity every call settles against."
+        copy="Supply DUSDC to the DeepBook Predict pool and earn from every trade that crosses the book. The liquidity every call settles against."
         eyebrow="Earn"
         linkLabel="Open Earn"
         title="Provide the liquidity."
@@ -773,7 +773,7 @@ export function Page({ stats }: { stats: LandingStatsResult }) {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Don't want to manage positions yourself? Deposit into automated strategy vaults (covered PLP, ladders, collars) that trade the book for you and settle each round on-chain."
+        copy="Deposit into hands-off strategy vaults (hedged PLP, collars, strangles, ladders) that run option strategies and settle each round on-chain."
         eyebrow="Strategies"
         linkLabel="Explore strategies"
         reverse
@@ -785,7 +785,7 @@ export function Page({ stats }: { stats: LandingStatsResult }) {
       <SectionDivider />
 
       <FeatureBlock
-        copy="Run a keeper: settle resolved positions permissionlessly and earn rewards from the keeper vault. The infrastructure layer, open to anyone."
+        copy="Run a keeper: settle resolved positions permissionlessly and earn a tip from the reward vault. Anyone can run one."
         eyebrow="Keeper"
         linkLabel="Open the Keeper"
         title="Keep the market running."

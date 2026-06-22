@@ -83,8 +83,8 @@ export function StrategyActionDialog({
 
   // Plain-language notice explaining the queued lifecycle (shown only mid-round).
   const queueNotice = isDeposit
-    ? "A round is live, so this deposit is parked and converts to shares at the next settlement — at that round's price, not today's. Refundable 1:1 until then."
-    : "A round is live, so this exits through the withdrawal queue and settles at the next round's price. Cancellable until then."
+    ? "Parked now, converted to shares at the next settlement. Refundable until then."
+    : "Exits through the queue and settles at the next round. Cancellable until then."
 
   const estLabel = isDeposit
     ? queued

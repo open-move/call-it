@@ -48,8 +48,7 @@ export function QuarantinePanel({
         </ul>
       ) : (
         <p className="text-xs leading-5 text-pretty text-muted-foreground">
-          No quarantined events. A malformed event is isolated here instead of
-          stalling reconciliation, so the keeper keeps making progress.
+          No quarantined events.
         </p>
       )}
     </Panel>

@@ -14,9 +14,8 @@ export function KeeperOffline() {
           <StatusIndicator tone={StatusTone.Risk}>Unreachable</StatusIndicator>
         </div>
         <p className="text-xs leading-5 text-muted-foreground text-pretty">
-          The keeper status API did not respond. Start the keeper with its HTTP
-          server and confirm the dashboard points at it — this view shows live
-          keeper state and never fabricates data.
+          The keeper API didn't respond. Start the keeper's HTTP server and
+          point the dashboard at it.
         </p>
         <div>
           <DataRow label="Configured URL" mono value={KEEPER_API_URL || "not set"} />

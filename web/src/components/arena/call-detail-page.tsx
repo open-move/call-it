@@ -34,7 +34,7 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
   if (call.status !== "active") {
     return (
       <div className="rounded-lg bg-card p-4 text-sm text-muted-foreground">
-        This call has settled — backing and fading are closed.
+        Settled. Backing and fading are closed.
       </div>
     )
   }

@@ -148,7 +148,7 @@ export function RedemptionsLedger({
           </div>
           {state === "error" ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Couldn't reach the keeper API.
+              Keeper API unreachable.
             </div>
           ) : state === "loading" ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -159,7 +159,7 @@ export function RedemptionsLedger({
           ) : (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
               {status === "all"
-                ? "No redemptions yet. The keeper records one here each time it redeems a settled position."
+                ? "No redemptions yet."
                 : "No redemptions match this filter."}
             </div>
           )}

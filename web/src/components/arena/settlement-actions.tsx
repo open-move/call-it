@@ -126,7 +126,7 @@ function ClaimBondAction({
       <div className="space-y-1">
         <div className="text-sm font-medium text-foreground">Creator bond</div>
         <p className="text-xs text-muted-foreground">
-          This call has settled — reclaim the bond you posted to launch it.
+          Settled. Reclaim your bond.
         </p>
       </div>
 
@@ -332,7 +332,7 @@ function ClaimPayoutAction({
       <div className="space-y-1">
         <div className="text-sm font-medium text-foreground">Your payout</div>
         <p className="text-xs text-muted-foreground">
-          This call has settled — redeem your winning positions.
+          Settled. Redeem your winning positions.
         </p>
       </div>
 

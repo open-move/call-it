@@ -460,8 +460,7 @@ function LaunchCallDialogClient() {
                   bondBelowMin ? "text-warning" : "text-muted-foreground"
                 )}
               >
-                Minimum {MIN_BOND_DUSDC} DUSDC — supplied as PLP to bond your
-                call.
+                Minimum {MIN_BOND_DUSDC} DUSDC, bonded as PLP.
               </p>
             </div>
           </Field>

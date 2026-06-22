@@ -106,8 +106,8 @@ function RoundCard({ meta, state }: { meta: StrategyMeta; state: StrategyState }
 
       <p className="mt-2 text-xs leading-5 text-pretty text-muted-foreground">
         {round
-          ? "Positions are open for this expiry — deposits and withdrawals queue to the next settlement."
-          : "No open positions — deposits and withdrawals settle instantly."}
+          ? "Positions are open for this expiry. Deposits and withdrawals queue to the next settlement."
+          : "No open positions. Deposits and withdrawals settle instantly."}
       </p>
 
       <div className="mt-5">
@@ -176,7 +176,7 @@ function PositionPromptStatic() {
   return (
     <div className="mt-4 flex flex-1 flex-col">
       <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-        Connect your wallet to deposit DUSDC and hold shares. No borrowing, no liquidation.
+        Connect your wallet to deposit DUSDC and hold shares.
       </p>
       <div className="mt-auto pt-5">
         <div aria-hidden="true" className="h-9 w-full animate-pulse rounded-md bg-muted/40" />
@@ -233,7 +233,7 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
       ) : (
         <div className="mt-4 flex flex-1 flex-col">
           <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-            Connect your wallet to deposit DUSDC and hold shares. No borrowing, no liquidation.
+            Connect your wallet to deposit DUSDC and hold shares.
           </p>
           <div className="mt-auto pt-5">
             <Button className="w-full active:scale-[0.96]" onClick={connect} type="button">
@@ -255,7 +255,7 @@ export function StrategyDetail({ meta, state }: { meta: StrategyMeta; state?: St
         <div className="rounded-lg bg-card p-4">
           <h1 className="text-base font-semibold text-foreground">{meta.name}</h1>
           <p className="mt-2 text-xs leading-5 text-muted-foreground">
-            This vault isn't available right now — its on-chain state could not be read.
+            This vault is unavailable right now. Try refreshing.
           </p>
         </div>
       </main>

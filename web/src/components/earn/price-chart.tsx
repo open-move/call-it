@@ -95,7 +95,7 @@ export function VaultPriceChart({
           </ResponsiveContainer>
         ) : (
           <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-            No vault performance history is available yet.
+            No performance history yet.
           </div>
         )}
       </div>

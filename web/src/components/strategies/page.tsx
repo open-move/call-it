@@ -170,9 +170,9 @@ export function Page() {
             Strategies
           </h1>
           <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
-            Automated vaults that trade the book for you and settle each round
-            on-chain (hedged PLP, collars, strangles, ladders), or provide PLP
-            liquidity directly.
+            Hands-off option-strategy vaults (hedged PLP, collars, strangles,
+            ladders) that settle each round on-chain, or provide PLP liquidity
+            directly.
           </p>
         </div>
 

@@ -96,7 +96,7 @@ export function CallActionDialog({
       : undefined
 
   const guardMessage = !isLiveCall
-    ? "This call is preview data — backing and fading need the deployed Arena."
+    ? "Preview data. Backing and fading need the deployed Arena."
     : undefined
 
   const isActionDisabled =
@@ -294,7 +294,7 @@ export function CallActionDialog({
           </DialogTitle>
           <p className="text-xs text-muted-foreground">
             {isBack ? "Take the same side as " : "Take the opposite side of "}
-            <span className="text-foreground">{call.creatorHandle}</span> — opens
+            <span className="text-foreground">{call.creatorHandle}</span>. Opens
             a native Predict position.
           </p>
         </DialogHeader>

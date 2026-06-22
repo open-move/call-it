@@ -192,7 +192,7 @@ export function PriceChart({
         </>
       ) : (
         <div className="flex h-full items-center justify-center px-6 text-center text-sm text-muted-foreground">
-          No oracle price history is available for this market yet.
+          No price history yet.
         </div>
       )}
     </Card>

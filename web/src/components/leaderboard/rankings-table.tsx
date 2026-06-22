@@ -99,7 +99,7 @@ function LeaderboardTable({ rows }: { rows: LeaderboardAccountRow[] }) {
             .map((row) => <LeaderboardRow key={row.account} row={row} />)
         ) : (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            No accounts were reconstructed from the fetched Predict events.
+            No leaderboard data yet.
           </div>
         )}
       </div>
