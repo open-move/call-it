@@ -19,12 +19,22 @@ const cellToneClassName: Record<CellTone, string> = {
   warning: "text-warning",
 }
 
+const cellDotClassName: Record<CellTone, string> = {
+  default: "bg-muted-foreground",
+  down: "bg-destructive",
+  muted: "bg-muted-foreground",
+  up: "bg-primary",
+  warning: "bg-warning",
+}
+
 function StatCell({
+  dot = false,
   label,
   meta,
   tone = "default",
   value,
 }: {
+  dot?: boolean
   label: string
   meta: string
   tone?: CellTone
@@ -32,7 +42,18 @@ function StatCell({
 }) {
   return (
     <div className="border-b border-border/35 px-4 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
-      <div className="text-xs leading-none text-muted-foreground">{label}</div>
+      <div className="flex items-center gap-1.5 text-xs leading-none text-muted-foreground">
+        {dot ? (
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-1.5 shrink-0 rounded-full",
+              cellDotClassName[tone]
+            )}
+          />
+        ) : null}
+        {label}
+      </div>
       <div
         className={cn(
           "mt-2 truncate font-mono text-xl leading-tight font-semibold tracking-[-0.03em] tabular-nums",
@@ -134,12 +155,14 @@ export function HeartbeatStrip({
     <div className="overflow-hidden rounded-md bg-card">
       <div className="grid bg-muted/10 md:grid-cols-4">
         <StatCell
+          dot
           label="Sync"
           meta={syncMeta}
           tone={lag === null ? "muted" : synced ? "up" : "warning"}
           value={syncValue}
         />
         <StatCell
+          dot
           label="Gas tank"
           meta={gasMeta}
           tone={gasTone}
