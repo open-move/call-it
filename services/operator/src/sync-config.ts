@@ -12,9 +12,6 @@ import path from "node:path"
 import { logger } from "./logger.ts"
 
 const DYNAMIC_ENV_ID = "981f0d75-a958-444d-8eb4-703aa3d30c18"
-// The browser reaches the backend on the HOST-mapped port (docker-compose maps
-// 8799:8080), not the in-container PORT. Override with BACKEND_URL when needed.
-const DEFAULT_BACKEND_URL = "http://localhost:8799"
 
 interface StrategyDeployment {
   adminCapId: string
@@ -127,7 +124,6 @@ async function exists(file: string): Promise<boolean> {
 
 async function main(): Promise<void> {
   const network = process.env.SUI_NETWORK?.trim() || "testnet"
-  const backendUrl = process.env.BACKEND_URL?.trim() || DEFAULT_BACKEND_URL
   const repoRoot = path.resolve(import.meta.dir, "../../..")
   const manifestPath = path.join(import.meta.dir, `../deployment.${network}.json`)
   const manifest = JSON.parse(await readFile(manifestPath, "utf8")) as DeploymentManifest
@@ -138,12 +134,13 @@ async function main(): Promise<void> {
   logger.info({ file: webDeployment }, "wrote generated deployment module")
 
   // 2. Patch the global constants the arena flow + backend reads use today.
+  // BACKEND_URL / KEEPER_API_URL are env-driven now (VITE_* in web/.env*), so
+  // they're not patched here — only the manifest-derived ids are.
   const webConfigPath = path.join(repoRoot, "web/src/lib/config.ts")
   let webConfig = await readFile(webConfigPath, "utf8")
   webConfig = setExport(webConfig, "ARENA_PACKAGE_ID", manifest.arena.packageId)
   webConfig = setExport(webConfig, "ARENA_OBJECT_ID", manifest.arena.arenaId)
   webConfig = setExport(webConfig, "BASE_VAULT_ID", manifest.baseVault.vaultId)
-  webConfig = setExport(webConfig, "BACKEND_URL", backendUrl)
   await writeFile(webConfigPath, webConfig)
   logger.info({ file: webConfigPath }, "patched web config constants")
 

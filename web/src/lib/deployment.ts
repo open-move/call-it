@@ -23,43 +23,43 @@ export interface CallItDeployment {
 
 export const DEPLOYMENT: CallItDeployment = {
   arena: {
-    arenaId: "0x04fa00e9e39489bde2f6e3e7144548557c9272db589cdad6c65755ab808e9a9c",
-    packageId: "0x2feb9cafa30c952d2c8d8ba4a30b1c5ef74968c686b3c9c5f8db9ca6c6106075",
+    arenaId: "0xda927248cef779d5af576962f03b0945e3db292b4153b171c4c9ea4e1df54e92",
+    packageId: "0x86f8fd50525cf8aea274b2559886fd1b4bdf2a6c8d1b353ff053548eabdb0dac",
   },
   baseVault: {
-    packageId: "0x9985416afd5e475727f8c2c8b407bfbdbbdfc94e3344a20f3ad3ace6e7f9f709",
-    vaultId: "0x582b9a78622d39637896496e00a02ea122879c0f18ead1d693ddc86db2ce10e3",
+    packageId: "0x68f736e0f30bf7a4881799a0cf77393f3fe881334703916f8ffc2c755a40f819",
+    vaultId: "0x725808c6e223395dabf586de6ac3b9051a9c71c9767353bf51ec43b0d0c5789a",
   },
   keeperRewards: {
-    packageId: "0xbe2ca72472f8c9e29d0fee940263fc5eb45363d0de19e959b23fddfc76b38811",
-    vaultId: "0x8e248b2ab7bb397b8a7a0eaabf01e726534e9d82575901e77e4abe150085d799",
+    packageId: "0x5377850cbe864c82594f68a59086fbdda2f5d022fd4f6a4d45a520ec30c52b23",
+    vaultId: "0xa50e85c869c0aa8f49a57eff1d5bf02f1af77548f7be4296bcf201b33b3b328d",
   },
   network: "testnet",
   strategies: {
   "bullish-upside": {
-    packageId: "0x2ccd355090c569a7226d5c3879f0e4759efecbf2021f043e408ab48da2f65390",
-    strategyId: "0xe3f3e28c7641304681f2e7034ec26e665ed6cf8d4326a6d36161dec679f02984",
-    managerId: "0x20348b6480881e439c53c7d5bc4f0ae91c60f76a172cc3f7efba90b510a2909b",
+    packageId: "0x44124c6f36ea35bce2e9d07c78fb5fb7bbbe929ef86bfe2022a3deee3a3e516e",
+    strategyId: "0x7bb781a258940ace6f8f4ab2e11ae6bcc994e386dd8870e02d32c52bdcf6be26",
+    managerId: "0x1595077ba74e466da5ba743d27c3e889d129576d798f7333e027ec12d24576ae",
   },
   "hedged-plp": {
-    packageId: "0xc49064da43eaffcff2d5b20d504338e8b0ffbcd8d7fad1d80f4e79449e4488ab",
-    strategyId: "0xa98235ae20ccb53dcbee80386dd1cfdc5e168130b584cd5b7ad3fe062bc7383d",
-    managerId: "0x75a18f17d01388c228bb538aebe2e8599a6083ccedafcb49b0a5c16ce5e2a80b",
+    packageId: "0x1d31f6fc178655df407c27d431f15a54ff78db4c32cb554d0985c875475a73eb",
+    strategyId: "0x34b006a8a45c7fda01964f25a4723e43c257b5e0c96a4ad780f24e96c61da8b0",
+    managerId: "0xf1ea74e837c4f5efc79cc233c3cd71c3d5698bee70bdb1d23fad1ebcde1ea469",
   },
   "plp-collar": {
-    packageId: "0x82fa24a1f16ab1a9a637f3044492763faa342336dc135a436ed036a9d34fb10b",
-    strategyId: "0xef73c8a9f7d2dd6e6b7f0a5c04e0cef834a975c29373c545c4fd1cad29ade7d5",
-    managerId: "0x437ca89127fbbca624cac4ec0eb7c7bb90f35c21c720f6c64d4e3924470309e4",
+    packageId: "0xbc3679406f6130a881f8e32052135f62e266a28d5bf4cf63f71499eeec1a8666",
+    strategyId: "0x4761f3b80dadc1e5b714980ad202db9b6914027f1453145419c0718eb867d98b",
+    managerId: "0x3da65551d0dcfa6d0f383c7d8ab87f516c213030e64e16f208d988c143455e73",
   },
   "range-ladder": {
-    packageId: "0x6d9c665ba628abd7c7070907bb0491d09164d6a1f94faa9c665e3b8157f5e059",
-    strategyId: "0x397a558af354a61f3dd3cb47cf6e25c0cbe1d450be361ce73901c51420e36dfb",
-    managerId: "0x92c155f3a5ed5a792eabae22f0ebbf62979981bdeaa689236d5e62787ef43933",
+    packageId: "0x6cf1f7c7240bfabd34b5957184be36538192babde467d7590bad782a56c29503",
+    strategyId: "0x15d70d726d875dc7d88b900e331a2ba761b16c627e3200bc67733ecb58d884ed",
+    managerId: "0xfea3ae663621c79a60c67584e8d9f6f63a5e7147c4908d5003d0f7f5d649fe0e",
   },
   "strangle": {
-    packageId: "0x757b2c37a5768576cf2eab55ce672fdd125d735a45f1fc0f4132bbc9cac581ad",
-    strategyId: "0x39a943e090116cdab9331a6581319afb63c46f4647275d30f8b9be7c324ce62a",
-    managerId: "0x8331294e867c3547ae6a7b16212de6137e98b0906ada9c6cad790f7eba15835f",
+    packageId: "0x2629511beba0667aa07519dcefbe91346e3fcfef2026b7288a2d069e0211876c",
+    strategyId: "0xc140312aeebe986d9f838219a6f68d4897092f1ab18082f5f2d3e11f5d4de650",
+    managerId: "0xdc2c44591940e1aebd2bde4e500667dba3ccb2a2f9179690dd10bbde2a6452ce",
   },
   },
 }

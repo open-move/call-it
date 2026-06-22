@@ -7,8 +7,10 @@
 /// allocates the remainder above reserve into PLP; both the hedges and the PLP
 /// are unwound in `settle_round`.
 ///
-/// Deposits and instant withdrawals are only allowed between rounds. While a
-/// round is live, holders exit through the withdrawal queue: `request_withdraw`
+/// Deposits and instant withdrawals are settled between rounds. While a round is
+/// live, a deposit is parked in the `deposit_queue` (priced at the next
+/// settlement, refundable 1:1 until then) and holders exit through the
+/// withdrawal queue: `request_withdraw`
 /// escrows their PCOLLAR shares, `settle_round` snapshots a pro-rata slice of
 /// base shares into `reserved_base_shares` and burns the escrow, and
 /// `claim_withdrawal` pulls quote at the settled price. `cancel_request` backs
@@ -28,6 +30,7 @@ use sui::{
 use base_vault::{
     base_vault::{Self, BASE_VAULT, BaseVault},
     withdrawal_queue::{Self, WithdrawalQueue},
+    deposit_queue::{Self, DepositQueue},
 };
 use deepbook_predict::{
     market_key::{Self, MarketKey},
@@ -156,6 +159,14 @@ public struct Strategy<phantom Quote> has key {
     queue: WithdrawalQueue,
     /// PCOLLAR share coins escrowed for open withdrawal requests.
     pending_shares: Balance<PCOLLAR>,
+    /// Quote parked by deposits that arrived mid-round; held aside and NOT
+    /// counted in NAV until folded into shares at the next settlement.
+    pending_deposits: Balance<Quote>,
+    /// PCOLLAR shares minted for settled pending deposits, escrowed here until
+    /// each depositor claims their pro-rata slice. Already part of total supply.
+    pending_share_pool: Balance<PCOLLAR>,
+    /// Per-depositor pending-deposit bookkeeping (quote units only, no coins).
+    deposit_queue: DepositQueue,
     manager_id: ID,
     active_round: Option<Round>,
     policy: Policy,
@@ -192,6 +203,39 @@ public struct StrategyWithdrawn has copy, drop {
     shares_burned: u64,
     amount_out: u64,
     nav_before: u64,
+}
+
+public struct DepositQueued has copy, drop {
+    strategy_id: ID,
+    depositor: address,
+    amount: u64,
+    round: u64,
+}
+
+public struct DepositCancelled has copy, drop {
+    strategy_id: ID,
+    owner: address,
+    amount: u64,
+}
+
+public struct DepositsSettled has copy, drop {
+    strategy_id: ID,
+    round: u64,
+    quote_folded: u64,
+    shares_minted: u64,
+    nav_before: u64,
+}
+
+public struct DepositClaimed has copy, drop {
+    strategy_id: ID,
+    owner: address,
+    shares: u64,
+}
+
+public struct DepositRefunded has copy, drop {
+    strategy_id: ID,
+    owner: address,
+    amount: u64,
 }
 
 public struct WithdrawalRequested has copy, drop {
@@ -271,6 +315,9 @@ public fun create_strategy<Quote>(
         plp_cost_basis: 0,
         queue: withdrawal_queue::new(ctx),
         pending_shares: balance::zero(),
+        pending_deposits: balance::zero(),
+        pending_share_pool: balance::zero(),
+        deposit_queue: deposit_queue::new(ctx),
         manager_id,
         active_round: option::none(),
         policy,
@@ -328,6 +375,88 @@ public fun deposit<Quote>(
     });
 
     minted
+}
+
+/// Park a deposit that arrives while a round is live. The quote is held aside in
+/// `pending_deposits` (out of NAV, not deployed) and recorded against the
+/// current round; it mints no shares now. At the next settlement the whole
+/// round's pending quote is folded into shares in one batch (see `settle_round`),
+/// then each depositor pulls their slice via `claim_shares`. Refundable 1:1 via
+/// `cancel_pending` until then.
+public fun queue_deposit<Quote>(
+    strategy: &mut Strategy<Quote>,
+    funds: Coin<Quote>,
+    ctx: &mut TxContext,
+) {
+    assert!(!strategy.paused, EPaused);
+    assert!(option::is_some(&strategy.active_round), ENoActiveRound);
+    let amount = funds.value();
+    assert!(amount > 0, EZeroDeposit);
+
+    let owner = ctx.sender();
+    let round = strategy.deposit_queue.current_round();
+    strategy.pending_deposits.join(funds.into_balance());
+    strategy.deposit_queue.record(owner, amount);
+
+    event::emit(DepositQueued {
+        strategy_id: strategy.id.to_inner(),
+        depositor: owner,
+        amount,
+        round,
+    });
+}
+
+/// Back out a pending deposit before its round settles; returns the parked quote
+/// 1:1. The quote never entered a round, so there is no price to set and nothing
+/// to manipulate.
+public fun cancel_pending<Quote>(
+    strategy: &mut Strategy<Quote>,
+    ctx: &mut TxContext,
+): Coin<Quote> {
+    let owner = ctx.sender();
+    let amount = strategy.deposit_queue.cancel(owner);
+    let refund = strategy.pending_deposits.split(amount).into_coin(ctx);
+
+    event::emit(DepositCancelled {
+        strategy_id: strategy.id.to_inner(),
+        owner,
+        amount,
+    });
+
+    refund
+}
+
+/// Pull `user`'s pro-rata slice of the shares minted for their settled deposit
+/// round, and transfer it to them. Permissionless: anyone (typically the keeper)
+/// can push a claim. The shares were already minted in aggregate at settlement,
+/// so this is a pull from escrow — it never touches NAV or the round cadence and
+/// can be called any time after the deposit's round settles.
+public fun claim_shares<Quote>(
+    strategy: &mut Strategy<Quote>,
+    user: address,
+    ctx: &mut TxContext,
+) {
+    let (shares, refund) = strategy.deposit_queue.claim(user);
+    if (refund > 0) {
+        // Dust round: the deposit was never folded; return the parked quote 1:1.
+        let out = strategy.pending_deposits.split(refund).into_coin(ctx);
+        transfer::public_transfer(out, user);
+        event::emit(DepositRefunded {
+            strategy_id: strategy.id.to_inner(),
+            owner: user,
+            amount: refund,
+        });
+    } else {
+        if (shares > 0) {
+            let out = strategy.pending_share_pool.split(shares).into_coin(ctx);
+            transfer::public_transfer(out, user);
+        };
+        event::emit(DepositClaimed {
+            strategy_id: strategy.id.to_inner(),
+            owner: user,
+            shares,
+        });
+    };
 }
 
 /// Instant exit, only between rounds: burn shares and release their pro-rata
@@ -642,6 +771,8 @@ public fun settle_round<Quote>(
         coin::burn(&mut strategy.treasury, escrow);
     };
 
+    fold_pending_deposits(strategy, base, ctx);
+
     event::emit(RoundSettled {
         strategy_id: strategy.id.to_inner(),
         predict_id: round.predict_id,
@@ -715,6 +846,33 @@ public fun reserved_base_shares_amount<Quote>(strategy: &Strategy<Quote>): u64 {
 }
 
 public fun pending_shares_amount<Quote>(strategy: &Strategy<Quote>): u64 { strategy.pending_shares.value() }
+
+/// Quote parked in the current round's pending deposits (held aside, out of NAV).
+public fun pending_deposits_total<Quote>(strategy: &Strategy<Quote>): u64 {
+    strategy.pending_deposits.value()
+}
+
+/// Minted-but-unclaimed shares escrowed for settled depositors.
+public fun pending_share_pool_amount<Quote>(strategy: &Strategy<Quote>): u64 {
+    strategy.pending_share_pool.value()
+}
+
+public fun deposit_round<Quote>(strategy: &Strategy<Quote>): u64 {
+    strategy.deposit_queue.current_round()
+}
+
+public fun has_pending_deposit<Quote>(strategy: &Strategy<Quote>, user: address): bool {
+    strategy.deposit_queue.has_pending(user)
+}
+
+public fun pending_deposit_amount<Quote>(strategy: &Strategy<Quote>, user: address): u64 {
+    strategy.deposit_queue.pending_amount(user)
+}
+
+/// True once the user's deposit round has settled — i.e. `claim_shares` will work.
+public fun pending_deposit_settled<Quote>(strategy: &Strategy<Quote>, user: address): bool {
+    strategy.deposit_queue.is_settled(user)
+}
 
 public fun plp_amount<Quote>(strategy: &Strategy<Quote>): u64 { strategy.plp.value() }
 
@@ -797,6 +955,67 @@ fun deposit_funds_to_base_shares<Quote>(
         let base_coin = base_vault::deposit(base, funds, ctx);
         strategy.base_shares.join(base_coin.into_balance());
     }
+}
+
+/// Fold the current deposit round's parked quote into shares at the now-exact,
+/// post-withdrawal NAV, minting the whole round in one batch into the escrow
+/// pool. Pricing here (after withdrawals are carved out) keeps new entrants out
+/// of the just-settled round's PnL, and one mint covers any number of
+/// depositors. If the whole round's quote is worth less than a single share
+/// (dust), the round is settled in refund mode: nothing is folded, and
+/// depositors reclaim their quote 1:1 via `claim_shares`. Always advances the
+/// deposit round, so pending can never carry into — or be mispriced across — the
+/// next round.
+fun fold_pending_deposits<Quote>(
+    strategy: &mut Strategy<Quote>,
+    base: &mut BaseVault<Quote>,
+    ctx: &mut TxContext,
+) {
+    let round = strategy.deposit_queue.current_round();
+    let pending_quote = strategy.deposit_queue.pending_quote(round);
+    if (pending_quote == 0) {
+        strategy.deposit_queue.skip();
+        return
+    };
+
+    let nav_before = strategy.nav(base);
+    let supply = strategy.share_supply();
+    // Estimate against the parked quote (the base vault is ~1:1 here): if the
+    // whole round can't mint even one share, settle as a refund round and leave
+    // the quote untouched for 1:1 reclaim.
+    if (shares_for_deposit(nav_before, supply, pending_quote) == 0) {
+        strategy.deposit_queue.settle(0);
+        event::emit(DepositsSettled {
+            strategy_id: strategy.id.to_inner(),
+            round,
+            quote_folded: 0,
+            shares_minted: 0,
+            nav_before,
+        });
+        return
+    };
+
+    let funds = strategy.pending_deposits.split(pending_quote).into_coin(ctx);
+    let base_coin = base_vault::deposit(base, funds, ctx);
+    let base_value = base.value_for_shares(base_coin.value());
+    let real = shares_for_deposit(nav_before, supply, base_value);
+    // The estimate guaranteed a >= 1-share contribution; a base-vault rounding
+    // boundary can still floor `real` to 0, so mint at least one — fair, because
+    // the round's quote is worth at least one share.
+    let minted_shares = if (real > 0) { real } else { 1 };
+
+    strategy.base_shares.join(base_coin.into_balance());
+    let minted = coin::mint(&mut strategy.treasury, minted_shares, ctx);
+    strategy.pending_share_pool.join(minted.into_balance());
+    strategy.deposit_queue.settle(minted_shares);
+
+    event::emit(DepositsSettled {
+        strategy_id: strategy.id.to_inner(),
+        round,
+        quote_folded: pending_quote,
+        shares_minted: minted_shares,
+        nav_before,
+    });
 }
 
 // The collar must straddle spot: the down strike sits below spot, the up strike

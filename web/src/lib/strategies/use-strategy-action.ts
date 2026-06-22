@@ -5,12 +5,15 @@ import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
 import { getReadySuiTransactionSigner, RECONNECT_SUI_WALLET_MESSAGE } from "@/lib/dynamic/sui-wallet"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import type { StrategyMeta } from "@/lib/strategies/registry"
-import type { StrategyState, StrategyWalletState } from "@/lib/strategies/types"
-import { getStrategyWalletState } from "@/services/strategy-client"
+import type { StrategyPosition, StrategyState, StrategyWalletState } from "@/lib/strategies/types"
+import { getStrategyPosition, getStrategyWalletState } from "@/services/strategy-client"
 import {
+  executeStrategyCancelPending,
   executeStrategyCancelRequest,
+  executeStrategyClaimShares,
   executeStrategyClaimWithdrawal,
   executeStrategyDeposit,
+  executeStrategyQueueDeposit,
   executeStrategyRequestWithdraw,
   executeStrategyWithdraw,
 } from "@/services/strategy-transactions"
@@ -26,6 +29,7 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
   const refreshRoute = useAppRouteRefresh()
 
   const [wallet, setWallet] = useState<StrategyWalletState>()
+  const [position, setPosition] = useState<StrategyPosition>()
   const [dialogAction, setDialogAction] = useState<StrategyActionKind>()
   const [amount, setAmount] = useState("")
   const [message, setMessage] = useState<string>()
@@ -34,15 +38,23 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
 
   async function refreshWallet(owner: string) {
     try {
-      setWallet(await getStrategyWalletState(meta.key, owner))
+      const [nextWallet, nextPosition] = await Promise.all([
+        getStrategyWalletState(meta.key, owner),
+        getStrategyPosition(meta.key, owner).catch(() => undefined),
+      ])
+      setWallet(nextWallet)
+      if (nextPosition) {
+        setPosition(nextPosition)
+      }
     } catch {
-      // Balances are best-effort; leave prior value.
+      // Balances/position are best-effort; leave prior value.
     }
   }
 
   useEffect(() => {
     if (!address) {
       setWallet(undefined)
+      setPosition(undefined)
       return
     }
     void refreshWallet(address)
@@ -66,9 +78,6 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     }
     if (state.paused) {
       return "Strategy is paused"
-    }
-    if (action === "deposit" && duringRound) {
-      return "Deposits open between rounds"
     }
     if (!parsedAmount) {
       return "Enter an amount"
@@ -141,7 +150,11 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     setMessageWith("Preparing transaction", "muted")
     await withSigner(async (signer, owner) => {
       if (action === "deposit") {
-        await executeStrategyDeposit({ amount: parsedAmount, strategyKey: meta.key, walletAddress: owner }, signer)
+        if (duringRound) {
+          await executeStrategyQueueDeposit({ amount: parsedAmount, strategyKey: meta.key, walletAddress: owner }, signer)
+        } else {
+          await executeStrategyDeposit({ amount: parsedAmount, strategyKey: meta.key, walletAddress: owner }, signer)
+        }
       } else if (duringRound) {
         await executeStrategyRequestWithdraw({ shareAmount: parsedAmount, strategyKey: meta.key, walletAddress: owner }, signer)
       } else {
@@ -153,6 +166,26 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     })
   }
 
+  // ----- deposit lifecycle -----
+
+  async function handleCancelPending() {
+    setMessageWith("Cancelling pending deposit", "muted")
+    await withSigner(async (signer, owner) => {
+      await executeStrategyCancelPending({ strategyKey: meta.key, walletAddress: owner }, signer)
+      setMessageWith("Deposit refunded", "muted")
+    })
+  }
+
+  async function handleClaimShares() {
+    setMessageWith("Claiming shares", "muted")
+    await withSigner(async (signer, owner) => {
+      await executeStrategyClaimShares({ strategyKey: meta.key, walletAddress: owner }, signer)
+      setMessageWith("Shares claimed", "muted")
+    })
+  }
+
+  // ----- withdrawal lifecycle -----
+
   async function handleCancelRequest() {
     setMessageWith("Cancelling request", "muted")
     await withSigner(async (signer, owner) => {
@@ -161,7 +194,7 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     })
   }
 
-  async function handleClaim() {
+  async function handleClaimWithdrawal() {
     setMessageWith("Claiming withdrawal", "muted")
     await withSigner(async (signer, owner) => {
       await executeStrategyClaimWithdrawal({ strategyKey: meta.key, walletAddress: owner }, signer)
@@ -179,8 +212,10 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     depositSharesQuote,
     dialogOpen: dialogAction !== undefined,
     duringRound,
+    handleCancelPending,
     handleCancelRequest,
-    handleClaim,
+    handleClaimShares,
+    handleClaimWithdrawal,
     handleDialogOpenChange,
     handleMaxAmount,
     handleSubmit,
@@ -189,6 +224,7 @@ export function useStrategyAction(meta: StrategyMeta, state: StrategyState) {
     message,
     messageTone,
     openDialog,
+    position,
     setAmount,
     wallet,
     withdrawQuote,

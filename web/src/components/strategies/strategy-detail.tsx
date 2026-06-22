@@ -20,6 +20,7 @@ import type { StrategyMeta } from "@/lib/strategies/registry"
 import type { StrategyState } from "@/lib/strategies/types"
 import { useStrategyAction } from "@/lib/strategies/use-strategy-action"
 import { StrategyActionDialog } from "./action-dialog"
+import { StrategyLifecycle } from "./position-lifecycle"
 
 function allocationSegments(meta: StrategyMeta, state: StrategyState): AllocationSegment[] | undefined {
   const parts = meta.allocation.map((segment) => ({
@@ -219,6 +220,7 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
             <DataRow label="DUSDC balance" value={wallet ? formatDusdc(wallet.dusdcBalance, 4) : "—"} />
             <DataRow label={`${meta.shareSymbol} balance`} value={wallet ? formatShares(wallet.shareBalance) : "—"} />
           </div>
+          <StrategyLifecycle controller={controller} meta={meta} />
           <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
             <Button className="active:scale-[0.96]" onClick={() => openDialog("deposit")} type="button">
               Deposit DUSDC

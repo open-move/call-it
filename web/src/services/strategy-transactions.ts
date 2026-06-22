@@ -110,6 +110,90 @@ export function buildStrategyDepositTransaction({
   return tx
 }
 
+export interface StrategyQueueDepositParams {
+  amount: bigint
+  strategyKey: StrategyKey
+  walletAddress: string
+}
+
+export interface StrategyCancelPendingParams {
+  strategyKey: StrategyKey
+  walletAddress: string
+}
+
+export interface StrategyClaimSharesParams {
+  strategyKey: StrategyKey
+  walletAddress: string
+}
+
+/**
+ * Park a deposit while a round is live. Mints no shares now — the quote is held
+ * aside and folded into shares at the next settlement, then pulled via
+ * `claim_shares`. Refundable 1:1 via `cancel_pending` until then.
+ */
+export function buildStrategyQueueDepositTransaction({
+  amount,
+  strategyKey,
+  walletAddress,
+}: StrategyQueueDepositParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+  const funds = buildQuoteCoin(tx, amount)
+
+  tx.moveCall({
+    target: target(strategyKey, "queue_deposit"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(getStrategyDeployment(strategyKey).strategyId),
+      funds,
+    ],
+  })
+
+  return tx
+}
+
+/** Refund a parked (not-yet-settled) deposit 1:1. */
+export function buildStrategyCancelPendingTransaction({
+  strategyKey,
+  walletAddress,
+}: StrategyCancelPendingParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  const quoteCoin = tx.moveCall({
+    target: target(strategyKey, "cancel_pending"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [tx.object(getStrategyDeployment(strategyKey).strategyId)],
+  })
+
+  tx.transferObjects([quoteCoin], walletAddress)
+
+  return tx
+}
+
+/**
+ * Pull a settled deposit's shares (or its 1:1 refund for a dust round) into the
+ * owner's wallet. Permissionless — the contract delivers to `walletAddress`.
+ */
+export function buildStrategyClaimSharesTransaction({
+  strategyKey,
+  walletAddress,
+}: StrategyClaimSharesParams) {
+  const tx = new Transaction()
+  tx.setSender(walletAddress)
+
+  tx.moveCall({
+    target: target(strategyKey, "claim_shares"),
+    typeArguments: [PREDICT_QUOTE_ASSET],
+    arguments: [
+      tx.object(getStrategyDeployment(strategyKey).strategyId),
+      tx.pure.address(walletAddress),
+    ],
+  })
+
+  return tx
+}
+
 export function buildStrategyWithdrawTransaction({
   shareAmount,
   strategyKey,
@@ -206,6 +290,36 @@ export function executeStrategyWithdraw(
   signer: SuiTransactionSigner
 ): Promise<ExecutedSuiTransaction> {
   return executeSuiTransaction(signer, buildStrategyWithdrawTransaction(params))
+}
+
+export function executeStrategyQueueDeposit(
+  params: StrategyQueueDepositParams,
+  signer: SuiTransactionSigner
+): Promise<ExecutedSuiTransaction> {
+  return executeSuiTransaction(
+    signer,
+    buildStrategyQueueDepositTransaction(params)
+  )
+}
+
+export function executeStrategyCancelPending(
+  params: StrategyCancelPendingParams,
+  signer: SuiTransactionSigner
+): Promise<ExecutedSuiTransaction> {
+  return executeSuiTransaction(
+    signer,
+    buildStrategyCancelPendingTransaction(params)
+  )
+}
+
+export function executeStrategyClaimShares(
+  params: StrategyClaimSharesParams,
+  signer: SuiTransactionSigner
+): Promise<ExecutedSuiTransaction> {
+  return executeSuiTransaction(
+    signer,
+    buildStrategyClaimSharesTransaction(params)
+  )
 }
 
 export function executeStrategyRequestWithdraw(

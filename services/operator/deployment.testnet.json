@@ -1,56 +1,56 @@
 {
   "arena": {
-    "adminCapId": "0xdf7a0efcbeb4218f0b11130b79109c443acb8377a01fe68e76d63656d74a907e",
-    "arenaId": "0x04fa00e9e39489bde2f6e3e7144548557c9272db589cdad6c65755ab808e9a9c",
-    "packageId": "0x2feb9cafa30c952d2c8d8ba4a30b1c5ef74968c686b3c9c5f8db9ca6c6106075"
+    "adminCapId": "0x591cc66711cf31c21354068d684e282532164899bf6c7f6718ed023e971621c1",
+    "arenaId": "0xda927248cef779d5af576962f03b0945e3db292b4153b171c4c9ea4e1df54e92",
+    "packageId": "0x86f8fd50525cf8aea274b2559886fd1b4bdf2a6c8d1b353ff053548eabdb0dac"
   },
   "baseVault": {
-    "capId": "0xe8d23a96919d5f1653f35c4015a1633aaeee589f387892154e2ff81449371a9e",
-    "packageId": "0x9985416afd5e475727f8c2c8b407bfbdbbdfc94e3344a20f3ad3ace6e7f9f709",
-    "vaultId": "0x582b9a78622d39637896496e00a02ea122879c0f18ead1d693ddc86db2ce10e3"
+    "capId": "0x7d04962b8f7a2f5063ebec7e77c3706aa1dbe1c41ab365406d90aa7438c61010",
+    "packageId": "0x68f736e0f30bf7a4881799a0cf77393f3fe881334703916f8ffc2c755a40f819",
+    "vaultId": "0x725808c6e223395dabf586de6ac3b9051a9c71c9767353bf51ec43b0d0c5789a"
   },
   "bullishUpside": {
-    "adminCapId": "0x9b9fe7129c7687019dbc4857c1ae83e4f7a3bf3431ff125f4304455e2c20e8af",
-    "keeperCapId": "0xcdd68dd000ed4b7362bfad554f75c906cd462a4a0829bb1866160bb0bde87332",
-    "managerId": "0x20348b6480881e439c53c7d5bc4f0ae91c60f76a172cc3f7efba90b510a2909b",
-    "packageId": "0x2ccd355090c569a7226d5c3879f0e4759efecbf2021f043e408ab48da2f65390",
-    "strategyId": "0xe3f3e28c7641304681f2e7034ec26e665ed6cf8d4326a6d36161dec679f02984"
+    "adminCapId": "0x06001d6bd650aaf00d66c64c311a2861028931a2ae593b38e9edd4d65b6ef6dd",
+    "keeperCapId": "0x2884922e866e2a791d4fbacaf4b7e7e24abc4c360b4eb718b82bb3a71c102b58",
+    "managerId": "0x1595077ba74e466da5ba743d27c3e889d129576d798f7333e027ec12d24576ae",
+    "packageId": "0x44124c6f36ea35bce2e9d07c78fb5fb7bbbe929ef86bfe2022a3deee3a3e516e",
+    "strategyId": "0x7bb781a258940ace6f8f4ab2e11ae6bcc994e386dd8870e02d32c52bdcf6be26"
   },
   "deployer": "0xceb3702c184db31f6df4dd5dee93125c0f06836ce2dda74931884b8f2f8624e7",
   "hedgedPlp": {
-    "adminCapId": "0x4d421a2d573dbe86456eb7647dcfd7e49ba97ce1f87ab505d4fe2eed0380e014",
-    "keeperCapId": "0xeffb47e09b62df457618e8d993f10f17f49583c6137fd48ff87a085e980b65e4",
-    "managerId": "0x75a18f17d01388c228bb538aebe2e8599a6083ccedafcb49b0a5c16ce5e2a80b",
-    "packageId": "0xc49064da43eaffcff2d5b20d504338e8b0ffbcd8d7fad1d80f4e79449e4488ab",
-    "strategyId": "0xa98235ae20ccb53dcbee80386dd1cfdc5e168130b584cd5b7ad3fe062bc7383d"
+    "adminCapId": "0x1fb578cc8b09abaee96f7e23d2dd155a4ce38911bda5130695039639a3235c1c",
+    "keeperCapId": "0x24110e3c1a3789ef94f0d0a8d8d77737a01547f0801e68b0297e0f7a59579d3a",
+    "managerId": "0xf1ea74e837c4f5efc79cc233c3cd71c3d5698bee70bdb1d23fad1ebcde1ea469",
+    "packageId": "0x1d31f6fc178655df407c27d431f15a54ff78db4c32cb554d0985c875475a73eb",
+    "strategyId": "0x34b006a8a45c7fda01964f25a4723e43c257b5e0c96a4ad780f24e96c61da8b0"
   },
   "keeperRewards": {
-    "adminCapId": "0xc624697be3568516bc78fd16437d00a22f22b90cb2582bd7d46168679e697683",
+    "adminCapId": "0x207bfaea2f3ac67005f58d300f8c9d870c73248445a8a36928017bfedd1dc8cb",
     "funded": false,
-    "packageId": "0xbe2ca72472f8c9e29d0fee940263fc5eb45363d0de19e959b23fddfc76b38811",
-    "vaultId": "0x8e248b2ab7bb397b8a7a0eaabf01e726534e9d82575901e77e4abe150085d799"
+    "packageId": "0x5377850cbe864c82594f68a59086fbdda2f5d022fd4f6a4d45a520ec30c52b23",
+    "vaultId": "0xa50e85c869c0aa8f49a57eff1d5bf02f1af77548f7be4296bcf201b33b3b328d"
   },
   "network": "testnet",
   "operator": "0x606bc9437c6121817264e4ae006495a6c0700b8e04a16f215beb20361a095e44",
   "plpCollar": {
-    "adminCapId": "0x8004d9aa0cb02824a702cb9eb8b4dcc028c369411ce77aaa7aabdc47c1f25688",
-    "keeperCapId": "0x562f8295e109fadace2593b77e29b5e077d98987eb2a5e716b746fd2ae0fb33d",
-    "managerId": "0x437ca89127fbbca624cac4ec0eb7c7bb90f35c21c720f6c64d4e3924470309e4",
-    "packageId": "0x82fa24a1f16ab1a9a637f3044492763faa342336dc135a436ed036a9d34fb10b",
-    "strategyId": "0xef73c8a9f7d2dd6e6b7f0a5c04e0cef834a975c29373c545c4fd1cad29ade7d5"
+    "adminCapId": "0x3e557ea4f028e5098c9126fcee20bc871f75f8daeb7fbef16b1f0f9aa4a6f811",
+    "keeperCapId": "0xe2c1d5668cfd3af725c786533157af050347ec10add8cbe4884af5847b2f572b",
+    "managerId": "0x3da65551d0dcfa6d0f383c7d8ab87f516c213030e64e16f208d988c143455e73",
+    "packageId": "0xbc3679406f6130a881f8e32052135f62e266a28d5bf4cf63f71499eeec1a8666",
+    "strategyId": "0x4761f3b80dadc1e5b714980ad202db9b6914027f1453145419c0718eb867d98b"
   },
   "rangeLadder": {
-    "adminCapId": "0xcee158c2d0ae3ed55dcfe41cfb8328871df00b09901f8d2219e4e8f32cc97b02",
-    "keeperCapId": "0xc15048ffe8fc55fc3451df9e0d1c8253feea1437aa318ede1ec525790765ce92",
-    "managerId": "0x92c155f3a5ed5a792eabae22f0ebbf62979981bdeaa689236d5e62787ef43933",
-    "packageId": "0x6d9c665ba628abd7c7070907bb0491d09164d6a1f94faa9c665e3b8157f5e059",
-    "strategyId": "0x397a558af354a61f3dd3cb47cf6e25c0cbe1d450be361ce73901c51420e36dfb"
+    "adminCapId": "0x3ff9a1bea27beda3edaff19cb4fdb03b46af25f94d25f05439b1993f69041698",
+    "keeperCapId": "0x8769820dc12af6a03e659753fcc91be4eae9ffc98f20d72e28273b4ff7c481b1",
+    "managerId": "0xfea3ae663621c79a60c67584e8d9f6f63a5e7147c4908d5003d0f7f5d649fe0e",
+    "packageId": "0x6cf1f7c7240bfabd34b5957184be36538192babde467d7590bad782a56c29503",
+    "strategyId": "0x15d70d726d875dc7d88b900e331a2ba761b16c627e3200bc67733ecb58d884ed"
   },
   "strangle": {
-    "adminCapId": "0xc1a36cad55bc67d0387517362d9bf2640c89881834cc7e8f5557918c78b27f82",
-    "keeperCapId": "0xafef27648896e5d5ac06364c2b00b5ceab9ada55dbbc984df9ea0575d1c18cab",
-    "managerId": "0x8331294e867c3547ae6a7b16212de6137e98b0906ada9c6cad790f7eba15835f",
-    "packageId": "0x757b2c37a5768576cf2eab55ce672fdd125d735a45f1fc0f4132bbc9cac581ad",
-    "strategyId": "0x39a943e090116cdab9331a6581319afb63c46f4647275d30f8b9be7c324ce62a"
+    "adminCapId": "0x2053d00a260df865f8e41007761bbf85b9b0c0f7b9275ca09830264853bac3ef",
+    "keeperCapId": "0x7cd0a74e014890f7cc813748eb6575f1d48f4e0e720701ae0d815479f021ef71",
+    "managerId": "0xdc2c44591940e1aebd2bde4e500667dba3ccb2a2f9179690dd10bbde2a6452ce",
+    "packageId": "0x2629511beba0667aa07519dcefbe91346e3fcfef2026b7288a2d069e0211876c",
+    "strategyId": "0xc140312aeebe986d9f838219a6f68d4897092f1ab18082f5f2d3e11f5d4de650"
   }
 }

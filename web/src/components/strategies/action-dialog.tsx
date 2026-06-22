@@ -46,8 +46,6 @@ export function StrategyActionDialog({
     depositSharesQuote,
     dialogOpen,
     duringRound,
-    handleCancelRequest,
-    handleClaim,
     handleDialogOpenChange,
     handleMaxAmount,
     handleSubmit,
@@ -60,15 +58,39 @@ export function StrategyActionDialog({
   } = controller
 
   const isDeposit = action === "deposit"
+  // While a round is live, both sides queue: deposits convert at the next
+  // settlement, withdrawals settle at the next round.
+  const queued = duringRound
   const token = isDeposit ? "DUSDC" : meta.shareSymbol
-  const title = isDeposit ? "Deposit DUSDC" : duringRound ? "Request withdrawal" : `Withdraw ${meta.shareSymbol}`
+
+  const title = isDeposit
+    ? queued
+      ? "Queue deposit"
+      : "Deposit DUSDC"
+    : queued
+      ? "Request withdrawal"
+      : `Withdraw ${meta.shareSymbol}`
+
   const submitLabel = isSubmitting
     ? "Submitting"
     : isDeposit
-      ? "Deposit DUSDC"
-      : duringRound
+      ? queued
+        ? "Queue deposit"
+        : "Deposit DUSDC"
+      : queued
         ? "Request withdrawal"
         : "Withdraw"
+
+  // Plain-language notice explaining the queued lifecycle (shown only mid-round).
+  const queueNotice = isDeposit
+    ? `A round is live, so this deposit is parked and converts to ${meta.shareSymbol} at the next settlement — at that round's price, not today's. Refundable 1:1 until then.`
+    : `A round is live, so this exits through the withdrawal queue and settles at the next round's price. Cancellable until then.`
+
+  const estLabel = isDeposit
+    ? queued
+      ? `Est. ${meta.shareSymbol} (next settlement)`
+      : `Est. ${meta.shareSymbol}`
+    : "Est. DUSDC"
 
   return (
     <Dialog onOpenChange={handleDialogOpenChange} open={dialogOpen}>
@@ -115,7 +137,7 @@ export function StrategyActionDialog({
             }
           />
           <PanelRow
-            label={isDeposit ? `Est. ${meta.shareSymbol}` : "Est. DUSDC"}
+            label={estLabel}
             value={
               isDeposit
                 ? depositSharesQuote
@@ -126,11 +148,15 @@ export function StrategyActionDialog({
           />
           <PanelRow label={`${meta.shareSymbol} price`} value={`${sharePriceFormatter.format(state.sharePrice)} DUSDC`} />
           <PanelRow label="Status" value={getStrategyStatus(state)} />
-          {!isDeposit && duringRound ? <PanelRow label="Settles" value="Next round" /> : null}
+          {queued ? (
+            <PanelRow label={isDeposit ? "Converts" : "Settles"} value="Next round" />
+          ) : null}
         </div>
 
         {message ? (
           <Message tone={messageTone}>{message}</Message>
+        ) : queued ? (
+          <Message tone="muted">{queueNotice}</Message>
         ) : invalidReason ? (
           <Message tone="muted">{invalidReason}</Message>
         ) : null}
@@ -145,20 +171,10 @@ export function StrategyActionDialog({
           >
             {submitLabel}
           </Button>
-
-          {!isDeposit ? (
-            <div className="flex w-full items-center justify-between gap-2 pt-1">
-              <span className="text-[11px] text-muted-foreground">Manage a queued withdrawal</span>
-              <div className="flex gap-2">
-                <Button disabled={isSubmitting} onClick={handleCancelRequest} size="xs" type="button" variant="ghost">
-                  Cancel
-                </Button>
-                <Button disabled={isSubmitting} onClick={handleClaim} size="xs" type="button" variant="outline">
-                  Claim
-                </Button>
-              </div>
-            </div>
-          ) : null}
+          <p className="text-center text-[11px] leading-4 text-muted-foreground">
+            Manage queued deposits and withdrawals from{" "}
+            <span className="text-foreground">Your position</span>.
+          </p>
         </DialogFooter>
       </DialogContent>
     </Dialog>

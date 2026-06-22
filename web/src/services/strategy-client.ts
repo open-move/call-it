@@ -1,8 +1,17 @@
+import { bcs } from "@mysten/sui/bcs"
+import { deriveDynamicFieldID } from "@mysten/sui/utils"
 import { z } from "zod"
 
 import { BASE_VAULT_ID, PREDICT_QUOTE_ASSET } from "@/lib/config"
 import { DEPLOYMENT } from "@/lib/deployment"
-import type { StrategyRound, StrategyState, StrategyWalletState } from "@/lib/strategies/types"
+import type {
+  PendingDepositPosition,
+  PendingWithdrawalPosition,
+  StrategyPosition,
+  StrategyRound,
+  StrategyState,
+  StrategyWalletState,
+} from "@/lib/strategies/types"
 import { getShareCoinType, type StrategyKey } from "@/services/strategy-transactions"
 import { getSuiGrpcClient } from "./sui-client"
 
@@ -118,11 +127,14 @@ export async function getStrategyState(key: StrategyKey): Promise<StrategyState 
   return {
     baseShares: strategy.base_shares,
     baseVaultId,
+    depositRound: extractQueue(raw, "deposit_queue").currentRound,
     key,
     managerId: strategy.manager_id,
     nav,
     paused: strategy.paused,
+    pendingDepositsTotal: bigintFrom(raw.pending_deposits) ?? 0n,
     pendingShares: bigintFrom(raw.pending_shares) ?? 0n,
+    pendingSharePool: bigintFrom(raw.pending_share_pool) ?? 0n,
     plpAmount: strategy.plp ?? null,
     plpCostBasis,
     policy: parsePolicy(strategy.policy),
@@ -132,6 +144,136 @@ export async function getStrategyState(key: StrategyKey): Promise<StrategyState 
     shareSupply,
     staleGraceRounds: Number(bigintFrom(raw.stale_withdrawal_grace_rounds) ?? 0n),
     strategyId: deployment.strategyId,
+  }
+}
+
+// gRPC json renders a Move `Table`/`UID` as a nested object eventually bottoming
+// out in the object-id string. Walk `.id` until we hit the address.
+function extractObjectId(value: unknown): string | null {
+  if (typeof value === "string" && value.startsWith("0x")) {
+    return value
+  }
+  if (value && typeof value === "object") {
+    return extractObjectId((value as Record<string, unknown>).id)
+  }
+  return null
+}
+
+// A queue blob (deposit_queue or the withdrawal `queue`) exposes its current
+// round and its `pending` Table id; we read per-user entries off that table.
+function extractQueue(
+  raw: Record<string, unknown>,
+  field: string
+): { tableId: string | null; currentRound: number } {
+  const blob = raw[field]
+  if (!blob || typeof blob !== "object") {
+    return { currentRound: 0, tableId: null }
+  }
+  const record = blob as Record<string, unknown>
+  return {
+    currentRound: Number(bigintFrom(record.current_round) ?? 0n),
+    tableId: extractObjectId(record.pending),
+  }
+}
+
+// Read a user's entry from a queue's `pending` Table<address, _> via the derived
+// dynamic-field id. Best-effort: any failure (not deployed, shape drift) -> null.
+async function readQueueEntry(
+  tableId: string | null,
+  owner: string
+): Promise<Record<string, unknown> | null> {
+  if (!tableId) {
+    return null
+  }
+  try {
+    const fieldId = deriveDynamicFieldID(
+      tableId,
+      { address: null },
+      bcs.Address.serialize(owner).toBytes()
+    )
+    const object = await getSuiGrpcClient().getObject({
+      include: { json: true },
+      objectId: fieldId,
+    })
+    const json = object.object?.json as Record<string, unknown> | undefined
+    const value = json?.value
+    return value && typeof value === "object"
+      ? (value as Record<string, unknown>)
+      : null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A wallet's full position in a strategy: liquid shares plus any in-flight
+ * deposit/withdrawal sitting in the round queues. The per-user queue reads are
+ * best-effort and degrade to `null` (the UI then shows actions without the
+ * in-flight detail).
+ */
+export async function getStrategyPosition(
+  key: StrategyKey,
+  owner: string
+): Promise<StrategyPosition> {
+  const deployment = DEPLOYMENT.strategies[key]
+  const client = getSuiGrpcClient()
+
+  const activeSharesPromise = client
+    .getBalance({ coinType: getShareCoinType(key), owner })
+    .then((result) => BigInt(result.balance.balance))
+    .catch(() => 0n)
+
+  let pendingDeposit: PendingDepositPosition | null = null
+  let pendingWithdrawal: PendingWithdrawalPosition | null = null
+
+  if (deployment.strategyId) {
+    try {
+      const strategyObject = await client.getObject({
+        include: { json: true },
+        objectId: deployment.strategyId,
+      })
+      const raw = (strategyObject.object?.json ?? {}) as Record<string, unknown>
+      const depositQueue = extractQueue(raw, "deposit_queue")
+      const withdrawalQueue = extractQueue(raw, "queue")
+
+      const [depositEntry, withdrawalEntry] = await Promise.all([
+        readQueueEntry(depositQueue.tableId, owner),
+        readQueueEntry(withdrawalQueue.tableId, owner),
+      ])
+
+      if (depositEntry) {
+        const amount = bigintFrom(depositEntry.amount) ?? 0n
+        const round = Number(bigintFrom(depositEntry.round_id) ?? 0n)
+        if (amount > 0n) {
+          pendingDeposit = {
+            amount,
+            isRefund: false,
+            round,
+            settled: round < depositQueue.currentRound,
+          }
+        }
+      }
+
+      if (withdrawalEntry) {
+        const shares = bigintFrom(withdrawalEntry.shares) ?? 0n
+        const round = Number(bigintFrom(withdrawalEntry.round_id) ?? 0n)
+        if (shares > 0n) {
+          pendingWithdrawal = {
+            round,
+            settled: round < withdrawalQueue.currentRound,
+            shares,
+          }
+        }
+      }
+    } catch {
+      // Best-effort: leave pending positions null.
+    }
+  }
+
+  return {
+    activeShares: await activeSharesPromise,
+    pendingDeposit,
+    pendingWithdrawal,
   }
 }
 

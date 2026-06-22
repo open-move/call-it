@@ -152,6 +152,95 @@ fun multiple_deposits_mint_proportional_shares() {
 }
 
 #[test]
+fun queue_deposit_parks_quote_out_of_nav() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+
+    let (nav_before, supply_before) = read_nav_supply(&mut test, &env);
+    queue_deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+        // Parked: excluded from NAV, no shares minted, recorded for OTHER.
+        assert_eq!(strategy.nav(&base), nav_before);
+        assert_eq!(strategy.share_supply(), supply_before);
+        assert_eq!(strategy.pending_deposits_total(), SECOND_DEPOSIT_AMOUNT);
+        assert!(strategy.has_pending_deposit(OTHER));
+        return_shared(strategy);
+        return_shared(base);
+    };
+    end(test);
+}
+
+#[test]
+fun pending_deposit_settles_into_fair_shares() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    queue_deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+    // Settle inside the strangle: both legs expire worthless, so the round LOSES
+    // the premium. OTHER must not share that loss.
+    settle_oracle(&mut test, env.oracle_id, SPOT);
+    // settle_round folds the whole round's pending into the escrow pool in one batch.
+    settle_round(&mut test, &env);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        // Quote folded out, shares minted to the pool, OTHER's claim now settled.
+        assert_eq!(strategy.pending_deposits_total(), 0);
+        assert!(strategy.pending_share_pool_amount() > 0);
+        assert!(strategy.has_pending_deposit(OTHER));
+        assert!(strategy.pending_deposit_settled(OTHER));
+        return_shared(strategy);
+    };
+
+    // Keeper (any address) pushes OTHER's claim — pulls from the escrow pool.
+    claim_shares_for(&mut test, &env, ADMIN, OTHER);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        assert!(!strategy.has_pending_deposit(OTHER));
+        assert_eq!(strategy.pending_share_pool_amount(), 0); // sole depositor drains it
+        return_shared(strategy);
+    };
+
+    // OTHER is insulated from the round's loss: an immediate exit returns ~their
+    // deposit (<= it, within rounding dust), never the round's PnL.
+    let out = withdraw_all_as(&mut test, &env, OTHER);
+    assert!(out <= SECOND_DEPOSIT_AMOUNT && out + 1000 >= SECOND_DEPOSIT_AMOUNT);
+
+    end(test);
+}
+
+#[test]
+fun cancel_pending_refunds_full() {
+    let mut test = begin(ADMIN);
+    let env = setup_strategy(&mut test);
+    deposit_as(&mut test, &env, USER, DEPOSIT_AMOUNT);
+    start_round(&mut test, &env, DOWN_STRIKE, DOWN_QUANTITY, UP_STRIKE, UP_QUANTITY);
+    queue_deposit_as(&mut test, &env, OTHER, SECOND_DEPOSIT_AMOUNT);
+
+    let refunded = cancel_pending_as(&mut test, &env, OTHER);
+    assert_eq!(refunded, SECOND_DEPOSIT_AMOUNT);
+
+    test.next_tx(ADMIN);
+    {
+        let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        assert_eq!(strategy.pending_deposits_total(), 0);
+        assert!(!strategy.has_pending_deposit(OTHER));
+        return_shared(strategy);
+    };
+    end(test);
+}
+
+#[test]
 fun start_round_opens_down_and_up_positions() {
     let mut test = begin(ADMIN);
     let env = setup_strategy(&mut test);
@@ -1362,6 +1451,59 @@ fun deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) {
         return_shared(strategy);
         return_shared(base);
     }
+}
+
+fun queue_deposit_as(test: &mut Scenario, env: &Env, user: address, amount: u64) {
+    test.next_tx(user);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        let funds = coin::mint_for_testing<TEST_QUOTE>(amount, test.ctx());
+        strategy::queue_deposit(&mut strategy, funds, test.ctx());
+        return_shared(strategy);
+    }
+}
+
+fun claim_shares_for(test: &mut Scenario, env: &Env, caller: address, user: address) {
+    test.next_tx(caller);
+    {
+        let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+        strategy::claim_shares(&mut strategy, user, test.ctx());
+        return_shared(strategy);
+    }
+}
+
+fun cancel_pending_as(test: &mut Scenario, env: &Env, user: address): u64 {
+    test.next_tx(user);
+    let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+    let out = strategy::cancel_pending(&mut strategy, test.ctx());
+    let value = out.value();
+    transfer::public_transfer(out, user);
+    return_shared(strategy);
+    value
+}
+
+fun withdraw_all_as(test: &mut Scenario, env: &Env, user: address): u64 {
+    test.next_tx(user);
+    let mut strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+    let mut base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+    let shares = test.take_from_sender<Coin<STRANGLE>>();
+    let out = strategy::withdraw(&mut strategy, &mut base, shares, test.ctx());
+    let value = out.value();
+    transfer::public_transfer(out, user);
+    return_shared(strategy);
+    return_shared(base);
+    value
+}
+
+fun read_nav_supply(test: &mut Scenario, env: &Env): (u64, u64) {
+    test.next_tx(ADMIN);
+    let strategy = test.take_shared_by_id<Strategy<TEST_QUOTE>>(env.strategy_id);
+    let base = test.take_shared_by_id<BaseVault<TEST_QUOTE>>(env.base_vault_id);
+    let nav = strategy.nav(&base);
+    let supply = strategy.share_supply();
+    return_shared(strategy);
+    return_shared(base);
+    (nav, supply)
 }
 
 fun default_policy(): policy::Policy {

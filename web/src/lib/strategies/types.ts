@@ -30,6 +30,12 @@ export interface StrategyState {
   baseShares: bigint
   reservedBaseShares: bigint
   pendingShares: bigint
+  /** Quote parked across the current deposit round (held aside, out of NAV). */
+  pendingDepositsTotal: bigint
+  /** Minted-but-unclaimed shares escrowed for settled depositors. */
+  pendingSharePool: bigint
+  /** Deposit queue's current round id; advances each settlement. */
+  depositRound: number
   plpAmount: bigint | null
   plpCostBasis: bigint | null
   staleGraceRounds: number
@@ -42,4 +48,37 @@ export interface StrategyState {
 export interface StrategyWalletState {
   dusdcBalance: bigint
   shareBalance: bigint
+}
+
+/** A deposit parked while a round was live, awaiting (or ready for) settlement. */
+export interface PendingDepositPosition {
+  /** Quote parked. */
+  amount: bigint
+  /** The round the deposit was queued in. */
+  round: number
+  /** Its round has settled — `claim` will now deliver shares (or a refund). */
+  settled: boolean
+  /** The round minted nothing (dust); claiming refunds the quote 1:1. */
+  isRefund: boolean
+}
+
+/** A withdrawal escrowed while a round was live, awaiting (or ready for) settlement. */
+export interface PendingWithdrawalPosition {
+  /** Shares escrowed. */
+  shares: bigint
+  /** The round the request was queued in. */
+  round: number
+  /** Its round has settled — `claim_withdrawal` will now deliver quote. */
+  settled: boolean
+}
+
+/**
+ * A wallet's full position in a strategy: liquid shares it holds plus any
+ * in-flight deposit/withdrawal sitting in the round queues. Best-effort — the
+ * per-user queue reads degrade to `null` if unavailable.
+ */
+export interface StrategyPosition {
+  activeShares: bigint
+  pendingDeposit: PendingDepositPosition | null
+  pendingWithdrawal: PendingWithdrawalPosition | null
 }

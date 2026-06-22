@@ -22,11 +22,11 @@ export const QUOTE_QUANTITY = 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
 
 export const PREDICT_PRICE_SCALE = 1_000_000_000
 
-export const ARENA_PACKAGE_ID = "0x2feb9cafa30c952d2c8d8ba4a30b1c5ef74968c686b3c9c5f8db9ca6c6106075"
+export const ARENA_PACKAGE_ID = "0x86f8fd50525cf8aea274b2559886fd1b4bdf2a6c8d1b353ff053548eabdb0dac"
 
 export const ARENA_ROOT_ID = ""
 
-export const ARENA_OBJECT_ID = "0x04fa00e9e39489bde2f6e3e7144548557c9272db589cdad6c65755ab808e9a9c"
+export const ARENA_OBJECT_ID = "0xda927248cef779d5af576962f03b0945e3db292b4153b171c4c9ea4e1df54e92"
 
 // CallIt backend (read/index/aggregate). Build-time env (VITE_*) so local and
 // prod point at different hosts; defaults to the local docker-mapped port.
@@ -40,7 +40,7 @@ export const KEEPER_API_URL: string =
   import.meta.env.VITE_KEEPER_API_URL ?? "http://localhost:8801"
 
 export const BASE_VAULT_ID =
-  "0x582b9a78622d39637896496e00a02ea122879c0f18ead1d693ddc86db2ce10e3"
+  "0x725808c6e223395dabf586de6ac3b9051a9c71c9767353bf51ec43b0d0c5789a"
 
 export const SHIELD_PACKAGE_ID = ""
 
