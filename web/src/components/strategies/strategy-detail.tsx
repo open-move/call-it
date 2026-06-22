@@ -106,8 +106,8 @@ function RoundCard({ meta, state }: { meta: StrategyMeta; state: StrategyState }
 
       <p className="mt-2 text-xs leading-5 text-pretty text-muted-foreground">
         {round
-          ? "Positions are open for this expiry; deposits and withdrawals queue until the round settles."
-          : "Between rounds — deposits and withdrawals settle instantly."}
+          ? "Positions are open for this expiry — deposits and withdrawals queue to the next settlement."
+          : "No open positions — deposits and withdrawals settle instantly."}
       </p>
 
       <div className="mt-5">

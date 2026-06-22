@@ -42,11 +42,24 @@ export function truncateAddress(address: string, lead = 6, tail = 4): string {
   return `${address.slice(0, lead)}…${address.slice(-tail)}`
 }
 
+// User-facing vault phase. "Open" = capital is cash, deposits/withdrawals settle
+// instantly; "In round" = capital deployed in positions, deposits/withdrawals
+// queue to the next settlement; "Paused" = circuit breaker.
 export function getStrategyStatus(state: StrategyState): string {
   if (state.paused) {
     return "Paused"
   }
-  return state.round ? "Round active" : "Between rounds"
+  return state.round ? "In round" : "Open"
+}
+
+// One-line plain-language hint that pairs with the status chip.
+export function getStrategyStatusHint(state: StrategyState): string {
+  if (state.paused) {
+    return "Deposits and withdrawals are paused"
+  }
+  return state.round
+    ? "Deposits and withdrawals queue to the next settlement"
+    : "Deposits and withdrawals settle instantly"
 }
 
 /** Value of a holder's shares in quote base units, exact bigint math. */

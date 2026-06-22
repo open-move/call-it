@@ -22,12 +22,13 @@ export type StrategyStats = Partial<Record<StrategyStatsKey, StrategyStat>>
 /** Single source of truth for status -> indicator tone across strategy UI. */
 export function getStrategyStatusTone(status?: string): StatusTone {
   switch (status) {
+    // "Open" — instant deposits/withdrawals; "Live" — the earn (PLP) vault.
     case "Open":
     case "Live":
-    case "Round active":
-    case "Between rounds":
       return StatusTone.Live
-    case "Oracle settled":
+    // "In round" — deployed and working; deposits/withdrawals queue.
+    case "In round":
+      return StatusTone.Neutral
     case "Paused":
       return StatusTone.Simulated
     default:
