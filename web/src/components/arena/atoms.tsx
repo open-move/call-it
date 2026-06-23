@@ -1,5 +1,8 @@
+import { Avatar as DicebearAvatar, Style } from "@dicebear/core"
+import glyphs from "@dicebear/styles/glyphs.json"
 import { formatDistanceToNowStrict } from "date-fns"
 import { ArrowDownIcon, ArrowUpIcon } from "lucide-react"
+import { useMemo } from "react"
 
 import { Badge, BadgeTone } from "@/components/primitives/badge"
 import type {
@@ -100,6 +103,10 @@ function getStatusLabel(status: ArenaCallStatus) {
   }
 }
 
+// Generated identity avatar, matching the nav account dropdown (Dicebear
+// glyphs seeded by the creator id).
+const glyphsStyle = new Style(glyphs)
+
 export function CreatorAvatar({
   className,
   seed,
@@ -107,15 +114,20 @@ export function CreatorAvatar({
   className?: string
   seed: string
 }) {
+  const avatar = useMemo(
+    () => new DicebearAvatar(glyphsStyle, { seed, size: 128 }).toDataUri(),
+    [seed]
+  )
+
   return (
-    <div
+    <img
+      alt=""
       className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-1 ring-border/60 ring-inset",
+        "size-4 shrink-0 rounded-full bg-muted ring-1 ring-border/60 ring-inset",
         className
       )}
-    >
-      {seed.slice(0, 2).toUpperCase()}
-    </div>
+      src={avatar}
+    />
   )
 }
 
