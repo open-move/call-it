@@ -11,8 +11,34 @@ import tailwindcss from "@tailwindcss/vite"
 // Node dev server. (workerd rejects @dynamic-labs' module-scope setTimeout, so
 // the VPS/Node target is the primary deploy path.)
 const isCloudflare = process.env.BUILD_TARGET === "cloudflare"
+
+// recharts 3.x renders through an internal react-redux store. Left to Rollup's
+// default splitting, recharts and react-redux land in separate lazy chunks, and
+// a client-side route transition can load them in an order where a store
+// selector is referenced before its module finishes initializing ("t is not a
+// function" on SPA nav, fine on a full reload). Coalescing the whole store stack
+// into one chunk gives it a single, deterministic eval order.
+function chartVendorChunks(id: string) {
+  if (
+    /[\\/]node_modules[\\/](recharts|react-redux|redux|@reduxjs[\\/]toolkit|reselect|immer|use-sync-external-store)[\\/]/.test(
+      id
+    )
+  ) {
+    return "recharts"
+  }
+
+  return undefined
+}
+
 const config = defineConfig(() => ({
   resolve: { tsconfigPaths: true },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: chartVendorChunks,
+      },
+    },
+  },
   plugins: [
     ...(isCloudflare ? [cloudflare({ viteEnvironment: { name: "ssr" } })] : []),
     devtools(),
