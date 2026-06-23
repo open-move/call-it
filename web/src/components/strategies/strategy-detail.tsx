@@ -3,6 +3,7 @@ import { useEffect, useState } from "react"
 import { AllocationBar, type AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
+import { RoundCountdown } from "@/components/shared/round-countdown"
 import { Button } from "@/components/ui/button"
 import {
   formatBps,
@@ -41,9 +42,17 @@ function allocationSegments(meta: StrategyMeta, state: StrategyState): Allocatio
 function Hero({ meta }: { meta: StrategyMeta }) {
   return (
     <div className="mx-auto w-full max-w-5xl px-1 pt-1 pb-2">
-      <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
-        {meta.name}
-      </h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
+          {meta.name}
+        </h1>
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+          Market
+          <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-[0.08em] text-foreground">
+            {meta.asset}
+          </span>
+        </span>
+      </div>
       <p className="mt-2.5 max-w-2xl text-sm leading-6 text-pretty text-muted-foreground">
         {meta.tagline}
       </p>
@@ -94,14 +103,21 @@ function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyStat
 function RoundCard({ meta, state }: { meta: StrategyMeta; state: StrategyState }) {
   const status = getStrategyStatus(state)
   const round = state.round
+  // Gate the per-second countdown behind mount: the round data is present at SSR,
+  // so rendering Date.now()-based text on the server would mismatch hydration.
+  const mounted = useMounted()
 
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">Current round</h2>
-        <StatusIndicator className="text-xs" tone={getStrategyStatusTone(status)}>
-          {status}
-        </StatusIndicator>
+        {round?.expiryMs && mounted ? (
+          <RoundCountdown expiryMs={round.expiryMs} />
+        ) : (
+          <StatusIndicator className="text-xs" tone={getStrategyStatusTone(status)}>
+            {status}
+          </StatusIndicator>
+        )}
       </div>
 
       <p className="mt-2 text-xs leading-5 text-pretty text-muted-foreground">
@@ -223,7 +239,7 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
           <StrategyLifecycle controller={controller} />
           <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
             <Button className="active:scale-[0.96]" onClick={() => openDialog("deposit")} type="button">
-              Deposit DUSDC
+              Deposit
             </Button>
             <Button className="active:scale-[0.96]" onClick={() => openDialog("withdraw")} type="button" variant="outline">
               Withdraw

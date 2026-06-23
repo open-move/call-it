@@ -14,14 +14,16 @@ import type { StrategyState } from "@/lib/strategies/types"
 import type { useStrategyAction } from "@/lib/strategies/use-strategy-action"
 import { cn } from "@/lib/utils"
 
-function Message({ children, tone }: { children: string; tone: "error" | "muted" }) {
+function Message({ children, tone }: { children: string; tone: "error" | "muted" | "alert" }) {
   return (
     <div
       className={cn(
         "rounded-md px-3 py-2 text-xs leading-5",
         tone === "error"
           ? "border border-destructive/25 bg-destructive/10 text-destructive"
-          : "bg-muted/15 text-muted-foreground"
+          : tone === "alert"
+            ? "border border-warning/25 bg-warning/10 text-warning"
+            : "bg-muted/15 text-muted-foreground"
       )}
     >
       {children}
@@ -63,29 +65,18 @@ export function StrategyActionDialog({
   const queued = duringRound
   const token = isDeposit ? "DUSDC" : "Shares"
 
-  // A deposit is a deposit whether or not a round is live; the only difference is
-  // when the shares land, which the preview shows quietly. So the action keeps
-  // its plain name instead of becoming "Queue deposit". Withdrawing mid-round is
-  // a genuinely deferred action, so it stays "Request withdrawal".
-  const title = isDeposit
-    ? "Deposit DUSDC"
-    : queued
-      ? "Request withdrawal"
-      : "Withdraw shares"
+  // The action keeps its plain name regardless of round state; a live round only
+  // changes WHEN it settles, which is surfaced by the preview row and an alert
+  // below, not by renaming the action.
+  const title = isDeposit ? "Deposit" : "Withdraw"
 
-  const submitLabel = isSubmitting
-    ? "Submitting"
-    : isDeposit
-      ? "Deposit DUSDC"
-      : queued
-        ? "Request withdrawal"
-        : "Withdraw"
+  const submitLabel = isSubmitting ? "Submitting" : isDeposit ? "Deposit" : "Withdraw"
 
-  // One calm line of reassurance mid-round (not an alarm); the timing itself is
-  // in the preview's "Available"/"Settles" row.
+  // Mid-round: a caution alert flagging that the action is deferred (and how to
+  // back out). Shown only while a round is live.
   const queueNotice = isDeposit
-    ? "Refundable until it settles next round."
-    : "Settles at the next round. Cancellable until then."
+    ? "Deposit settles into shares next round. Refundable until then."
+    : "Withdrawal settles next round. Cancellable until then."
 
   const estLabel = isDeposit ? "Est. shares" : "Est. value"
 
@@ -153,12 +144,12 @@ export function StrategyActionDialog({
         {message ? (
           <Message tone={messageTone}>{message}</Message>
         ) : queued ? (
-          <Message tone="muted">{queueNotice}</Message>
+          <Message tone="alert">{queueNotice}</Message>
         ) : invalidReason ? (
           <Message tone="muted">{invalidReason}</Message>
         ) : null}
 
-        <DialogFooter className="flex-col gap-2 sm:flex-col">
+        <DialogFooter>
           <Button
             className="w-full active:scale-[0.98]"
             disabled={isSubmitting || !canSubmit}
@@ -168,10 +159,6 @@ export function StrategyActionDialog({
           >
             {submitLabel}
           </Button>
-          <p className="text-center text-[11px] leading-4 text-muted-foreground">
-            Manage queued deposits and withdrawals from{" "}
-            <span className="text-foreground">Your position</span>.
-          </p>
         </DialogFooter>
       </DialogContent>
     </Dialog>

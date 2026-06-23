@@ -16,6 +16,8 @@ interface StrategyCardData {
   /** Strategy-detail slug (`/strategies/<slug>`). Absent for the PLP Earn card, which links to `/earn`. */
   slug?: string
   key: StrategyStatsKey
+  /** Underlying market shown as a chip. Absent for the PLP pool (no single asset). */
+  asset?: string
   shareToken: string
   status: string
   title: string
@@ -40,6 +42,7 @@ const strategyCards: StrategyCardData[] = [
       description: meta.tagline,
       slug: meta.key,
       key,
+      asset: meta.asset,
       shareToken: "Shares",
       status: "Live",
       title: meta.name,
@@ -80,16 +83,15 @@ function StrategyCard({
     <Card className="group flex h-full flex-col gap-0 overflow-hidden rounded-lg border-0 bg-card p-0 shadow-none ring-0 transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-lg">
       <StrategyVisual strategyKey={strategy.key} />
       <div className="flex flex-1 flex-col p-4">
-        <div className="flex items-center justify-between gap-3">
-          <StatusIndicator
-            className="text-xs"
-            tone={getStrategyStatusTone(status)}
-          >
+        <div className="flex items-center gap-2">
+          {strategy.asset ? (
+            <span className="rounded-sm bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-[0.08em] text-muted-foreground">
+              {strategy.asset}
+            </span>
+          ) : null}
+          <StatusIndicator className="text-xs" tone={getStrategyStatusTone(status)}>
             {status}
           </StatusIndicator>
-          <span className="rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-medium tracking-[0.08em] text-primary">
-            {strategy.shareToken}
-          </span>
         </div>
 
         <h2 className="mt-2.5 text-sm leading-none font-medium tracking-[-0.01em] text-balance text-foreground">
@@ -118,7 +120,7 @@ function StrategyCard({
           </div>
           <div className="text-right">
             <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-              {strategy.shareToken} price
+              {strategy.asset ? "Share" : strategy.shareToken} price
             </div>
             <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
               {stat ? (

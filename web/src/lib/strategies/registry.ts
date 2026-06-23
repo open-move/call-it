@@ -19,6 +19,8 @@ export interface StrategyMeta {
   key: StrategyKey
   name: string
   tagline: string
+  /** Underlying market the vault currently trades (shown as a badge, not in the name). */
+  asset: string
   shareSymbol: string
   shape: StrategyShape
   hasPlp: boolean
@@ -42,6 +44,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
     key: "hedged-plp",
     name: "Tail-Hedge PLP",
     tagline: "Provide Predict liquidity with a downside hedge: PLP yield minus crash insurance.",
+    asset: "BTC",
     shareSymbol: "hPLP",
     shape: "single",
     hasPlp: true,
@@ -62,6 +65,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
     key: "plp-collar",
     name: "PLP Collar",
     tagline: "Provide liquidity inside a collar: buy downside, sell upside, keep the middle.",
+    asset: "BTC",
     shareSymbol: "PCOLLAR",
     shape: "dual",
     hasPlp: true,
@@ -84,6 +88,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
     key: "strangle",
     name: "Short Strangle",
     tagline: "Sell both tails: collect premium when price stays in the middle.",
+    asset: "BTC",
     shareSymbol: "STRANGLE",
     shape: "dual",
     hasPlp: false,
@@ -102,6 +107,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
     key: "bullish-upside",
     name: "Bullish Upside",
     tagline: "Sell the upside binary: earn premium on a capped bullish view.",
+    asset: "BTC",
     shareSymbol: "BUP",
     shape: "single",
     hasPlp: false,
@@ -120,6 +126,7 @@ export const STRATEGIES: Record<StrategyKey, StrategyMeta> = {
     key: "range-ladder",
     name: "Range Ladder",
     tagline: "A ladder of range positions around spot: premium from staying in range.",
+    asset: "BTC",
     shareSymbol: "RLADDER",
     shape: "ladder",
     hasPlp: false,

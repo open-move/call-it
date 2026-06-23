@@ -6,6 +6,8 @@ export type StrategyShape = "single" | "dual" | "ladder"
 export interface StrategyRound {
   oracleId: string
   predictId: string
+  /** Round's market expiry (epoch ms), read from the oracle object. Null if unreadable. */
+  expiryMs: number | null
   // single (hedged-plp, bullish-upside)
   strike: bigint | null
   quantity: bigint | null

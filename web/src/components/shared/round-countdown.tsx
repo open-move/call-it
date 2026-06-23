@@ -26,7 +26,7 @@ export function RoundCountdown({ expiryMs }: { expiryMs: number }) {
       <span className="text-xs text-muted-foreground">
         {hasElapsed ? "Round" : "Ends in"}
       </span>
-      <span className="font-mono text-xs font-medium text-foreground tabular-nums">
+      <span className="text-xs font-medium text-foreground tabular-nums">
         {hasElapsed ? "Settling" : formatExpiryDistance(expiryMs, nowMs)}
       </span>
     </div>

@@ -68,6 +68,7 @@ function parseRound(raw: Record<string, unknown> | null): StrategyRound | null {
   return {
     oracleId: typeof raw.oracle_id === "string" ? raw.oracle_id : "",
     predictId: typeof raw.predict_id === "string" ? raw.predict_id : "",
+    expiryMs: null,
     strike: bigintFrom(raw.strike),
     quantity: bigintFrom(raw.hedge_quantity ?? raw.quantity),
     downStrike: bigintFrom(raw.down_strike),
@@ -124,6 +125,14 @@ export async function getStrategyState(key: StrategyKey): Promise<StrategyState 
     baseValueForShares(strategy.base_shares, base.cash, base.treasury.total_supply.value)
   const shareSupply = strategy.treasury.total_supply.value
 
+  // Enrich the active round with its market expiry, read from the oracle object
+  // (the Round struct stores only the oracle id). Best-effort: leaves null on
+  // failure, so the countdown simply doesn't render.
+  const round = parseRound(strategy.active_round)
+  if (round && round.oracleId) {
+    round.expiryMs = await readOracleExpiry(round.oracleId)
+  }
+
   return {
     baseShares: strategy.base_shares,
     baseVaultId,
@@ -139,11 +148,26 @@ export async function getStrategyState(key: StrategyKey): Promise<StrategyState 
     plpCostBasis,
     policy: parsePolicy(strategy.policy),
     reservedBaseShares: bigintFrom(raw.reserved_base_shares) ?? 0n,
-    round: parseRound(strategy.active_round),
+    round,
     sharePrice: shareSupply > 0n ? Number(nav) / Number(shareSupply) : 1,
     shareSupply,
     staleGraceRounds: Number(bigintFrom(raw.stale_withdrawal_grace_rounds) ?? 0n),
     strategyId: deployment.strategyId,
+  }
+}
+
+// Read an oracle object's `expiry` (epoch ms). Best-effort -> null on failure.
+async function readOracleExpiry(oracleId: string): Promise<number | null> {
+  try {
+    const object = await getSuiGrpcClient().getObject({
+      include: { json: true },
+      objectId: oracleId,
+    })
+    const json = object.object?.json as Record<string, unknown> | undefined
+    const expiry = json ? bigintFrom(json.expiry) : null
+    return expiry === null ? null : Number(expiry)
+  } catch {
+    return null
   }
 }
 
