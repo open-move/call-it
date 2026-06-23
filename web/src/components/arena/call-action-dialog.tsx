@@ -274,10 +274,10 @@ export function CallActionDialog({
         render={
           <Button
             className={cn(
-              "shadow-none",
+              "shadow-none active:scale-[0.98]",
               isBack
                 ? "bg-primary/10 text-primary hover:bg-primary/15"
-                : "bg-muted/40 text-foreground hover:bg-muted/55"
+                : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15"
             )}
             size="sm"
             type="button"

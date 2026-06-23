@@ -103,7 +103,7 @@ export function CreatorAvatar({
   return (
     <div
       className={cn(
-        "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-1 ring-inset ring-border/60",
+        "flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-1 ring-border/60 ring-inset",
         className
       )}
     >
@@ -133,6 +133,29 @@ export function DirectionArrow({
   )
 }
 
+// Bold Up/Down marker: the directional signal that gives a call card its
+// at-a-glance energy. Tinted in the outcome color.
+export function DirectionPill({ direction }: { direction: ArenaDirection }) {
+  const isUp = direction === "up"
+  const Icon = isUp ? ArrowUpIcon : ArrowDownIcon
+
+  return (
+    <span
+      className={cn(
+        "inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold tracking-wide",
+        isUp
+          ? "bg-outcome-up/10 text-outcome-up"
+          : "bg-outcome-down/10 text-outcome-down"
+      )}
+    >
+      <Icon className="size-3" />
+      {isUp ? "UP" : "DOWN"}
+    </span>
+  )
+}
+
+// Back-vs-fade as a colored tug-of-war: backers push from the left (primary),
+// faders from the right (outcome-down), with the counts owning each side.
 export function SentimentBar({
   backers,
   faders,
@@ -144,20 +167,26 @@ export function SentimentBar({
   const backPct = total === 0 ? 50 : Math.round((backers / total) * 100)
 
   return (
-    <div className="flex items-center gap-2.5">
-      <span className="text-[11px] font-medium text-foreground tabular-nums">
-        {backers}
-      </span>
-      <div className="flex h-1.5 flex-1 overflow-hidden rounded-full bg-muted/40">
-        <div className="h-full bg-primary" style={{ width: `${backPct}%` }} />
-        <div
-          className="h-full bg-muted-foreground/35"
-          style={{ width: `${100 - backPct}%` }}
-        />
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2.5">
+        <span className="text-[11px] font-semibold text-primary tabular-nums">
+          {backers}
+        </span>
+        <div className="flex h-2 flex-1 overflow-hidden rounded-full bg-muted/40">
+          <div className="h-full bg-primary" style={{ width: `${backPct}%` }} />
+          <div
+            className="h-full bg-outcome-down/55"
+            style={{ width: `${100 - backPct}%` }}
+          />
+        </div>
+        <span className="text-[11px] font-semibold text-outcome-down tabular-nums">
+          {faders}
+        </span>
       </div>
-      <span className="text-[11px] font-medium text-muted-foreground tabular-nums">
-        {faders}
-      </span>
+      <div className="flex items-center justify-between text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+        <span>Back</span>
+        <span>Fade</span>
+      </div>
     </div>
   )
 }
@@ -199,13 +228,15 @@ const activityDotClassName: Record<ArenaActivity["kind"], string> = {
   reclaimed: "bg-muted-foreground",
 }
 
-export function DetailStat({
-  label,
-  value,
-}: {
-  label: string
-  value: string
-}) {
+const activityKindLabel: Record<ArenaActivity["kind"], string> = {
+  backed: "backed",
+  claimed: "claimed bond",
+  faded: "faded",
+  launched: "launched",
+  reclaimed: "reclaimed bond",
+}
+
+export function DetailStat({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-w-0">
       <div className="text-xs text-muted-foreground">{label}</div>
@@ -251,7 +282,9 @@ function ActivityActor({ value }: { value: string }) {
     )
   }
 
-  return <span className="font-medium text-foreground">{shortenHandle(value)}</span>
+  return (
+    <span className="font-medium text-foreground">{shortenHandle(value)}</span>
+  )
 }
 
 function ActivityLabel({ value }: { value: string }) {
@@ -289,7 +322,9 @@ export function ActivityRow({ item }: { item: ArenaActivity }) {
         <div className="flex items-baseline justify-between gap-2">
           <div className="min-w-0 truncate text-xs">
             <ActivityActor value={item.actor} />{" "}
-            <span className="text-muted-foreground">{item.kind}</span>
+            <span className="text-muted-foreground">
+              {activityKindLabel[item.kind]}
+            </span>
           </div>
           <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
             {formatCallTimestamp(item.timestamp)}

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
 import { formatDistanceToNowStrict } from "date-fns"
-import { ActivityIcon, ArrowLeftIcon, TrophyIcon } from "lucide-react"
+import { ArrowLeftIcon } from "lucide-react"
 import { useState } from "react"
 
 import { TicketRow, TicketSection } from "@/components/shared/ticket/ticket"
@@ -167,11 +167,11 @@ export function CallDetailPage({
                       <span className="truncate text-sm font-medium text-foreground">
                         {call.creatorHandle}
                       </span>
-                      <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
-                        <TrophyIcon className="size-3 text-primary/70" />
+                      <span className="shrink-0 text-[11px] text-muted-foreground">
                         <span className="font-medium text-foreground tabular-nums">
                           {percentFormatter.format(call.creatorWinRate)}
-                        </span>
+                        </span>{" "}
+                        win
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
@@ -179,7 +179,10 @@ export function CallDetailPage({
                     </div>
                   </div>
                 </div>
-                <CallStatusBadge status={call.status} winState={call.winState} />
+                <CallStatusBadge
+                  status={call.status}
+                  winState={call.winState}
+                />
               </div>
 
               <div className="flex items-start gap-2">
@@ -190,7 +193,7 @@ export function CallDetailPage({
                 <h1 className="text-lg leading-snug font-semibold tracking-tight text-balance text-foreground sm:text-xl">
                   {call.market}
                   {isActive ? (
-                    <span className=" text-muted-foreground">
+                    <span className="text-muted-foreground">
                       {" "}
                       in {formatDistanceToNowStrict(call.expiryMs)}
                     </span>
@@ -203,8 +206,14 @@ export function CallDetailPage({
                   label="Chance"
                   value={percentFormatter.format(getCallChance(call))}
                 />
-                <DetailStat label="Strike" value={`$${call.strikeUsd.toLocaleString("en-US")}`} />
-                <DetailStat label="Creator bond" value={formatPlp(call.bondPlp)} />
+                <DetailStat
+                  label="Strike"
+                  value={`$${call.strikeUsd.toLocaleString("en-US")}`}
+                />
+                <DetailStat
+                  label="Creator bond"
+                  value={formatPlp(call.bondPlp)}
+                />
               </div>
 
               <SentimentBar backers={call.backers} faders={call.faders} />
@@ -213,7 +222,7 @@ export function CallDetailPage({
             {creator ? (
               <div className="rounded-lg bg-card p-4">
                 <Link
-                  className="mb-3 flex items-center gap-2.5 rounded-md outline-none transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary/30"
+                  className="mb-3 flex items-center gap-2.5 rounded-md transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary/30"
                   params={{ handle: creator.handle }}
                   to="/arena/creator/$handle"
                 >
@@ -243,17 +252,19 @@ export function CallDetailPage({
                     label="Calls"
                     value={creator.callCount.toString()}
                   />
-                  <DetailStat label="Bonded" value={formatPlp(creator.bondPlp)} />
+                  <DetailStat
+                    label="Bonded"
+                    value={formatPlp(creator.bondPlp)}
+                  />
                 </div>
               </div>
             ) : null}
 
             <div className="rounded-lg bg-card">
-              <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+              <div className="border-b border-border/35 px-4 py-3">
                 <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
                   Activity
                 </h2>
-                <ActivityIcon className="size-4 text-muted-foreground" />
               </div>
               <div className="px-2 py-2">
                 {activity.length > 0 ? (

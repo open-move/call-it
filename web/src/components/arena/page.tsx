@@ -1,26 +1,21 @@
 import { Link } from "@tanstack/react-router"
 import { formatDistanceToNowStrict } from "date-fns"
-import {
-  ActivityIcon,
-  ArrowRightIcon,
-  MegaphoneIcon,
-  TrophyIcon,
-} from "lucide-react"
+import { ArrowRightIcon } from "lucide-react"
 
 import type {
   ArenaActivity,
   ArenaCall,
   ArenaPageModel,
 } from "@/lib/arena/types"
+import { cn } from "@/lib/utils"
 
 import {
   ActivityRow,
   CallStatusBadge,
   CreatorAvatar,
-  DirectionArrow,
+  DirectionPill,
   SentimentBar,
   formatCallTimestamp,
-  formatPlp,
   getCallChance,
   percentFormatter,
 } from "./atoms"
@@ -67,16 +62,11 @@ function CallsPanel({ calls }: { calls: ArenaCall[] }) {
 
 function CallsEmptyState() {
   return (
-    <div className="col-span-full flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border/50 bg-card/40 px-6 py-16 text-center">
-      <div className="flex size-10 items-center justify-center rounded-full bg-muted/50 text-muted-foreground">
-        <MegaphoneIcon className="size-5" />
-      </div>
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">No active calls</p>
-        <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-          Launch a call to bond PLP on a market and let the arena back or fade it.
-        </p>
-      </div>
+    <div className="col-span-full flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-16 text-center">
+      <p className="text-sm font-medium text-foreground">No active calls</p>
+      <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
+        Launch a call to bond PLP on a market and let the arena back or fade it.
+      </p>
     </div>
   )
 }
@@ -91,9 +81,16 @@ function PanelEmpty({ message }: { message: string }) {
 
 function CallCard({ call }: { call: ArenaCall }) {
   const isActive = call.status === "active"
+  const isUp = call.direction === "up"
+  const showChance = isActive && call.fairUpProbability > 0
 
   return (
-    <article className="group flex flex-col gap-3 rounded-xl bg-card p-4 transition-[transform,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg">
+    <article
+      className={cn(
+        "group flex flex-col gap-3 rounded-lg border-l-2 bg-card p-4 ring-1 ring-transparent transition-[box-shadow] duration-150 hover:ring-border/50",
+        isUp ? "border-l-outcome-up/70" : "border-l-outcome-down/70"
+      )}
+    >
       <Link
         className="flex flex-1 flex-col gap-3 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         params={{ callId: call.id }}
@@ -105,54 +102,38 @@ function CallCard({ call }: { call: ArenaCall }) {
             <span className="truncate text-xs font-medium text-foreground">
               {call.creatorHandle}
             </span>
-            <span className="flex shrink-0 items-center gap-0.5 text-[11px] text-muted-foreground">
-              <TrophyIcon className="size-3 text-primary/70" />
+            <span className="shrink-0 text-[11px] text-muted-foreground">
               <span className="font-medium text-foreground tabular-nums">
                 {percentFormatter.format(call.creatorWinRate)}
-              </span>
-            </span>
-            <span className="shrink-0 text-[11px] text-muted-foreground">
-              · {formatCallTimestamp(call.createdAt)}
+              </span>{" "}
+              win
             </span>
           </div>
           <CallStatusBadge status={call.status} winState={call.winState} />
         </div>
 
-        <div className="flex flex-1 flex-col">
-          <div className="flex min-w-0 items-start gap-2">
-            <DirectionArrow direction={call.direction} />
+        <div className="flex min-w-0 items-start gap-2">
+          <DirectionPill direction={call.direction} />
+          <div className="min-w-0 flex-1">
             <h3 className="min-w-0 text-sm leading-5 font-semibold text-balance text-foreground">
               {call.market}
-              {isActive ? (
-                <span className=" text-muted-foreground">
-                  {" "}
-                  · {formatDistanceToNowStrict(call.expiryMs)} left
-                </span>
-              ) : null}
             </h3>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-            {isActive && call.fairUpProbability > 0 ? (
-              <>
-                <span>
-                  <span className="font-medium text-foreground tabular-nums">
-                    {percentFormatter.format(getCallChance(call))}
-                  </span>{" "}
-                  chance
-                </span>
-                <span aria-hidden="true" className="text-muted-foreground/40">
-                  ·
-                </span>
-              </>
-            ) : null}
-            <span>
-              <span className="font-medium text-foreground tabular-nums">
-                {formatPlp(call.bondPlp)}
-              </span>{" "}
-              bonded
-            </span>
+            <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
+              {isActive
+                ? `${formatDistanceToNowStrict(call.expiryMs)} left`
+                : formatCallTimestamp(call.createdAt)}
+            </p>
           </div>
         </div>
+
+        {showChance ? (
+          <div>
+            <div className="font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+              {percentFormatter.format(getCallChance(call))}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">chance</div>
+          </div>
+        ) : null}
 
         <SentimentBar backers={call.backers} faders={call.faders} />
       </Link>
@@ -164,7 +145,7 @@ function CallCard({ call }: { call: ArenaCall }) {
         </div>
       ) : (
         <Link
-          className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-muted/30 text-xs font-medium text-muted-foreground transition-[background-color,color] duration-150 hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+          className="inline-flex h-9 w-full items-center justify-center gap-1 rounded-md bg-muted/30 text-xs font-medium text-muted-foreground transition-[background-color,color,scale] duration-150 hover:bg-muted/45 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none active:scale-[0.98]"
           params={{ callId: call.id }}
           to="/arena/$callId"
         >
@@ -179,11 +160,10 @@ function CallCard({ call }: { call: ArenaCall }) {
 function ActivityPanel({ activity }: { activity: ArenaActivity[] }) {
   return (
     <div className="flex h-[32rem] flex-col rounded-lg bg-card xl:sticky xl:top-[4.25rem]">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+      <div className="shrink-0 border-b border-border/35 px-4 py-3">
         <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Recent activity
         </h2>
-        <ActivityIcon className="size-4 text-muted-foreground" />
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {activity.length > 0 ? (

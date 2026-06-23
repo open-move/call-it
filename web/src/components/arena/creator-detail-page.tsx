@@ -48,14 +48,17 @@ export function CreatorDetailPage({
               label="Win rate"
               value={percentFormatter.format(getWinRate(creator))}
             />
-            <DetailStat label="Settled" value={creator.settledCount.toString()} />
+            <DetailStat
+              label="Settled"
+              value={creator.settledCount.toString()}
+            />
             <DetailStat label="Calls" value={creator.callCount.toString()} />
             <DetailStat label="Bonded" value={formatPlp(creator.bondPlp)} />
           </div>
         </div>
 
         <div className="rounded-lg bg-card">
-          <div className="flex items-center justify-between gap-3 border-b border-border/40 px-4 py-3">
+          <div className="flex items-center justify-between gap-3 border-b border-border/35 px-4 py-3">
             <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
               Calls
             </h2>
@@ -72,7 +75,10 @@ export function CreatorDetailPage({
                   params={{ callId: call.id }}
                   to="/arena/$callId"
                 >
-                  <DirectionArrow className="mt-0 size-4" direction={call.direction} />
+                  <DirectionArrow
+                    className="mt-0 size-4"
+                    direction={call.direction}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">
                       {call.market}
@@ -88,7 +94,10 @@ export function CreatorDetailPage({
                       bonded
                     </div>
                   </div>
-                  <CallStatusBadge status={call.status} winState={call.winState} />
+                  <CallStatusBadge
+                    status={call.status}
+                    winState={call.winState}
+                  />
                 </Link>
               ))
             ) : (

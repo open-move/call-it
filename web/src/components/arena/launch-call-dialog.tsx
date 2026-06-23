@@ -39,7 +39,11 @@ type LaunchDirection = "up" | "down"
 
 const MIN_BOND_DUSDC = 10
 
-const directions: { icon: typeof ArrowUpIcon; label: string; value: LaunchDirection }[] = [
+const directions: {
+  icon: typeof ArrowUpIcon
+  label: string
+  value: LaunchDirection
+}[] = [
   { icon: ArrowUpIcon, label: "Up", value: "up" },
   { icon: ArrowDownIcon, label: "Down", value: "down" },
 ]
@@ -81,7 +85,7 @@ export function LaunchCallDialog() {
   // static trigger until mounted, then the real (wallet-aware) dialog.
   if (!isClient) {
     return (
-      <Button disabled size="sm" type="button" variant="outline">
+      <Button className="active:scale-[0.98]" disabled size="sm" type="button">
         <PlusIcon className="size-3.5" />
         Launch call
       </Button>
@@ -298,7 +302,7 @@ function LaunchCallDialogClient() {
     >
       <DialogTrigger
         render={
-          <Button size="sm" type="button" variant="outline">
+          <Button className="active:scale-[0.98]" size="sm" type="button">
             <PlusIcon className="size-3.5" />
             Launch call
           </Button>
