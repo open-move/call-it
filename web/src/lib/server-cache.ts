@@ -107,6 +107,17 @@ export class TtlCache {
     return load
   }
 
+  /// Synchronously return a still-fresh cached value, or undefined. Lets a
+  /// caller skip its loading state / fetch entirely when the data is already in
+  /// hand (e.g. seed component state on mount).
+  peek<T>(key: string): T | undefined {
+    const cached = this.store.get(key)
+    if (cached !== undefined && cached.freshUntil > Date.now()) {
+      return cached.value as T
+    }
+    return undefined
+  }
+
   /// Drop a cached entry so the next read refetches. Useful after a mutation
   /// that should be reflected immediately.
   invalidate(key: string): void {

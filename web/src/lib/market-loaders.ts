@@ -3,7 +3,8 @@ import {
   getOracleState,
   getPredictOracles,
 } from "@/services/predict-client"
-import type {MarketSnapshot} from "@/lib/types/market";
+import type { MarketSnapshot } from "@/lib/types/market"
+import { TtlCache } from "@/lib/server-cache"
 
 import { mapOracleStateToMarketSnapshot } from "./market-mapper"
 
@@ -28,6 +29,32 @@ export async function loadActiveMarketSnapshots(): Promise<MarketSnapshot[]> {
   return oracleData.map(({ prices, state }) =>
     mapOracleStateToMarketSnapshot(state, prices)
   )
+}
+
+const activeMarketsCache = new TtlCache()
+const ACTIVE_MARKETS_KEY = "active-market-snapshots"
+
+// Cached active snapshots for surfaces that just need a recent list and would
+// otherwise refetch every time (e.g. the launch-call modal reopening or
+// remounting). 60s TTL + single-flight, so repeated opens reuse the in-session
+// result instead of re-hitting Predict. The live markets page keeps calling the
+// uncached loader directly.
+export function loadActiveMarketSnapshotsCached(): Promise<MarketSnapshot[]> {
+  return activeMarketsCache.fetch(
+    ACTIVE_MARKETS_KEY,
+    loadActiveMarketSnapshots,
+    {
+      staleMs: 5 * 60_000,
+      ttlMs: 60_000,
+    }
+  )
+}
+
+// Synchronous read of the cached active snapshots when still fresh. Lets a
+// caller render immediately (no loading state, no fetch) if we already have
+// them in hand this session.
+export function peekActiveMarketSnapshots(): MarketSnapshot[] | undefined {
+  return activeMarketsCache.peek<MarketSnapshot[]>(ACTIVE_MARKETS_KEY)
 }
 
 // Recently-resolved markets, newest first. Bounded because each oracle costs a

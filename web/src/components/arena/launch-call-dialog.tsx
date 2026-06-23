@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { parseDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   getReadySuiTransactionSigner,
@@ -29,15 +28,20 @@ import {
 } from "@/lib/dynamic/sui-wallet"
 import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { formatExpiry, formatExpiryDistance } from "@/lib/format"
-import { loadActiveMarketSnapshots } from "@/lib/market-loaders"
+import {
+  loadActiveMarketSnapshotsCached,
+  peekActiveMarketSnapshots,
+} from "@/lib/market-loaders"
 import type { MarketSnapshot } from "@/lib/types/market"
 import { cn } from "@/lib/utils"
 import { executeLaunchCall } from "@/services/arena-transactions"
 import { formatPredictTradeError } from "@/services/predict-quotes"
 
+import { DirectionPill } from "./atoms"
+
 type LaunchDirection = "up" | "down"
 
-const MIN_BOND_DUSDC = 10
+const BOND_DUSDC = 10
 
 const directions: {
   icon: typeof ArrowUpIcon
@@ -101,9 +105,12 @@ function LaunchCallDialogClient() {
   const [open, setOpen] = useState(false)
   const [direction, setDirection] = useState<LaunchDirection>("up")
   const [strike, setStrike] = useState("")
-  const [bond, setBond] = useState("")
 
-  const [markets, setMarkets] = useState<MarketSnapshot[]>([])
+  // Seed from the in-session cache so a reopen/remount renders immediately —
+  // only hit the server when we don't already have the markets on the frontend.
+  const [markets, setMarkets] = useState<MarketSnapshot[]>(
+    () => peekActiveMarketSnapshots() ?? []
+  )
   const [marketsError, setMarketsError] = useState<string>()
   const [isLoadingMarkets, setIsLoadingMarkets] = useState(false)
   const [selectedAsset, setSelectedAsset] = useState<string>()
@@ -145,14 +152,11 @@ function LaunchCallDialogClient() {
     (market) => market.oracleId === selectedOracleId
   )
 
-  const bondNumber = Number(bond)
-  const bondBelowMin =
-    bond.trim() !== "" &&
-    (Number.isNaN(bondNumber) || bondNumber < MIN_BOND_DUSDC)
   const strikeNumber = Number(strike)
   const hasStrike =
     strike.trim() !== "" && !Number.isNaN(strikeNumber) && strikeNumber > 0
-  const bondUnits = parseDecimalUnits(bond, PREDICT_QUOTE_DECIMALS)
+  // Bond is a fixed amount for now (not creator-editable).
+  const bondUnits = BigInt(BOND_DUSDC) * 10n ** BigInt(PREDICT_QUOTE_DECIMALS)
 
   // Live oracle list comes from Predict; the dialog only loads it when opened.
   useEffect(() => {
@@ -164,7 +168,7 @@ function LaunchCallDialogClient() {
     setIsLoadingMarkets(true)
     setMarketsError(undefined)
 
-    loadActiveMarketSnapshots()
+    loadActiveMarketSnapshotsCached()
       .then((nextMarkets) => {
         if (isStale) {
           return
@@ -200,13 +204,7 @@ function LaunchCallDialogClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMarket?.oracleId])
 
-  const isLaunchDisabled =
-    isSubmitting ||
-    !selectedMarket ||
-    !hasStrike ||
-    !bondUnits ||
-    bondBelowMin ||
-    (!!walletAddress && bondNumber < MIN_BOND_DUSDC)
+  const isLaunchDisabled = isSubmitting || !selectedMarket || !hasStrike
 
   const actionLabel = !walletAddress
     ? "Connect wallet"
@@ -249,11 +247,6 @@ function LaunchCallDialogClient() {
 
     if (!hasStrike) {
       setErrorMessage("Enter a strike price.")
-      return
-    }
-
-    if (!bondUnits || bondNumber < MIN_BOND_DUSDC) {
-      setErrorMessage(`Bond must be at least ${MIN_BOND_DUSDC} DUSDC.`)
       return
     }
 
@@ -446,28 +439,40 @@ function LaunchCallDialogClient() {
 
           <Field label="Bond">
             <div className="space-y-1">
-              <div className="relative">
-                <Input
-                  className="border-border/35 bg-muted/25 pr-16 font-mono text-sm shadow-none ring-0 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
-                  inputMode="decimal"
-                  onChange={(event) => setBond(event.target.value)}
-                  placeholder="10"
-                  value={bond}
-                />
-                <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
-                  DUSDC
+              <div className="flex items-center justify-between rounded-md border border-border/35 bg-muted/25 px-3 py-2">
+                <span className="font-mono text-sm text-foreground tabular-nums">
+                  {`$${BOND_DUSDC}`}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Fixed · bonded as PLP
                 </span>
               </div>
-              <p
-                className={cn(
-                  "text-[11px]",
-                  bondBelowMin ? "text-warning" : "text-muted-foreground"
-                )}
-              >
-                Minimum {MIN_BOND_DUSDC} DUSDC, bonded as PLP.
-              </p>
             </div>
           </Field>
+
+          {selectedMarket && hasStrike ? (
+            <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <DirectionPill direction={direction} />
+                <span className="truncate text-sm font-medium text-foreground">
+                  {selectedAsset} {direction === "up" ? "above" : "below"} $
+                  {strikeNumber.toLocaleString("en-US")}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Expiry</span>
+                <span className="font-mono text-foreground tabular-nums">
+                  {formatExpiry(selectedMarket.expiryMs)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Bond</span>
+                <span className="font-mono text-foreground tabular-nums">
+                  {`$${BOND_DUSDC}`}
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           {(errorMessage || statusMessage) && (
             <TicketMessage
