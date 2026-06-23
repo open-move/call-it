@@ -49,6 +49,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
   const {
     action,
     amount,
+    connect,
     dialogOpen,
     isConnected,
     walletAddress,
@@ -86,6 +87,7 @@ function LiquidityPanelClient({ summary }: { summary: VaultSummary }) {
       messageTone={messageTone}
       onActionChange={setAction}
       onAmountChange={setAmount}
+      onConnect={connect}
       onDialogOpenChange={handleDialogOpenChange}
       onMaxAmount={isConnected ? handleMaxAmount : undefined}
       onOpenAction={openActionDialog}
@@ -126,6 +128,7 @@ function LiquidityPanelFrame({
   messageTone,
   onActionChange,
   onAmountChange,
+  onConnect,
   onDialogOpenChange,
   onMaxAmount,
   onOpenAction,
@@ -147,6 +150,7 @@ function LiquidityPanelFrame({
   messageTone: "error" | "muted"
   onActionChange: (action: EarnAction) => void
   onAmountChange: (amount: string) => void
+  onConnect?: () => void
   onDialogOpenChange?: (open: boolean) => void
   onMaxAmount?: () => void
   onOpenAction?: (action: EarnAction) => void
@@ -168,30 +172,40 @@ function LiquidityPanelFrame({
         </h2>
 
         {walletAddress ? (
-          walletBlock
+          <>
+            {walletBlock}
+            <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
+              <Button
+                className="active:scale-[0.96]"
+                onClick={() => selectAction("supply")}
+                type="button"
+              >
+                Deposit DUSDC
+              </Button>
+              <Button
+                className="active:scale-[0.96]"
+                onClick={() => selectAction("withdraw")}
+                type="button"
+                variant="outline"
+              >
+                Withdraw
+              </Button>
+            </div>
+          </>
         ) : (
-          <p className="mt-4 max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
-            Connect your wallet to deposit DUSDC and hold PLP shares.
-          </p>
-        )}
-
-        {walletAddress && (
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-5">
-            <Button
-              className="active:scale-[0.96]"
-              onClick={() => selectAction("supply")}
-              type="button"
-            >
-              Deposit DUSDC
-            </Button>
-            <Button
-              className="active:scale-[0.96]"
-              onClick={() => selectAction("withdraw")}
-              type="button"
-              variant="outline"
-            >
-              Withdraw
-            </Button>
+          <div className="mt-4 flex flex-1 flex-col">
+            <p className="text-xs leading-5 text-pretty text-muted-foreground">
+              Connect your wallet to deposit DUSDC and hold PLP shares.
+            </p>
+            <div className="mt-auto pt-5">
+              {onConnect ? (
+                <Button className="w-full active:scale-[0.96]" onClick={onConnect} type="button">
+                  Connect wallet
+                </Button>
+              ) : (
+                <div aria-hidden="true" className="h-9 w-full animate-pulse rounded-md bg-muted/40" />
+              )}
+            </div>
           </div>
         )}
       </div>

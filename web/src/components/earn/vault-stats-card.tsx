@@ -2,11 +2,7 @@ import { AllocationBar } from "@/components/primitives/allocation-bar"
 import type { AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
 import { formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
-import type {
-  VaultPerformanceResponse,
-  VaultSummary,
-} from "@/lib/types/predict"
-import { VaultPriceChart } from "./price-chart"
+import type { VaultSummary } from "@/lib/types/predict"
 
 function utilizationSegments(summary: VaultSummary): AllocationSegment[] {
   const used = Math.min(1, Math.max(0, summary.utilization))
@@ -17,13 +13,7 @@ function utilizationSegments(summary: VaultSummary): AllocationSegment[] {
   ]
 }
 
-export function VaultStatsCard({
-  performance,
-  summary,
-}: {
-  performance: VaultPerformanceResponse
-  summary: VaultSummary
-}) {
+export function VaultStatsCard({ summary }: { summary: VaultSummary }) {
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
@@ -58,10 +48,6 @@ export function VaultStatsCard({
           label="PLP supply"
           value={formatQuoteAmount(summary.plp_total_supply, "PLP")}
         />
-      </div>
-
-      <div className="mt-7">
-        <VaultPriceChart performance={performance} summary={summary} />
       </div>
     </div>
   )

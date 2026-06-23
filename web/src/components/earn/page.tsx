@@ -8,6 +8,7 @@ import type {
 import { ActivityCard } from "./activity-card"
 import { EarnHero } from "./hero"
 import { LiquidityPanel } from "./liquidity-panel"
+import { VaultPriceChart } from "./price-chart"
 import { VaultStatsCard } from "./vault-stats-card"
 
 export interface PageProps {
@@ -35,7 +36,11 @@ export function Page({
             <LiquidityPanel summary={summary} />
           </aside>
 
-          <VaultStatsCard performance={performance} summary={summary} />
+          <VaultStatsCard summary={summary} />
+        </div>
+
+        <div className="mx-auto max-w-5xl rounded-lg bg-card p-4">
+          <VaultPriceChart performance={performance} summary={summary} />
         </div>
 
         <div className="mx-auto max-w-5xl">

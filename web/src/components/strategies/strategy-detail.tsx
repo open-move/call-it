@@ -191,7 +191,7 @@ function useMounted() {
 function PositionPromptStatic() {
   return (
     <div className="mt-4 flex flex-1 flex-col">
-      <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
+      <p className="text-xs leading-5 text-pretty text-muted-foreground">
         Connect your wallet to deposit DUSDC and hold shares.
       </p>
       <div className="mt-auto pt-5">
@@ -248,7 +248,7 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
         </>
       ) : (
         <div className="mt-4 flex flex-1 flex-col">
-          <p className="max-w-xs text-xs leading-5 text-pretty text-muted-foreground">
+          <p className="text-xs leading-5 text-pretty text-muted-foreground">
             Connect your wallet to deposit DUSDC and hold shares.
           </p>
           <div className="mt-auto pt-5">

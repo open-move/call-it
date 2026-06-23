@@ -221,6 +221,7 @@ export function useEarnAction(summary: VaultSummary) {
   return {
     action,
     amount,
+    connect: () => setShowAuthFlow(true),
     dialogOpen: dialogAction !== undefined,
     isSubmitting,
     isConnected: !!walletAddress,

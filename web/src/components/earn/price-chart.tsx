@@ -31,7 +31,7 @@ export function VaultPriceChart({
           ${formatSharePrice(summary.plp_share_price)}
         </div>
       </div>
-      <div className="h-28 sm:h-32">
+      <div className="h-44 sm:h-56">
         {chartData.points.length > 0 && yDomain ? (
           <ResponsiveContainer height="100%" width="100%">
             <AreaChart
