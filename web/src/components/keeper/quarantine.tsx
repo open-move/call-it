@@ -1,5 +1,4 @@
 import { BadgeTone } from "@/components/primitives/badge"
-import { Panel } from "@/components/primitives/panel"
 import { formatCount, truncateMiddle } from "@/lib/keeper/helpers"
 import type { KeeperReconcileError } from "@/services/keeper-client"
 
@@ -11,7 +10,7 @@ export function QuarantinePanel({
   errors: KeeperReconcileError[]
 }) {
   return (
-    <Panel className="space-y-3">
+    <div className="space-y-3 rounded-lg bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Reconcile quarantine
@@ -51,6 +50,6 @@ export function QuarantinePanel({
           No quarantined events.
         </p>
       )}
-    </Panel>
+    </div>
   )
 }

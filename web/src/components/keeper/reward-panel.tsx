@@ -2,7 +2,6 @@ import { ArrowUpRightIcon } from "lucide-react"
 
 import { BadgeTone } from "@/components/primitives/badge"
 import { DataRow } from "@/components/primitives/data-row"
-import { Panel, PanelTone } from "@/components/primitives/panel"
 import { suivisionObjectUrl, truncateMiddle } from "@/lib/keeper/helpers"
 import type { KeeperStatus } from "@/services/keeper-client"
 
@@ -12,10 +11,7 @@ export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
   const deployed = status.rewardVaultId !== null
 
   return (
-    <Panel
-      tone={deployed ? PanelTone.Accent : PanelTone.Default}
-      className="space-y-3"
-    >
+    <div className="space-y-3 rounded-lg bg-card p-4">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Reward vault
@@ -51,9 +47,8 @@ export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
       ) : (
         <div className="space-y-3">
           <p className="text-xs leading-5 text-pretty text-muted-foreground">
-            The keeper currently redeems for free. Once the reward vault is
-            deployed, executors earn a fixed, operator-funded tip per
-            redemption.
+            Redemptions are free right now. Once the reward vault is deployed,
+            executors earn a fixed, operator-funded tip per redemption.
           </p>
           <div>
             <DataRow label="Tip policy" value="Fixed, admin-set, opt-in" />
@@ -61,6 +56,6 @@ export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
           </div>
         </div>
       )}
-    </Panel>
+    </div>
   )
 }

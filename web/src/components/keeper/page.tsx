@@ -1,7 +1,7 @@
 import { useRouter } from "@tanstack/react-router"
 import { useCallback, useEffect, useState } from "react"
 
-import { HeartbeatStrip, KeeperHeader } from "./heartbeat"
+import { KeeperHeader, KeeperStatusCockpit } from "./heartbeat"
 import { KeeperOffline } from "./offline"
 import { PositionsTable } from "./positions-table"
 import { QuarantinePanel } from "./quarantine"
@@ -62,14 +62,14 @@ export function Page({ snapshot }: KeeperPageProps) {
         <KeeperHeader
           onRefresh={() => void refresh(true)}
           refreshing={refreshing}
-          status={status}
         />
-        <HeartbeatStrip
+        <KeeperStatusCockpit
+          errorCount={reconcileErrors.length}
           redeemableCount={status.redeemableCount}
           redeemedCount={status.redeemedCount}
           status={status}
         />
-        <div className="grid items-start gap-3 pt-3 lg:grid-cols-2">
+        <div className="grid items-start gap-3 lg:grid-cols-2">
           <PositionsTable refreshSignal={refreshKey} />
           <RedemptionsLedger refreshSignal={refreshKey} />
         </div>

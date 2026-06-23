@@ -23,7 +23,7 @@ import {
   StatusFilter,
 } from "./table-controls"
 
-const COLUMNS = "grid-cols-[minmax(0,1fr)_5rem_5rem_6rem]"
+const COLUMNS = "grid-cols-[minmax(0,1fr)_5rem_4.5rem]"
 
 const STATUS_OPTIONS = [
   { label: "All states", value: "all" },
@@ -48,9 +48,17 @@ function PositionRow({ position }: { position: KeeperPosition }) {
         <div className="truncate font-mono font-medium text-foreground">
           {sideLabel(position.isUp)} · {formatPrice(position.strike)}
         </div>
-        <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
-          {truncateMiddle(position.oracleId)}
-        </div>
+        <a
+          className="group mt-0.5 inline-flex max-w-full items-center gap-1 underline-offset-4 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+          href={suivisionObjectUrl(position.oracleId)}
+          rel="noreferrer"
+          target="_blank"
+        >
+          <span className="truncate font-mono text-[10px] text-muted-foreground transition-colors group-hover:text-primary">
+            {truncateMiddle(position.oracleId)}
+          </span>
+          <ArrowUpRightIcon className="size-2.5 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
+        </a>
       </div>
       <span className="truncate text-right font-mono text-foreground tabular-nums">
         {formatDusdc(position.openQty, false)}
@@ -59,19 +67,6 @@ function PositionRow({ position }: { position: KeeperPosition }) {
         <StatusDot tone={position.settled ? BadgeTone.Live : BadgeTone.Neutral}>
           {position.settled ? "Settled" : "Open"}
         </StatusDot>
-      </span>
-      <span className="truncate text-right font-mono text-muted-foreground tabular-nums">
-        <a
-          className="group inline-flex items-center gap-1 underline-offset-4 hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
-          href={suivisionObjectUrl(position.managerId)}
-          rel="noreferrer"
-          target="_blank"
-        >
-          <span className="truncate">
-            {truncateMiddle(position.managerId, 4, 4)}
-          </span>
-          <ArrowUpRightIcon className="size-3 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-        </a>
       </span>
     </div>
   )
@@ -133,7 +128,7 @@ export function PositionsTable({
           value={status}
         />
       </div>
-      <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <Card className="overflow-hidden rounded-lg border-0 bg-card py-0 shadow-none ring-0">
         <CardContent className="p-0">
           <div
             className={`grid ${COLUMNS} gap-3 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase`}
@@ -141,11 +136,10 @@ export function PositionsTable({
             <span>Market</span>
             <span className="text-right">Open</span>
             <span className="text-right">State</span>
-            <span className="text-right">Manager</span>
           </div>
           {state === "error" ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-              Couldn't reach the keeper API.
+              Keeper API unreachable.
             </div>
           ) : state === "loading" ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -158,7 +152,7 @@ export function PositionsTable({
           ) : (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">
               {status === "all"
-                ? "No positions indexed yet from the keeper's start checkpoint."
+                ? "No positions indexed yet."
                 : "No positions match this filter."}
             </div>
           )}

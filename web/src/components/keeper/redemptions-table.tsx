@@ -19,7 +19,8 @@ import {
   StatusFilter,
 } from "./table-controls"
 
-const COLUMNS = "grid-cols-[4.5rem_minmax(0,1fr)_5.5rem_5rem_4.5rem]"
+const COLUMNS =
+  "grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] sm:grid-cols-[4.5rem_minmax(0,1fr)_5.5rem_5rem_4.5rem]"
 
 // Fixed keeper tx statuses, used as server-side filter values.
 const STATUS_OPTIONS = [
@@ -58,7 +59,7 @@ function RedemptionRow({ tx }: { tx: KeeperTx }) {
       <span className="truncate text-right font-mono text-foreground tabular-nums">
         {formatDusdc(tx.expectedPayout, false)}
       </span>
-      <span className="truncate text-right font-mono text-muted-foreground tabular-nums">
+      <span className="hidden truncate text-right font-mono text-muted-foreground tabular-nums sm:block">
         {onChain ? (
           <a
             className="group inline-flex items-center gap-1 underline-offset-4 hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
@@ -73,7 +74,7 @@ function RedemptionRow({ tx }: { tx: KeeperTx }) {
           "local"
         )}
       </span>
-      <span className="truncate text-right font-mono text-muted-foreground tabular-nums">
+      <span className="hidden truncate text-right font-mono text-muted-foreground tabular-nums sm:block">
         {formatRelativeTime(tx.createdAt)}
       </span>
     </div>
@@ -135,7 +136,7 @@ export function RedemptionsLedger({
           value={status}
         />
       </div>
-      <Card className="overflow-hidden rounded-md border-0 bg-card py-0 shadow-none ring-0">
+      <Card className="overflow-hidden rounded-lg border-0 bg-card py-0 shadow-none ring-0">
         <CardContent className="p-0">
           <div
             className={`grid ${COLUMNS} gap-3 border-b border-border/45 bg-muted/45 px-3 py-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase`}
@@ -143,8 +144,8 @@ export function RedemptionsLedger({
             <span>Status</span>
             <span>Market</span>
             <span className="text-right">Payout</span>
-            <span className="text-right">Tx</span>
-            <span className="text-right">When</span>
+            <span className="hidden text-right sm:block">Tx</span>
+            <span className="hidden text-right sm:block">When</span>
           </div>
           {state === "error" ? (
             <div className="px-3 py-8 text-center text-sm text-muted-foreground">

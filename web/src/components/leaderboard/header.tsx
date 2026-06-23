@@ -1,8 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { formatRelativeTime } from "@/lib/format"
 import {
   exportLeaderboardReport,
-  getPeriodLabel,
   leaderboardPeriodOptions,
 } from "@/lib/leaderboard/helpers"
 import type { LeaderboardModel, LeaderboardPeriod } from "@/lib/leaderboard/types"
@@ -56,11 +54,6 @@ export function LeaderboardHeader({
             Who's sharpest on Predict, ranked by realized PnL, volume, and win
             rate from public on-chain activity.
           </p>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
-            <span>Built {formatRelativeTime(model.generatedAtMs)}</span>
-            <span>{model.rows.length.toLocaleString("en-US")} accounts</span>
-            <span>{getPeriodLabel(period)}</span>
-          </div>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
           <PeriodSelector onChange={onPeriodChange} value={period} />

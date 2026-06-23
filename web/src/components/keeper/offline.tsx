@@ -1,12 +1,11 @@
 import { DataRow } from "@/components/primitives/data-row"
-import { Panel } from "@/components/primitives/panel"
 import { StatusIndicator, StatusTone } from "@/components/primitives/status-indicator"
 import { KEEPER_API_URL } from "@/lib/config"
 
 export function KeeperOffline() {
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
-      <Panel className="space-y-4">
+      <div className="space-y-4 rounded-lg bg-card p-4">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-base leading-none font-semibold tracking-[-0.01em] text-balance text-foreground">
             Keeper offline
@@ -22,7 +21,7 @@ export function KeeperOffline() {
           <DataRow label="Start (live)" mono value="bun run start" />
           <DataRow label="Start (read-only)" mono value="bun run serve" />
         </div>
-      </Panel>
+      </div>
     </main>
   )
 }

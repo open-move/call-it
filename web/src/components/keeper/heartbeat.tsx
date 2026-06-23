@@ -29,19 +29,21 @@ const cellDotClassName: Record<CellTone, string> = {
 
 function StatCell({
   dot = false,
+  index,
   label,
   meta,
   tone = "default",
   value,
 }: {
   dot?: boolean
+  index: number
   label: string
   meta: string
   tone?: CellTone
   value: string
 }) {
   return (
-    <div className="border-b border-border/35 px-4 py-3 last:border-b-0 md:border-r md:border-b-0 md:last:border-r-0">
+    <div className={cn("min-w-0", index > 0 && "sm:pl-5")}>
       <div className="flex items-center gap-1.5 text-xs leading-none text-muted-foreground">
         {dot ? (
           <span
@@ -72,13 +74,10 @@ function StatCell({
 export function KeeperHeader({
   onRefresh,
   refreshing = false,
-  status,
 }: {
   onRefresh?: () => void
   refreshing?: boolean
-  status: KeeperStatus
 }) {
-  const live = !status.dryRun
   return (
     <div className="px-1 pt-1 pb-2">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -92,45 +91,90 @@ export function KeeperHeader({
             reward vault.
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          <StatusIndicator
-            pulse={live}
-            tone={live ? StatusTone.Live : StatusTone.Simulated}
+        {onRefresh ? (
+          <Button
+            aria-label="Refresh"
+            className="size-7 shrink-0 text-muted-foreground shadow-none hover:text-foreground"
+            disabled={refreshing}
+            onClick={onRefresh}
+            size="icon-sm"
+            type="button"
+            variant="ghost"
           >
-            {live ? "Running" : "Simulating only"}
-          </StatusIndicator>
-          {onRefresh ? (
-            <Button
-              aria-label="Refresh"
-              className="size-7 text-muted-foreground shadow-none hover:text-foreground"
-              disabled={refreshing}
-              onClick={onRefresh}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            >
-              <RefreshCwIcon
-                className={cn("size-4", refreshing && "animate-spin")}
-              />
-            </Button>
-          ) : null}
-        </div>
+            <RefreshCwIcon
+              className={cn("size-4", refreshing && "animate-spin")}
+            />
+          </Button>
+        ) : null}
       </div>
     </div>
   )
 }
 
-export function HeartbeatStrip({
-  redeemedCount,
+interface Verdict {
+  detail: string
+  title: string
+  tone: CellTone
+}
+
+// Synthesize the keeper's overall health from its component signals, surfacing
+// the most urgent problem first.
+function getVerdict(status: KeeperStatus, errorCount: number): Verdict {
+  const lag = status.checkpointLag === null ? null : Number(status.checkpointLag)
+  const synced = lag !== null && lag <= 5
+
+  if (status.dryRun) {
+    return {
+      tone: "muted",
+      title: "Simulating only",
+      detail: "Watching settled markets without a redeem key. Nothing is sent on-chain.",
+    }
+  }
+  if (status.keeper?.belowMinimum) {
+    return {
+      tone: "warning",
+      title: "Gas below minimum",
+      detail: "Top up the keeper wallet. Redemptions stall without gas.",
+    }
+  }
+  if (!synced) {
+    return {
+      tone: "warning",
+      title:
+        lag === null ? "Chain head unavailable" : `Catching up · ${formatCount(lag)} behind`,
+      detail: "Indexing toward the latest checkpoint.",
+    }
+  }
+  if (errorCount > 0) {
+    return {
+      tone: "warning",
+      title: "Running with quarantine",
+      detail: `${formatCount(errorCount)} event${errorCount === 1 ? "" : "s"} isolated. Redemptions continue.`,
+    }
+  }
+  return {
+    tone: "up",
+    title: "Healthy",
+    detail: "Running, synced, and funded.",
+  }
+}
+
+export function KeeperStatusCockpit({
+  errorCount,
   redeemableCount,
+  redeemedCount,
   status,
 }: {
-  redeemedCount: number
+  errorCount: number
   redeemableCount: number
+  redeemedCount: number
   status: KeeperStatus
 }) {
-  const lag =
-    status.checkpointLag === null ? null : Number(status.checkpointLag)
+  const live = !status.dryRun
+  const verdict = getVerdict(status, errorCount)
+  const healthy = verdict.tone === "up"
+
+  const lag = status.checkpointLag === null ? null : Number(status.checkpointLag)
   const synced = lag !== null && lag <= 5
   const syncValue =
     lag === null ? "--" : synced ? "Synced" : `${formatCount(lag)} behind`
@@ -139,9 +183,7 @@ export function HeartbeatStrip({
       ? "chain head unavailable"
       : `head ${formatCount(status.latestCheckpoint)}`
 
-  const gasValue = status.keeper
-    ? formatSui(status.keeper.suiBalance)
-    : "Dry run"
+  const gasValue = status.keeper ? formatSui(status.keeper.suiBalance) : "Dry run"
   const gasMeta = status.keeper
     ? `min ${formatSui(status.minSuiBalance)}`
     : "no redeem key"
@@ -152,10 +194,39 @@ export function HeartbeatStrip({
       : "muted"
 
   return (
-    <div className="overflow-hidden rounded-md bg-card">
-      <div className="grid bg-muted/10 md:grid-cols-4">
+    <div className="rounded-lg bg-card p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-2 shrink-0 rounded-full",
+              cellDotClassName[verdict.tone],
+              healthy && "animate-pulse"
+            )}
+          />
+          <div className="min-w-0">
+            <div className="text-sm leading-none font-medium text-foreground">
+              {verdict.title}
+            </div>
+            <div className="mt-1.5 text-xs leading-snug text-muted-foreground">
+              {verdict.detail}
+            </div>
+          </div>
+        </div>
+        <StatusIndicator
+          className="shrink-0"
+          pulse={live}
+          tone={live ? StatusTone.Live : StatusTone.Simulated}
+        >
+          {live ? "Running" : "Simulating only"}
+        </StatusIndicator>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border/40 pt-4 sm:grid-cols-4 sm:gap-x-0 sm:divide-x sm:divide-border/40">
         <StatCell
           dot
+          index={0}
           label="Sync"
           meta={syncMeta}
           tone={lag === null ? "muted" : synced ? "up" : "warning"}
@@ -163,18 +234,21 @@ export function HeartbeatStrip({
         />
         <StatCell
           dot
+          index={1}
           label="Gas tank"
           meta={gasMeta}
           tone={gasTone}
           value={gasValue}
         />
         <StatCell
+          index={2}
           label="Redeemable now"
           meta={`${formatCount(status.counts.positions)} tracked positions`}
           tone={redeemableCount > 0 ? "up" : "muted"}
           value={formatCount(redeemableCount)}
         />
         <StatCell
+          index={3}
           label="Redeemed"
           meta={`${formatCount(status.counts.txs)} total attempts`}
           value={formatCount(redeemedCount)}
