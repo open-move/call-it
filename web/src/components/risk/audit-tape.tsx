@@ -39,25 +39,33 @@ export function AuditTape({ model }: { model: RiskModel }) {
             Audit tape
           </div>
           <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
-            Raw strategy accounting and model assumptions used by this console.
+            The strategy accounting and the assumptions behind every number above.
           </p>
         </div>
 
         <div className="grid border-t border-border/45 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
           <div className="border-b border-border/45 px-4 py-3 lg:border-r lg:border-b-0">
+            <div className="mb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              Accounting
+            </div>
             {accountingRows.map((row) => (
               <DataRow key={row.label} label={row.label} value={row.value} />
             ))}
           </div>
-          <div className="divide-y divide-border/30 px-4 py-3">
-            {model.assumptions.map((assumption) => (
-              <div
-                className="py-2 text-xs leading-5 text-muted-foreground first:pt-0 last:pb-0"
-                key={assumption}
-              >
-                {assumption}
-              </div>
-            ))}
+          <div className="px-4 py-3">
+            <div className="mb-2 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
+              Assumptions
+            </div>
+            <div className="divide-y divide-border/30">
+              {model.assumptions.map((assumption) => (
+                <div
+                  className="py-2 text-xs leading-5 text-muted-foreground first:pt-0 last:pb-0"
+                  key={assumption}
+                >
+                  {assumption}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </CardContent>

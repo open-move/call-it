@@ -1,5 +1,4 @@
 import { Button } from "@/components/ui/button"
-import { formatRelativeTime } from "@/lib/format"
 import { exportRiskReport } from "@/lib/risk/helpers"
 import type { RiskModel } from "@/lib/risk/types"
 
@@ -15,13 +14,6 @@ export function RiskHeader({ model }: { model: RiskModel }) {
             Stress-test the PLP vault: what it could lose under each price-shock
             scenario, and the exposure it carries across open markets.
           </p>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase tabular-nums">
-            <span>Updated {formatRelativeTime(model.latestUpdatedAtMs)}</span>
-            <span>
-              Reconstruction{" "}
-              {model.hasIncompleteReconstruction ? "partial" : "complete"}
-            </span>
-          </div>
         </div>
 
         <Button

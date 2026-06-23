@@ -8,6 +8,7 @@ import type { ExposureFilter } from "@/lib/risk/helpers"
 import type { RiskExposureRow, RiskModel } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
 import { ExposureConcentration } from "./exposure-concentration"
+import { Segmented } from "./segmented"
 import { TableValue } from "./table-value"
 
 function ExposureRow({ row }: { row: RiskExposureRow }) {
@@ -15,13 +16,18 @@ function ExposureRow({ row }: { row: RiskExposureRow }) {
     <div className="grid grid-cols-[minmax(14rem,1.5fr)_4rem_7rem_7rem_7.5rem_7.5rem_6rem] gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0">
       <div className="min-w-0">
         <div className="truncate font-medium text-foreground">
-          {row.assetSymbol} - {row.settlementLabel}
+          {row.assetSymbol} · {row.settlementLabel}
         </div>
         <div className="mt-0.5 truncate font-mono text-[10px] text-muted-foreground">
           {row.oracleId.slice(0, 8)}...{row.oracleId.slice(-4)}
         </div>
       </div>
-      <span className="font-mono text-[10px] tracking-wide text-primary uppercase">
+      <span
+        className={cn(
+          "font-mono text-[10px] tracking-wide uppercase",
+          row.kind === "range" ? "text-chart-3" : "text-primary"
+        )}
+      >
         {row.kind === "directional" ? "DIR" : "RNG"}
       </span>
       <TableValue
@@ -54,7 +60,7 @@ function ExposureTable({ rows }: { rows: RiskExposureRow[] }) {
           rows.map((row) => <ExposureRow key={row.id} row={row} />)
         ) : (
           <div className="px-3 py-8 text-center text-sm text-muted-foreground">
-            No open exposure was reconstructed from recent public events.
+            No open exposure found.
           </div>
         )}
       </div>
@@ -91,29 +97,18 @@ export function ExposureBook({ model }: { model: RiskModel }) {
               Exposure book
             </div>
             <p className="mt-2 max-w-2xl text-xs leading-5 text-muted-foreground">
-              Open directional and range positions reconstructed from public
-              Predict events.
+              Open positions reconstructed from public Predict events.
             </p>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(["all", "directional", "range"] as ExposureFilter[]).map(
-              (option) => (
-                <Button
-                  className={cn(
-                    "h-7 px-2.5 text-[11px] capitalize shadow-none",
-                    filter === option && "bg-primary/10 text-primary"
-                  )}
-                  key={option}
-                  onClick={() => selectFilter(option)}
-                  size="xs"
-                  type="button"
-                  variant="ghost"
-                >
-                  {option === "all" ? "All" : option}
-                </Button>
-              )
-            )}
-          </div>
+          <Segmented
+            onChange={selectFilter}
+            options={[
+              { id: "all", label: "All" },
+              { id: "directional", label: "Directional" },
+              { id: "range", label: "Range" },
+            ]}
+            value={filter}
+          />
         </div>
 
         <ExposureConcentration rows={model.exposureRows} />

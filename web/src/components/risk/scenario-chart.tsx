@@ -9,11 +9,10 @@ import {
   YAxis,
 } from "recharts"
 
-import { Button } from "@/components/ui/button"
 import { chartMetrics, formatChartTick } from "@/lib/risk/helpers"
 import type { ChartMetric } from "@/lib/risk/helpers"
 import type { RiskScenarioId, RiskScenarioRow } from "@/lib/risk/types"
-import { cn } from "@/lib/utils"
+import { Segmented } from "./segmented"
 
 type ChartRow = RiskScenarioRow & { chartValue: number }
 
@@ -38,25 +37,14 @@ export function ScenarioChartPanel({
     <div className="min-w-0">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-muted-foreground">
-          Shock curve · click a point to inspect
+          Shock curve · tap a point to inspect
         </div>
-        <div className="flex flex-wrap gap-1.5">
-          {chartMetrics.map((chartMetric) => (
-            <Button
-              className={cn(
-                "h-7 px-2.5 text-[11px] shadow-none",
-                metric === chartMetric.id && "bg-primary/10 text-primary"
-              )}
-              key={chartMetric.id}
-              onClick={() => onMetricChange(chartMetric.id)}
-              size="xs"
-              type="button"
-              variant="ghost"
-            >
-              {chartMetric.label}
-            </Button>
-          ))}
-        </div>
+        <Segmented
+          className="flex-wrap"
+          onChange={onMetricChange}
+          options={chartMetrics}
+          value={metric}
+        />
       </div>
 
       <div className="mt-3 h-64 sm:h-72">
