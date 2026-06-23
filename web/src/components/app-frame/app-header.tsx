@@ -1,15 +1,14 @@
 import { Link, useLocation } from "@tanstack/react-router"
-import { Fragment, useState } from "react"
-import { MenuIcon, XIcon } from "lucide-react"
+import { ChevronDownIcon } from "lucide-react"
 
 import { Badge, BadgeTone } from "@/components/primitives/badge"
-import { DynamicWalletWidget } from "@/components/dynamic/wallet-widget"
-import { Button } from "@/components/ui/button"
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/primitives/dropdown-menu"
+import { DynamicWalletWidget } from "@/components/dynamic/wallet-widget"
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -18,8 +17,17 @@ import {
 } from "@/components/ui/navigation-menu"
 import { cn } from "@/lib/utils"
 
-import { AppNavStatus, appNavItems } from "./app-nav"
+import {
+  AppNavStatus,
+  desktopMoreNavItems,
+  desktopPrimaryNavItems,
+  isNavHrefActive,
+  mobileMoreNavItems,
+  mobileTabNavItems,
+  type AppNavItem,
+} from "./app-nav"
 import { BrandMark } from "./brand-mark"
+import { MobileMoreSheet } from "./mobile-more-sheet"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
@@ -31,39 +39,110 @@ function getNavLinkClassName(status: AppNavStatus) {
   )
 }
 
-function getMobileNavLinkClassName(status: AppNavStatus) {
-  return cn(
-    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
-    status === AppNavStatus.Active
-      ? "text-primary"
-      : "text-muted-foreground hover:text-foreground",
-    status === AppNavStatus.Soon && "text-muted-foreground/55"
+function getItemStatus(item: AppNavItem, pathname: string) {
+  if (item.status === AppNavStatus.Soon) {
+    return item.status
+  }
+
+  return isNavHrefActive(pathname, item.href)
+    ? AppNavStatus.Active
+    : AppNavStatus.Available
+}
+
+function SoonBadge() {
+  return (
+    <Badge
+      className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
+      tone={BadgeTone.Simulated}
+    >
+      Soon
+    </Badge>
   )
 }
 
-function isHrefActive(pathname: string, href: string) {
-  return href === "/"
-    ? pathname === "/"
-    : pathname === href || pathname.startsWith(`${href}/`)
+function DesktopMoreMenu({ pathname }: { pathname: string }) {
+  const isActive = desktopMoreNavItems.some((item) =>
+    isNavHrefActive(pathname, item.href)
+  )
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "group flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+          isActive
+            ? "text-primary"
+            : "text-muted-foreground hover:text-foreground"
+        )}
+      >
+        More
+        <ChevronDownIcon className="size-3.5 transition-transform duration-150 group-data-popup-open:rotate-180" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-44">
+        {desktopMoreNavItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <DropdownMenuItem
+              key={item.href}
+              className={cn(
+                isNavHrefActive(pathname, item.href) &&
+                  "text-primary focus:text-primary"
+              )}
+              render={<Link to={item.href} />}
+            >
+              <Icon className="size-3.5" />
+              <span className="flex-1">{item.label}</span>
+              {item.status === AppNavStatus.Soon ? <SoonBadge /> : null}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+function MobileTabBar({ pathname }: { pathname: string }) {
+  const moreActive = mobileMoreNavItems.some((item) =>
+    isNavHrefActive(pathname, item.href)
+  )
+
+  return (
+    <nav
+      aria-label="Primary"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/35 bg-background/95 backdrop-blur-xl md:hidden"
+    >
+      <div className="mx-auto flex max-w-md items-stretch justify-around gap-1 px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+        {mobileTabNavItems.map((item) => {
+          const active = isNavHrefActive(pathname, item.href)
+          const Icon = item.icon
+          return (
+            <Link
+              key={item.href}
+              to={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+                active ? "text-primary" : "text-muted-foreground"
+              )}
+            >
+              <Icon className="size-5" />
+              <span>{item.label}</span>
+            </Link>
+          )
+        })}
+
+        <MobileMoreSheet active={moreActive} pathname={pathname} />
+      </div>
+    </nav>
+  )
 }
 
 export function AppHeader() {
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false)
   const { pathname } = useLocation()
   const onLanding = pathname === "/"
 
-  function getItemStatus(item: (typeof appNavItems)[number]) {
-    if (item.status === AppNavStatus.Soon) {
-      return item.status
-    }
-
-    const isActive = isHrefActive(pathname, item.href)
-
-    return isActive ? AppNavStatus.Active : AppNavStatus.Available
-  }
-
   return (
-    <Collapsible open={isMobileNavOpen} onOpenChange={setIsMobileNavOpen}>
+    <>
       <header
         className={cn(
           "sticky top-0 z-40 text-foreground",
@@ -77,7 +156,6 @@ export function AppHeader() {
             <Link
               className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
               to="/"
-              onClick={() => setIsMobileNavOpen(false)}
             >
               <BrandMark />
               <span className="text-base leading-none font-semibold tracking-[-0.03em] text-foreground">
@@ -85,85 +163,41 @@ export function AppHeader() {
               </span>
             </Link>
 
-            <NavigationMenu className="hidden flex-none md:flex">
-              <NavigationMenuList className="gap-0.5">
-                {appNavItems.map((item) => (
-                  <NavigationMenuItem key={item.href}>
-                    <NavigationMenuLink
-                      aria-current={
-                        getItemStatus(item) === AppNavStatus.Active
-                          ? "page"
-                          : undefined
-                      }
-                      className={getNavLinkClassName(getItemStatus(item))}
-                      render={<Link to={item.href} />}
-                    >
-                      <span>{item.label}</span>
-                      {item.status === AppNavStatus.Soon && (
-                        <Badge
-                          className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
-                          tone={BadgeTone.Simulated}
+            <div className="hidden items-center gap-0.5 md:flex">
+              <NavigationMenu className="flex-none">
+                <NavigationMenuList className="gap-0.5">
+                  {desktopPrimaryNavItems.map((item) => {
+                    const status = getItemStatus(item, pathname)
+                    return (
+                      <NavigationMenuItem key={item.href}>
+                        <NavigationMenuLink
+                          aria-current={
+                            status === AppNavStatus.Active ? "page" : undefined
+                          }
+                          className={getNavLinkClassName(status)}
+                          render={<Link to={item.href} />}
                         >
-                          Soon
-                        </Badge>
-                      )}
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                ))}
-              </NavigationMenuList>
-            </NavigationMenu>
+                          <span>{item.label}</span>
+                          {item.status === AppNavStatus.Soon ? (
+                            <SoonBadge />
+                          ) : null}
+                        </NavigationMenuLink>
+                      </NavigationMenuItem>
+                    )
+                  })}
+                </NavigationMenuList>
+              </NavigationMenu>
+              <DesktopMoreMenu pathname={pathname} />
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:block">
-              <DynamicWalletWidget />
-            </div>
-            <CollapsibleTrigger
-              className="md:hidden"
-              render={
-                <Button
-                  aria-label="Toggle navigation"
-                  className="text-muted-foreground hover:bg-muted/25 hover:text-foreground focus-visible:ring-primary/30"
-                  size="icon-sm"
-                  variant="ghost"
-                />
-              }
-            >
-              {isMobileNavOpen ? <XIcon /> : <MenuIcon />}
-            </CollapsibleTrigger>
+            <DynamicWalletWidget />
           </div>
         </div>
-
-        <CollapsibleContent className="border-t border-border/35 bg-background/95 backdrop-blur-xl md:hidden">
-          <nav
-            aria-label="Mobile navigation"
-            className="mx-auto flex w-full max-w-[96rem] flex-col gap-1 px-4 py-3 sm:px-6"
-          >
-            {appNavItems.map((item) => (
-              <Fragment key={item.href}>
-                <Link
-                  className={getMobileNavLinkClassName(getItemStatus(item))}
-                  onClick={() => setIsMobileNavOpen(false)}
-                  to={item.href}
-                >
-                  <span>{item.label}</span>
-                  {item.status === AppNavStatus.Soon && (
-                    <Badge
-                      className="border-border/40 bg-muted/30 px-1.5 py-0 text-[9px] text-muted-foreground"
-                      tone={BadgeTone.Simulated}
-                    >
-                      Soon
-                    </Badge>
-                  )}
-                </Link>
-              </Fragment>
-            ))}
-            <div className="mt-3 sm:hidden">
-              <DynamicWalletWidget />
-            </div>
-          </nav>
-        </CollapsibleContent>
       </header>
-    </Collapsible>
+
+      <MobileTabBar pathname={pathname} />
+    </>
   )
 }
