@@ -10,7 +10,6 @@ import {
   CopyIcon,
   DatabaseZapIcon,
   LogOutIcon,
-  PiggyBankIcon,
   SettingsIcon,
   SquareArrowOutUpRightIcon,
   WalletCardsIcon,
@@ -28,7 +27,6 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -91,59 +89,28 @@ function formatFullDecimalUnits(value: bigint | undefined) {
     : formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)
 }
 
-function AccountValue({
+function LedgerRow({
   isLoading,
+  label,
+  unit,
   value,
 }: {
   isLoading?: boolean
+  label: string
+  unit?: string
   value: string
 }) {
   return (
-    <div className="mt-1 min-w-0 font-mono text-base break-all text-foreground tabular-nums sm:text-lg">
-      {isLoading ? "--" : value}
-    </div>
-  )
-}
-
-function AccountSection({
-  icon: Icon,
-  label,
-  primaryLabel,
-  primaryValue,
-  secondaryLabel,
-  secondaryValue,
-  isLoading,
-}: {
-  icon: typeof WalletCardsIcon
-  isLoading?: boolean
-  label: string
-  primaryLabel: string
-  primaryValue: string
-  secondaryLabel?: string
-  secondaryValue?: string
-}) {
-  return (
-    <div className="min-w-0 rounded-lg border border-border/60 bg-card/70 p-4">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <Icon className="size-3.5" />
-        <span>{label}</span>
-      </div>
-      <div
-        className={`mt-4 grid gap-4 ${secondaryLabel && secondaryValue ? "sm:grid-cols-2" : ""}`}
-      >
-        <div className="min-w-0">
-          <div className="text-xs text-muted-foreground">{primaryLabel}</div>
-          <AccountValue isLoading={isLoading} value={primaryValue} />
-        </div>
-        {secondaryLabel && secondaryValue ? (
-          <div className="min-w-0">
-            <div className="text-xs text-muted-foreground">
-              {secondaryLabel}
-            </div>
-            <AccountValue isLoading={isLoading} value={secondaryValue} />
-          </div>
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="font-mono text-sm text-foreground tabular-nums">
+        {isLoading ? "--" : value}
+        {unit ? (
+          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+            {unit}
+          </span>
         ) : null}
-      </div>
+      </span>
     </div>
   )
 }
@@ -152,14 +119,12 @@ function AccountHubDialog({
   address,
   email,
   onOpenChange,
-  onOpenDynamicProfile,
   onSignOut,
   open,
 }: {
   address?: string
   email?: string
   onOpenChange: (open: boolean) => void
-  onOpenDynamicProfile: () => void
   onSignOut: () => Promise<void>
   open: boolean
 }) {
@@ -171,6 +136,7 @@ function AccountHubDialog({
     }
   }, [address, open])
 
+  const [didCopyAddress, setDidCopyAddress] = useState(false)
   const walletDusdcBalance = predictAccount.walletDusdcBalance
   const managerDusdcBalance = predictAccount.managerDusdcBalance
   const availableDusdcBalance =
@@ -179,117 +145,133 @@ function AccountHubDialog({
       : (walletDusdcBalance ?? 0n) + (managerDusdcBalance ?? 0n)
   const walletDusdcLabel = formatFullDecimalUnits(walletDusdcBalance)
   const availableDusdcLabel = formatFullDecimalUnits(availableDusdcBalance)
-  const walletAddressBalanceLabel = formatFullDecimalUnits(
-    predictAccount.walletDusdcAddressBalance
-  )
-  const walletPlpLabel =
-    predictAccount.walletPlpBalance === undefined
-      ? "--"
-      : `${formatDecimalUnits(predictAccount.walletPlpBalance, PREDICT_QUOTE_DECIMALS, 4)}`
+  const walletPlpLabel = formatFullDecimalUnits(predictAccount.walletPlpBalance)
   const managerBalanceLabel = formatFullDecimalUnits(managerDusdcBalance)
   const isLoadingAccount = predictAccount.status === "loading"
+  const formattedAddress = address ? formatAddress(address) : null
+
+  async function copyAddress() {
+    if (!address) {
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(address)
+      setDidCopyAddress(true)
+      window.setTimeout(() => setDidCopyAddress(false), 1500)
+    } catch {
+      setDidCopyAddress(false)
+    }
+  }
+
+  function openExplorer() {
+    if (!address) {
+      return
+    }
+    window.open(getExplorerUrl(address), "_blank", "noopener,noreferrer")
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] border-0 shadow-none ring-0 sm:max-w-2xl">
+      <DialogContent className="max-w-[calc(100vw-2rem)] gap-5 rounded-md border-0 bg-card p-5 shadow-none ring-0 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Account</DialogTitle>
-          <DialogDescription>
-            Wallet, trading account, and strategy balances in one place.
+          <DialogTitle className="text-sm leading-none font-medium tracking-[-0.01em]">
+            Account
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            Wallet, trading account, and strategy balances.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 overflow-hidden">
-          <div className="min-w-0 rounded-lg border border-border/60 bg-muted/20 p-4">
-            <div className="text-sm break-all text-foreground">
-              {address ? formatAddress(address) : "No wallet connected"}
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            {address ? (
+              <WalletAvatar
+                address={address}
+                className="size-10 shrink-0 rounded-md ring-1 ring-border/50"
+              />
+            ) : null}
+            <div className="min-w-0 flex-1">
+              <div className="truncate font-mono text-sm text-foreground tabular-nums">
+                {formattedAddress ?? "No wallet connected"}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {email || "Wallet session"}
+              </div>
             </div>
-            <div className="mt-1 text-xs text-muted-foreground">
-              {email || "Wallet session"}
-            </div>
+            {address ? (
+              <>
+                <Button
+                  aria-label="Copy wallet address"
+                  className="size-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={() => void copyAddress()}
+                >
+                  {didCopyAddress ? (
+                    <CheckIcon className="size-3.5" />
+                  ) : (
+                    <CopyIcon className="size-3.5" />
+                  )}
+                </Button>
+                <Button
+                  aria-label="View wallet in explorer"
+                  className="size-8 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  size="icon-sm"
+                  type="button"
+                  variant="ghost"
+                  onClick={openExplorer}
+                >
+                  <SquareArrowOutUpRightIcon className="size-3.5" />
+                </Button>
+              </>
+            ) : null}
           </div>
 
-          <div className="grid gap-3">
-            <AccountSection
-              icon={WalletCardsIcon}
+          <div className="h-px bg-foreground/10" />
+
+          <div className="space-y-2.5">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-xs text-muted-foreground">Available</span>
+              <span className="font-mono text-lg leading-none font-medium text-foreground tabular-nums">
+                {isLoadingAccount ? "--" : availableDusdcLabel}
+                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                  DUSDC
+                </span>
+              </span>
+            </div>
+            <LedgerRow
               isLoading={isLoadingAccount}
               label="Wallet"
-              primaryLabel="Wallet DUSDC"
-              primaryValue={walletDusdcLabel}
-              secondaryLabel="Address balance"
-              secondaryValue={walletAddressBalanceLabel}
+              value={walletDusdcLabel}
             />
-            <AccountSection
-              icon={DatabaseZapIcon}
+            <LedgerRow
               isLoading={isLoadingAccount}
-              label="Trading Account"
-              primaryLabel="Available DUSDC"
-              primaryValue={availableDusdcLabel}
-              secondaryLabel="Trading DUSDC"
-              secondaryValue={managerBalanceLabel}
+              label="Trading account"
+              value={managerBalanceLabel}
             />
-            <AccountSection
-              icon={PiggyBankIcon}
+            <div className="h-px bg-foreground/10" />
+            <LedgerRow
               isLoading={isLoadingAccount}
-              label="Strategy Shares"
-              primaryLabel="PLP"
-              primaryValue={walletPlpLabel}
+              label="PLP"
+              value={walletPlpLabel}
             />
           </div>
         </div>
 
-        <DialogFooter
-          className="flex-wrap gap-2 sm:justify-end"
-          showCloseButton
-        >
+        <DialogFooter className="flex-wrap gap-2 sm:justify-end">
           <Button
-            className="w-full sm:w-auto"
-            render={<Link to="/earn" />}
+            className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/30 sm:w-auto"
             type="button"
-            variant="outline"
-          >
-            Open Earn
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            render={<Link to="/portfolio" />}
-            type="button"
-            variant="outline"
-          >
-            Open Portfolio
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            type="button"
-            variant="outline"
-            onClick={onOpenDynamicProfile}
-          >
-            Wallet Settings
-          </Button>
-          <Button
-            className="w-full sm:w-auto"
-            type="button"
-            variant="outline"
+            variant="ghost"
             onClick={() => void onSignOut()}
           >
-            Sign Out
+            <LogOutIcon className="size-3.5" />
+            Sign out
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
-}
-
-function AccountMenuMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-md border border-border/35 bg-muted/20 px-2.5 py-2">
-      <div className="text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </div>
-      <div className="mt-0.5 truncate font-mono text-xs text-foreground tabular-nums">
-        {value}
-      </div>
-    </div>
   )
 }
 
@@ -309,7 +291,7 @@ function AccountDropdown({
   const [didCopyAddress, setDidCopyAddress] = useState(false)
   const predictAccount = usePredictAccount()
   const formattedAddress = formatAddress(address)
-  const secondaryLabel = email || "--"
+  const secondaryLabel = email || "Wallet session"
   const availableDusdcBalance =
     predictAccount.walletDusdcBalance === undefined &&
     predictAccount.managerDusdcBalance === undefined
@@ -338,7 +320,13 @@ function AccountDropdown({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu
+      onOpenChange={(open) => {
+        if (open) {
+          void predictAccount.refreshAccount()
+        }
+      }}
+    >
       <DropdownMenuTrigger
         render={
           <Button
@@ -362,70 +350,95 @@ function AccountDropdown({
         </span>
         <ChevronDownIcon className="size-3.5 text-muted-foreground transition-transform duration-150 group-data-popup-open:rotate-180" />
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuGroup>
-          <div className="flex items-center gap-3 px-2 py-2">
-            <WalletAvatar
-              address={address}
-              className="size-10 rounded-md ring-1 ring-border/50"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm text-foreground">
-                {formattedAddress}
-              </span>
-              <span className="block truncate text-xs text-muted-foreground">
-                {secondaryLabel}
+      <DropdownMenuContent align="end" className="w-72">
+        <div className="flex items-center gap-2.5 px-2 pt-1 pb-2">
+          <WalletAvatar
+            address={address}
+            className="size-9 shrink-0 rounded-md ring-1 ring-border/50"
+          />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-mono text-xs text-foreground tabular-nums">
+              {formattedAddress}
+            </div>
+            <div className="truncate text-[11px] text-muted-foreground">
+              {secondaryLabel}
+            </div>
+          </div>
+          <Button
+            aria-label="Copy wallet address"
+            className="size-7 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation()
+              void copyAddress()
+            }}
+          >
+            {didCopyAddress ? (
+              <CheckIcon className="size-3.5" />
+            ) : (
+              <CopyIcon className="size-3.5" />
+            )}
+          </Button>
+          <Button
+            aria-label="View wallet in explorer"
+            className="size-7 shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+            onClick={(event) => {
+              event.stopPropagation()
+              openExplorer()
+            }}
+          >
+            <SquareArrowOutUpRightIcon className="size-3.5" />
+          </Button>
+        </div>
+
+        <DropdownMenuSeparator />
+
+        <div className="px-2 py-1.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-[11px] text-muted-foreground">Available</span>
+            <span className="font-mono text-sm font-medium text-foreground tabular-nums">
+              {availableDusdcLabel}
+              <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                DUSDC
               </span>
             </span>
-            <Button
-              aria-label="Copy wallet address"
-              className="shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-              onClick={(event) => {
-                event.stopPropagation()
-                void copyAddress()
-              }}
-            >
-              {didCopyAddress ? (
-                <CheckIcon className="size-3.5" />
-              ) : (
-                <CopyIcon className="size-3.5" />
-              )}
-            </Button>
           </div>
-          <div className="grid grid-cols-2 gap-1.5 px-2 pb-2">
-            <AccountMenuMetric label="Available" value={availableDusdcLabel} />
-            <AccountMenuMetric label="PLP" value={walletPlpLabel} />
+          <div className="mt-1.5 flex items-baseline justify-between gap-3">
+            <span className="text-[11px] text-muted-foreground">PLP</span>
+            <span className="font-mono text-xs text-foreground tabular-nums">
+              {walletPlpLabel}
+            </span>
           </div>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onOpenProfile}>
-            <WalletCardsIcon className="size-3.5" />
-            Account
-          </DropdownMenuItem>
-          <DropdownMenuItem render={<Link to="/portfolio" />}>
-            <WalletCardsIcon className="size-3.5" />
-            Portfolio
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onOpenDynamicProfile}>
-            <SettingsIcon className="size-3.5" />
-            Wallet Settings
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={openExplorer}>
-            <SquareArrowOutUpRightIcon className="size-3.5" />
-            View in Explorer
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
-            variant="destructive"
-            onClick={() => void onSignOut()}
-          >
-            <LogOutIcon className="size-3.5" />
-            Sign Out
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
+        </div>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem render={<Link to="/portfolio" />}>
+          <WalletCardsIcon className="size-3.5" />
+          Portfolio
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenProfile}>
+          <DatabaseZapIcon className="size-3.5" />
+          Account details
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={onOpenDynamicProfile}>
+          <SettingsIcon className="size-3.5" />
+          Wallet settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
+          variant="destructive"
+          onClick={() => void onSignOut()}
+        >
+          <LogOutIcon className="size-3.5" />
+          Sign out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
@@ -494,7 +507,6 @@ function DynamicWalletButton() {
           email={user?.email}
           open={isAccountModalOpen}
           onOpenChange={setIsAccountModalOpen}
-          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
           onSignOut={handleLogOut}
         />
       </>
@@ -517,7 +529,6 @@ function DynamicWalletButton() {
           email={user.email}
           open={isAccountModalOpen}
           onOpenChange={setIsAccountModalOpen}
-          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
           onSignOut={handleLogOut}
         />
       </>
