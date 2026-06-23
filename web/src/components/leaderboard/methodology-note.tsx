@@ -2,7 +2,7 @@ import { Card, CardContent } from "@/components/ui/card"
 
 export function MethodologyNote({ assumptions }: { assumptions: string[] }) {
   return (
-    <Card className="rounded-md border-0 bg-card py-0 shadow-none ring-0">
+    <Card className="rounded-lg border-0 bg-card py-0 shadow-none ring-0">
       <CardContent className="px-4 py-3">
         <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Methodology

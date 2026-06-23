@@ -7,8 +7,8 @@ import { exposurePageSize, formatDusdc } from "@/lib/risk/helpers"
 import type { ExposureFilter } from "@/lib/risk/helpers"
 import type { RiskExposureRow, RiskModel } from "@/lib/risk/types"
 import { cn } from "@/lib/utils"
+import { Segmented } from "@/components/primitives/segmented"
 import { ExposureConcentration } from "./exposure-concentration"
-import { Segmented } from "./segmented"
 import { TableValue } from "./table-value"
 
 function ExposureRow({ row }: { row: RiskExposureRow }) {

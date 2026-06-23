@@ -1,38 +1,13 @@
+import { Segmented } from "@/components/primitives/segmented"
 import { Button } from "@/components/ui/button"
 import {
   exportLeaderboardReport,
   leaderboardPeriodOptions,
 } from "@/lib/leaderboard/helpers"
-import type { LeaderboardModel, LeaderboardPeriod } from "@/lib/leaderboard/types"
-import { cn } from "@/lib/utils"
-
-function PeriodSelector({
-  onChange,
-  value,
-}: {
-  onChange: (period: LeaderboardPeriod) => void
-  value: LeaderboardPeriod
-}) {
-  return (
-    <div className="flex w-full flex-wrap gap-1.5 sm:w-auto sm:justify-end">
-      {leaderboardPeriodOptions.map((option) => (
-        <Button
-          className={cn(
-            "h-7 px-2.5 text-[11px] shadow-none",
-            value === option.id && "bg-primary/10 text-primary"
-          )}
-          key={option.id}
-          onClick={() => onChange(option.id)}
-          size="xs"
-          type="button"
-          variant="ghost"
-        >
-          {option.label}
-        </Button>
-      ))}
-    </div>
-  )
-}
+import type {
+  LeaderboardModel,
+  LeaderboardPeriod,
+} from "@/lib/leaderboard/types"
 
 export function LeaderboardHeader({
   model,
@@ -56,7 +31,11 @@ export function LeaderboardHeader({
           </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-          <PeriodSelector onChange={onPeriodChange} value={period} />
+          <Segmented
+            onChange={onPeriodChange}
+            options={leaderboardPeriodOptions}
+            value={period}
+          />
           <Button
             className="w-full sm:w-auto"
             onClick={() => exportLeaderboardReport(model, period)}

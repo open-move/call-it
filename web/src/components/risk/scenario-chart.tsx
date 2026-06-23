@@ -12,7 +12,7 @@ import {
 import { chartMetrics, formatChartTick } from "@/lib/risk/helpers"
 import type { ChartMetric } from "@/lib/risk/helpers"
 import type { RiskScenarioId, RiskScenarioRow } from "@/lib/risk/types"
-import { Segmented } from "./segmented"
+import { Segmented } from "@/components/primitives/segmented"
 
 type ChartRow = RiskScenarioRow & { chartValue: number }
 
