@@ -7,9 +7,10 @@ V0 is intentionally small:
 - Sui gRPC only
 - Drizzle + SQLite
 - Docker persistent volume
-- Binary `predict::redeem_permissionless` only
-- No range redemption
-- No reward vault
+- Binary redemption only (no range redemption)
+- Optional reward vault: routes through `reward_vault::redeem_with_reward` when
+  configured, falling back to plain `predict::redeem_permissionless` when the
+  vault can't pay
 
 ## Commands
 

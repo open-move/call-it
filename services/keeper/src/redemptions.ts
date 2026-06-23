@@ -108,9 +108,22 @@ export async function executeRedemptions(
   let submitted = 0
   let failed = 0
 
+  const rewardConfigured = config.rewardVaultId !== null && config.rewardPackageId !== null
+
   for (const plan of plans) {
-    const transaction = buildRedeemTransaction(config, plan, keeperAddress)
-    const simulation = await simulateRedeem(client, transaction)
+    // Prefer the reward vault, but fall back to a plain redeem when it can't pay
+    // (manager not allow-listed, vault underfunded, payout below the vault's
+    // minimum). Redeeming the position is the priority; the tip is a bonus.
+    let transaction = buildRedeemTransaction(config, plan, keeperAddress, rewardConfigured)
+    let simulation = await simulateRedeem(client, transaction)
+    if (!simulation.ok && rewardConfigured) {
+      logger.info(
+        { error: simulation.error, positionKey: plan.position.key },
+        "reward redeem unavailable; falling back to plain redeem"
+      )
+      transaction = buildRedeemTransaction(config, plan, keeperAddress, false)
+      simulation = await simulateRedeem(client, transaction)
+    }
     if (!simulation.ok) {
       failed += 1
       await repo.recordTx({

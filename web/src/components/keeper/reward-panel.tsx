@@ -8,7 +8,9 @@ import type { KeeperStatus } from "@/services/keeper-client"
 import { StatusDot } from "./table-controls"
 
 export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
-  const deployed = status.rewardVaultId !== null
+  // Whether this keeper is routing redemptions through a reward vault, which
+  // reflects its config, not whether a vault exists on-chain.
+  const active = status.rewardVaultId !== null
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-4">
@@ -16,12 +18,12 @@ export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
         <div className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           Reward vault
         </div>
-        <StatusDot tone={deployed ? BadgeTone.Live : BadgeTone.Warning}>
-          {deployed ? "Active" : "Not deployed"}
+        <StatusDot tone={active ? BadgeTone.Live : BadgeTone.Neutral}>
+          {active ? "Active" : "Inactive"}
         </StatusDot>
       </div>
 
-      {deployed ? (
+      {active ? (
         <div>
           <DataRow
             label="Vault"
@@ -47,8 +49,8 @@ export function RewardVaultPanel({ status }: { status: KeeperStatus }) {
       ) : (
         <div className="space-y-3">
           <p className="text-xs leading-5 text-pretty text-muted-foreground">
-            Redemptions are free right now. Once the reward vault is deployed,
-            executors earn a fixed, operator-funded tip per redemption.
+            This keeper redeems for free. Point it at a reward vault to earn a
+            fixed, operator-funded tip per redemption.
           </p>
           <div>
             <DataRow label="Tip policy" value="Fixed, admin-set, opt-in" />

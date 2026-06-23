@@ -82,7 +82,7 @@ const configSchema = z
     KEEPER_MIN_PAYOUT: envBigint(1n),
     KEEPER_MIN_SUI_BALANCE: envBigint(50_000_000n),
     KEEPER_POLL_SECONDS: envPositiveInteger(15),
-    KEEPER_REWARD_COIN_TYPE: envString("0x2::sui::SUI"),
+    KEEPER_REWARD_COIN_TYPE: optionalEnvString,
     KEEPER_REWARD_PACKAGE_ID: optionalAddress,
     KEEPER_REWARD_VAULT_ID: optionalAddress,
     KEEPER_START_CHECKPOINT: optionalBigintString,
@@ -111,7 +111,9 @@ const configSchema = z
       predictPackageId: env.PREDICT_PACKAGE_ID,
       predictQuoteAsset: env.PREDICT_QUOTE_ASSET,
       redeemKey: env.SUI_KEEPER_REDEEM_KEY,
-      rewardCoinType: env.KEEPER_REWARD_COIN_TYPE,
+      // The reward vault is created with the quote asset (DUSDC) as its reward
+      // coin, so default to that unless explicitly overridden.
+      rewardCoinType: env.KEEPER_REWARD_COIN_TYPE ?? env.PREDICT_QUOTE_ASSET,
       rewardPackageId: env.KEEPER_REWARD_PACKAGE_ID,
       rewardVaultId: env.KEEPER_REWARD_VAULT_ID,
       startCheckpoint: env.KEEPER_START_CHECKPOINT,

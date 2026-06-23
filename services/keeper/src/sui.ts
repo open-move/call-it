@@ -82,7 +82,12 @@ export async function getSuiBalance(client: SuiClient, owner: string): Promise<b
   return suiBalanceSchema.parse(response)
 }
 
-export function buildRedeemTransaction(config: Config, plan: RedemptionPlan, recipient: string) {
+export function buildRedeemTransaction(
+  config: Config,
+  plan: RedemptionPlan,
+  recipient: string,
+  useReward: boolean
+) {
   const tx = new Transaction()
   const key = tx.moveCall({
     arguments: [
@@ -96,7 +101,9 @@ export function buildRedeemTransaction(config: Config, plan: RedemptionPlan, rec
 
   // Reward path: redeem through our reward vault, which redeems the full
   // settled position and returns a keeper reward coin we forward to ourselves.
-  if (config.rewardVaultId !== null && config.rewardPackageId !== null) {
+  // `redeem_with_reward` aborts unless the manager is allow-listed and the vault
+  // is funded, so the caller falls back to the plain path when this is off.
+  if (useReward && config.rewardVaultId !== null && config.rewardPackageId !== null) {
     const reward = tx.moveCall({
       arguments: [
         tx.object(config.rewardVaultId),

@@ -161,6 +161,19 @@ async function main(): Promise<void> {
   await writeFile(backendEnvPath, backendEnv)
   logger.info({ file: backendEnvPath }, "patched backend .env arena ids")
 
+  // 5. services/keeper/.env — keeper reward vault ids (create from example if
+  // missing). The keeper routes redemptions through the vault when these are set
+  // and falls back to a plain redeem when the vault can't pay.
+  const keeperEnvPath = path.join(repoRoot, "services/keeper/.env")
+  if (!(await exists(keeperEnvPath))) {
+    await copyFile(path.join(repoRoot, "services/keeper/.env.example"), keeperEnvPath)
+  }
+  let keeperEnv = await readFile(keeperEnvPath, "utf8")
+  keeperEnv = setEnv(keeperEnv, "KEEPER_REWARD_PACKAGE_ID", manifest.keeperRewards.packageId)
+  keeperEnv = setEnv(keeperEnv, "KEEPER_REWARD_VAULT_ID", manifest.keeperRewards.vaultId)
+  await writeFile(keeperEnvPath, keeperEnv)
+  logger.info({ file: keeperEnvPath }, "patched keeper .env reward vault ids")
+
   logger.info({ network }, "sync-config complete")
 }
 
