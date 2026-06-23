@@ -1,9 +1,5 @@
 import { RefreshCwIcon } from "lucide-react"
 
-import {
-  StatusIndicator,
-  StatusTone,
-} from "@/components/primitives/status-indicator"
 import { Button } from "@/components/ui/button"
 import type { KeeperStatus } from "@/services/keeper-client"
 import { formatCount, formatSui } from "@/lib/keeper/helpers"
@@ -31,14 +27,12 @@ function StatCell({
   dot = false,
   index,
   label,
-  meta,
   tone = "default",
   value,
 }: {
   dot?: boolean
   index: number
   label: string
-  meta: string
   tone?: CellTone
   value: string
 }) {
@@ -64,9 +58,6 @@ function StatCell({
       >
         {value}
       </div>
-      <div className="mt-1 truncate font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
-        {meta}
-      </div>
     </div>
   )
 }
@@ -80,7 +71,7 @@ export function KeeperHeader({
 }) {
   return (
     <div className="px-1 pt-1 pb-2">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-xl font-semibold tracking-tight text-balance text-foreground">
             Predict Keeper
@@ -120,14 +111,16 @@ interface Verdict {
 // Synthesize the keeper's overall health from its component signals, surfacing
 // the most urgent problem first.
 function getVerdict(status: KeeperStatus, errorCount: number): Verdict {
-  const lag = status.checkpointLag === null ? null : Number(status.checkpointLag)
+  const lag =
+    status.checkpointLag === null ? null : Number(status.checkpointLag)
   const synced = lag !== null && lag <= 5
 
   if (status.dryRun) {
     return {
       tone: "muted",
       title: "Simulating only",
-      detail: "Watching settled markets without a redeem key. Nothing is sent on-chain.",
+      detail:
+        "Watching settled markets without a redeem key. Nothing is sent on-chain.",
     }
   }
   if (status.keeper?.belowMinimum) {
@@ -141,7 +134,9 @@ function getVerdict(status: KeeperStatus, errorCount: number): Verdict {
     return {
       tone: "warning",
       title:
-        lag === null ? "Chain head unavailable" : `Catching up · ${formatCount(lag)} behind`,
+        lag === null
+          ? "Chain head unavailable"
+          : `Catching up · ${formatCount(lag)} behind`,
       detail: "Indexing toward the latest checkpoint.",
     }
   }
@@ -170,23 +165,18 @@ export function KeeperStatusCockpit({
   redeemedCount: number
   status: KeeperStatus
 }) {
-  const live = !status.dryRun
   const verdict = getVerdict(status, errorCount)
   const healthy = verdict.tone === "up"
 
-  const lag = status.checkpointLag === null ? null : Number(status.checkpointLag)
+  const lag =
+    status.checkpointLag === null ? null : Number(status.checkpointLag)
   const synced = lag !== null && lag <= 5
   const syncValue =
     lag === null ? "--" : synced ? "Synced" : `${formatCount(lag)} behind`
-  const syncMeta =
-    status.latestCheckpoint === null
-      ? "chain head unavailable"
-      : `head ${formatCount(status.latestCheckpoint)}`
 
-  const gasValue = status.keeper ? formatSui(status.keeper.suiBalance) : "Dry run"
-  const gasMeta = status.keeper
-    ? `min ${formatSui(status.minSuiBalance)}`
-    : "no redeem key"
+  const gasValue = status.keeper
+    ? formatSui(status.keeper.suiBalance)
+    : "Dry run"
   const gasTone: CellTone = status.keeper?.belowMinimum
     ? "warning"
     : status.keeper
@@ -195,8 +185,8 @@ export function KeeperStatusCockpit({
 
   return (
     <div className="rounded-lg bg-card p-4 sm:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 items-center gap-2.5">
+      <div>
+        <div className="flex items-center gap-2">
           <span
             aria-hidden="true"
             className={cn(
@@ -205,22 +195,13 @@ export function KeeperStatusCockpit({
               healthy && "animate-pulse"
             )}
           />
-          <div className="min-w-0">
-            <div className="text-sm leading-none font-medium text-foreground">
-              {verdict.title}
-            </div>
-            <div className="mt-1.5 text-xs leading-snug text-muted-foreground">
-              {verdict.detail}
-            </div>
-          </div>
+          <span className="text-sm leading-none font-medium text-foreground">
+            {verdict.title}
+          </span>
         </div>
-        <StatusIndicator
-          className="shrink-0"
-          pulse={live}
-          tone={live ? StatusTone.Live : StatusTone.Simulated}
-        >
-          {live ? "Running" : "Simulating only"}
-        </StatusIndicator>
+        <div className="mt-1.5 text-xs leading-snug text-muted-foreground">
+          {verdict.detail}
+        </div>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-4 border-t border-border/40 pt-4 sm:grid-cols-4 sm:gap-x-0 sm:divide-x sm:divide-border/40">
@@ -228,7 +209,6 @@ export function KeeperStatusCockpit({
           dot
           index={0}
           label="Sync"
-          meta={syncMeta}
           tone={lag === null ? "muted" : synced ? "up" : "warning"}
           value={syncValue}
         />
@@ -236,21 +216,18 @@ export function KeeperStatusCockpit({
           dot
           index={1}
           label="Gas tank"
-          meta={gasMeta}
           tone={gasTone}
           value={gasValue}
         />
         <StatCell
           index={2}
           label="Redeemable now"
-          meta={`${formatCount(status.counts.positions)} tracked positions`}
           tone={redeemableCount > 0 ? "up" : "muted"}
           value={formatCount(redeemableCount)}
         />
         <StatCell
           index={3}
           label="Redeemed"
-          meta={`${formatCount(status.counts.txs)} total attempts`}
           value={formatCount(redeemedCount)}
         />
       </div>
