@@ -190,7 +190,7 @@ export function CallDetailPage({
                 <h1 className="text-lg leading-snug font-semibold tracking-tight text-balance text-foreground sm:text-xl">
                   {call.market}
                   {isActive ? (
-                    <span className="font-normal text-muted-foreground">
+                    <span className=" text-muted-foreground">
                       {" "}
                       in {formatDistanceToNowStrict(call.expiryMs)}
                     </span>

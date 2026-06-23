@@ -124,7 +124,7 @@ function CallCard({ call }: { call: ArenaCall }) {
             <h3 className="min-w-0 text-sm leading-5 font-semibold text-balance text-foreground">
               {call.market}
               {isActive ? (
-                <span className="font-normal text-muted-foreground">
+                <span className=" text-muted-foreground">
                   {" "}
                   · {formatDistanceToNowStrict(call.expiryMs)} left
                 </span>

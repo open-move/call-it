@@ -41,7 +41,7 @@ function AppDropdownMenuLabel({
   return (
     <BaseDropdownMenuLabel
       className={cn(
-        "px-2 py-1 font-mono text-[10px] font-normal tracking-wide text-muted-foreground uppercase",
+        "px-2 py-1 font-mono text-[10px]  tracking-wide text-muted-foreground uppercase",
         className
       )}
       {...props}

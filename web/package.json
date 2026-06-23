@@ -19,6 +19,8 @@
     "@dicebear/styles": "^10.1.0",
     "@dynamic-labs/sdk-react-core": "^4.88.1",
     "@dynamic-labs/sui": "^4.88.1",
+    "@fontsource-variable/geist": "^5.2.9",
+    "@fontsource-variable/geist-mono": "^5.2.8",
     "@fontsource-variable/inter": "^5.2.8",
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@mysten/sui": "^2.17.0",

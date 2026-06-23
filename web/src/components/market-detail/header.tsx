@@ -103,7 +103,7 @@ function MarketSelector({
         />
         <span className="min-w-0 truncate text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
           {market.assetSymbol}{" "}
-          <span className="text-xs font-normal text-muted-foreground">
+          <span className="text-xs  text-muted-foreground">
             Prediction · {formatMarketTitleExpiry(market.expiryMs)}
           </span>
         </span>
@@ -172,7 +172,7 @@ function MarketSelector({
                       <div className="flex min-w-0 items-center gap-2">
                         <div className="truncate text-sm leading-5 font-medium tracking-[-0.01em] text-foreground">
                           {option.assetSymbol}{" "}
-                          <span className="text-xs font-normal text-muted-foreground">
+                          <span className="text-xs  text-muted-foreground">
                             Prediction · {formatMarketTitleExpiry(option.expiryMs)}
                           </span>
                         </div>

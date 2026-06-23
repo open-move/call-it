@@ -64,7 +64,7 @@ export function FeaturedMarkets({
               <div className="min-w-0">
                 <div className="truncate text-sm leading-5 font-medium tracking-[-0.01em] text-foreground">
                   {market.assetSymbol}{" "}
-                  <span className="text-xs font-normal text-muted-foreground">
+                  <span className="text-xs  text-muted-foreground">
                     Prediction · {formatExpiryDistance(market.expiryMs)}
                   </span>
                 </div>
