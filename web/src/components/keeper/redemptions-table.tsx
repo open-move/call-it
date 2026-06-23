@@ -12,12 +12,9 @@ import {
 } from "@/lib/keeper/helpers"
 import { fetchKeeperTxs, type KeeperTx } from "@/services/keeper-client"
 
-import {
-  KEEPER_PAGE_SIZE,
-  Pager,
-  StatusDot,
-  StatusFilter,
-} from "./table-controls"
+import { Pager } from "@/components/primitives/pager"
+
+import { KEEPER_PAGE_SIZE, StatusDot, StatusFilter } from "./table-controls"
 
 const COLUMNS =
   "grid-cols-[4.5rem_minmax(0,1fr)_5.5rem] sm:grid-cols-[4.5rem_minmax(0,1fr)_5.5rem_5rem_4.5rem]"
