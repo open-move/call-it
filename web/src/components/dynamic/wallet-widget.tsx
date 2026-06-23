@@ -10,12 +10,14 @@ import {
   CopyIcon,
   DatabaseZapIcon,
   LogOutIcon,
-  SettingsIcon,
+  MoonIcon,
   SquareArrowOutUpRightIcon,
+  SunIcon,
   WalletCardsIcon,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Dialog,
   DialogContent,
@@ -31,9 +33,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/primitives/dropdown-menu"
+import { useSession } from "@/lib/auth/session"
 import { formatDecimalUnits } from "@/lib/amounts"
 import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import { usePredictAccount } from "@/lib/providers/predict-account"
+import { useTheme } from "@/lib/theme"
+import type { Theme } from "@/lib/theme"
+import { cn } from "@/lib/utils"
+import { BackendError } from "@/services/backend-client"
 
 const walletButtonClassName =
   "border border-border/40 bg-muted/30 text-foreground shadow-none hover:bg-muted/45 hover:text-foreground focus-visible:ring-primary/30"
@@ -89,28 +96,37 @@ function formatFullDecimalUnits(value: bigint | undefined) {
     : formatDecimalUnits(value, PREDICT_QUOTE_DECIMALS, 4)
 }
 
-function LedgerRow({
-  isLoading,
-  label,
-  unit,
-  value,
-}: {
-  isLoading?: boolean
-  label: string
-  unit?: string
-  value: string
-}) {
+const THEME_OPTIONS: { icon: typeof SunIcon; label: string; value: Theme }[] = [
+  { icon: SunIcon, label: "Light", value: "light" },
+  { icon: MoonIcon, label: "Dark", value: "dark" },
+]
+
+function ThemeToggle() {
+  const { setTheme, theme } = useTheme()
+
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="font-mono text-sm text-foreground tabular-nums">
-        {isLoading ? "--" : value}
-        {unit ? (
-          <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-            {unit}
-          </span>
-        ) : null}
-      </span>
+    <div className="inline-flex items-center gap-0.5 rounded-md border border-border/40 bg-muted/30 p-0.5">
+      {THEME_OPTIONS.map(({ icon: Icon, label, value }) => {
+        const isActive = theme === value
+
+        return (
+          <button
+            aria-pressed={isActive}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-[5px] px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+              isActive
+                ? "bg-card text-foreground ring-1 ring-border/50"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+            key={value}
+            onClick={() => setTheme(value)}
+            type="button"
+          >
+            <Icon className="size-3.5" />
+            {label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -128,27 +144,61 @@ function AccountHubDialog({
   onSignOut: () => Promise<void>
   open: boolean
 }) {
-  const predictAccount = usePredictAccount()
-
-  useEffect(() => {
-    if (open && address) {
-      void predictAccount.refreshAccount()
-    }
-  }, [address, open])
-
+  const session = useSession()
   const [didCopyAddress, setDidCopyAddress] = useState(false)
-  const walletDusdcBalance = predictAccount.walletDusdcBalance
-  const managerDusdcBalance = predictAccount.managerDusdcBalance
-  const availableDusdcBalance =
-    walletDusdcBalance === undefined && managerDusdcBalance === undefined
-      ? undefined
-      : (walletDusdcBalance ?? 0n) + (managerDusdcBalance ?? 0n)
-  const walletDusdcLabel = formatFullDecimalUnits(walletDusdcBalance)
-  const availableDusdcLabel = formatFullDecimalUnits(availableDusdcBalance)
-  const walletPlpLabel = formatFullDecimalUnits(predictAccount.walletPlpBalance)
-  const managerBalanceLabel = formatFullDecimalUnits(managerDusdcBalance)
-  const isLoadingAccount = predictAccount.status === "loading"
   const formattedAddress = address ? formatAddress(address) : null
+
+  // Username + email come from our own backend session (PATCH /me), not the
+  // wallet provider.
+  const sessionUser = session.user
+  const sessionEmail = sessionUser?.email ?? email
+  const currentUsername = sessionUser?.username ?? ""
+  const canEditUsername = session.status === "authenticated"
+
+  const [username, setUsername] = useState(currentUsername)
+  const [isSavingUsername, setIsSavingUsername] = useState(false)
+  const [usernameStatus, setUsernameStatus] = useState<{
+    kind: "error" | "success"
+    text: string
+  }>()
+
+  // Seed the field from the saved username each time the modal opens, so a
+  // discarded edit doesn't linger between sessions.
+  useEffect(() => {
+    if (open) {
+      setUsername(sessionUser?.username ?? "")
+      setUsernameStatus(undefined)
+    }
+  }, [open])
+
+  // Backend rule: 3–20 lowercase letters, digits, or underscores.
+  const normalizedUsername = username.trim().toLowerCase()
+  const isUsernameValid = /^[a-z0-9_]{3,20}$/.test(normalizedUsername)
+  const isUsernameDirty = normalizedUsername !== currentUsername
+  const canSaveUsername =
+    canEditUsername && isUsernameDirty && isUsernameValid && !isSavingUsername
+
+  async function handleSaveUsername() {
+    if (!canSaveUsername) {
+      return
+    }
+    setUsernameStatus(undefined)
+    setIsSavingUsername(true)
+    try {
+      await session.updateProfile({ username: normalizedUsername })
+      setUsernameStatus({ kind: "success", text: "Username updated." })
+    } catch (error) {
+      const text =
+        error instanceof BackendError && error.status === 409
+          ? "That username is taken."
+          : error instanceof Error && error.message
+            ? error.message
+            : "Could not update username."
+      setUsernameStatus({ kind: "error", text })
+    } finally {
+      setIsSavingUsername(false)
+    }
+  }
 
   async function copyAddress() {
     if (!address) {
@@ -178,7 +228,7 @@ function AccountHubDialog({
             Account
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Wallet, trading account, and strategy balances.
+            Your identity, appearance, and settings.
           </DialogDescription>
         </DialogHeader>
 
@@ -195,7 +245,7 @@ function AccountHubDialog({
                 {formattedAddress ?? "No wallet connected"}
               </div>
               <div className="truncate text-xs text-muted-foreground">
-                {email || "Wallet session"}
+                {currentUsername ? `@${currentUsername}` : "Sui wallet"}
               </div>
             </div>
             {address ? (
@@ -230,32 +280,77 @@ function AccountHubDialog({
 
           <div className="h-px bg-foreground/10" />
 
-          <div className="space-y-2.5">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-xs text-muted-foreground">Available</span>
-              <span className="font-mono text-lg leading-none font-medium text-foreground tabular-nums">
-                {isLoadingAccount ? "--" : availableDusdcLabel}
-                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
-                  DUSDC
-                </span>
-              </span>
+          <div className="space-y-2">
+            <label
+              className="text-xs font-medium text-muted-foreground"
+              htmlFor="account-username"
+            >
+              Username
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                autoComplete="off"
+                className="flex-1 bg-muted/25 shadow-none ring-0 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
+                disabled={!canEditUsername}
+                id="account-username"
+                maxLength={20}
+                onChange={(event) =>
+                  setUsername(event.target.value.toLowerCase())
+                }
+                placeholder="Set a username"
+                spellCheck={false}
+                value={username}
+              />
+              <Button
+                disabled={!canSaveUsername}
+                onClick={() => void handleSaveUsername()}
+                size="sm"
+                type="button"
+              >
+                {isSavingUsername ? "Saving" : "Save"}
+              </Button>
             </div>
-            <LedgerRow
-              isLoading={isLoadingAccount}
-              label="Wallet"
-              value={walletDusdcLabel}
-            />
-            <LedgerRow
-              isLoading={isLoadingAccount}
-              label="Trading account"
-              value={managerBalanceLabel}
-            />
-            <div className="h-px bg-foreground/10" />
-            <LedgerRow
-              isLoading={isLoadingAccount}
-              label="PLP"
-              value={walletPlpLabel}
-            />
+            {usernameStatus ? (
+              <p
+                className={cn(
+                  "text-xs",
+                  usernameStatus.kind === "success"
+                    ? "text-outcome-up"
+                    : "text-destructive"
+                )}
+              >
+                {usernameStatus.text}
+              </p>
+            ) : (
+              <p
+                className={cn(
+                  "text-xs",
+                  isUsernameDirty && !isUsernameValid
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                )}
+              >
+                3–20 lowercase letters, numbers, or underscores.
+              </p>
+            )}
+          </div>
+
+          {sessionEmail ? (
+            <div className="space-y-1.5">
+              <span className="text-xs font-medium text-muted-foreground">
+                Email
+              </span>
+              <div className="truncate text-sm text-foreground">
+                {sessionEmail}
+              </div>
+            </div>
+          ) : null}
+
+          <div className="h-px bg-foreground/10" />
+
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-foreground">Appearance</span>
+            <ThemeToggle />
           </div>
         </div>
 
@@ -278,13 +373,11 @@ function AccountHubDialog({
 function AccountDropdown({
   address,
   email,
-  onOpenDynamicProfile,
   onSignOut,
   onOpenProfile,
 }: {
   address: string
   email?: string
-  onOpenDynamicProfile: () => void
   onSignOut: () => Promise<void>
   onOpenProfile: () => void
 }) {
@@ -426,10 +519,6 @@ function AccountDropdown({
           <DatabaseZapIcon className="size-3.5" />
           Account details
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenDynamicProfile}>
-          <SettingsIcon className="size-3.5" />
-          Wallet settings
-        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
@@ -447,13 +536,11 @@ function AccountDropdown({
 function AccountCluster({
   address,
   email,
-  onOpenDynamicProfile,
   onSignOut,
   onOpenProfile,
 }: {
   address: string
   email?: string
-  onOpenDynamicProfile: () => void
   onSignOut: () => Promise<void>
   onOpenProfile: () => void
 }) {
@@ -461,7 +548,6 @@ function AccountCluster({
     <AccountDropdown
       address={address}
       email={email}
-      onOpenDynamicProfile={onOpenDynamicProfile}
       onOpenProfile={onOpenProfile}
       onSignOut={onSignOut}
     />
@@ -469,14 +555,8 @@ function AccountCluster({
 }
 
 function DynamicWalletButton() {
-  const {
-    primaryWallet,
-    sdkHasLoaded,
-    handleLogOut,
-    setShowAuthFlow,
-    setShowDynamicUserProfile,
-    user,
-  } = useDynamicContext()
+  const { primaryWallet, sdkHasLoaded, handleLogOut, setShowAuthFlow, user } =
+    useDynamicContext()
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
 
   if (!sdkHasLoaded) {
@@ -498,7 +578,6 @@ function DynamicWalletButton() {
         <AccountCluster
           address={primaryWallet.address}
           email={user?.email}
-          onOpenDynamicProfile={() => setShowDynamicUserProfile(true)}
           onOpenProfile={() => setIsAccountModalOpen(true)}
           onSignOut={handleLogOut}
         />

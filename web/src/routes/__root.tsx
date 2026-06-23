@@ -4,6 +4,7 @@ import { TanStackDevtools } from "@tanstack/react-devtools"
 
 import { AppFrame } from "@/components/app-frame/app-frame"
 import { DynamicProvider } from "@/lib/providers/dynamic"
+import { THEME_INIT_SCRIPT } from "@/lib/theme"
 import appCss from "../styles.css?url"
 
 export const Route = createRootRoute({
@@ -17,12 +18,12 @@ export const Route = createRootRoute({
         content: "width=device-width, initial-scale=1",
       },
       {
-        title: "CallIt: The prediction superapp for Sui",
+        title: "CallIt: The prediction hub for Sui",
       },
       {
         name: "description",
         content:
-          "CallIt is the prediction superapp for DeepBook Predict on Sui: a trading terminal, a social arena, strategy vaults, a liquidity pool, and keeper infrastructure in one app. On-chain, oracle-settled, non-custodial.",
+          "CallIt is the prediction hub for DeepBook Predict on Sui: a trading terminal, a social arena, strategy vaults, a liquidity pool, and keeper infrastructure in one app. On-chain, oracle-settled, non-custodial.",
       },
     ],
     links: [
@@ -56,6 +57,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
       <body>

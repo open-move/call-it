@@ -444,7 +444,7 @@ function Hero() {
             : { filter: heroBlur, opacity: heroOpacity, scale: heroScale }
         }
       >
-        <Eyebrow>The prediction superapp for Sui</Eyebrow>
+        <Eyebrow>The prediction hub for Sui</Eyebrow>
         <h1 className="mt-5 text-5xl leading-[1.02] font-semibold tracking-[-0.03em] text-balance text-foreground sm:text-6xl md:text-7xl">
           Make your call.
         </h1>
@@ -680,7 +680,7 @@ function Protocol() {
             Built on DeepBook Predict.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
-            CallIt is the prediction superapp for DeepBook Predict: a terminal,
+            CallIt is the prediction hub for DeepBook Predict: a terminal,
             an arena, strategy vaults, a liquidity pool, and keeper
             infrastructure in one app. Every position is a native Predict
             position and every deposit is book liquidity, so CallIt composes the
