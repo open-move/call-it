@@ -23,20 +23,20 @@ import { BrandMark } from "./brand-mark"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-[background-color,color] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 outline-none hover:bg-transparent focus:bg-transparent data-[active=true]:bg-transparent focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
     status === AppNavStatus.Active
       ? "text-primary"
-      : "text-muted-foreground hover:bg-muted/25 hover:text-foreground",
+      : "text-muted-foreground hover:text-foreground",
     status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
 
 function getMobileNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    "flex items-center justify-between rounded-md px-3 py-3 text-sm font-medium transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
     status === AppNavStatus.Active
       ? "text-primary"
-      : "text-muted-foreground hover:bg-muted/25 hover:text-foreground",
+      : "text-muted-foreground hover:text-foreground",
     status === AppNavStatus.Soon && "text-muted-foreground/55"
   )
 }
