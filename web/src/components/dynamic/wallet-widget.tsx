@@ -290,7 +290,7 @@ function AccountHubDialog({
             <div className="flex items-center gap-2">
               <Input
                 autoComplete="off"
-                className="flex-1 bg-muted/25 shadow-none ring-0 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
+                className="flex-1 bg-muted/25 text-sm shadow-none ring-0 focus-visible:border-primary/35 focus-visible:bg-card focus-visible:ring-1"
                 disabled={!canEditUsername}
                 id="account-username"
                 maxLength={20}
@@ -349,7 +349,9 @@ function AccountHubDialog({
           <div className="h-px bg-foreground/10" />
 
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-foreground">Appearance</span>
+            <span className="text-xs font-medium text-muted-foreground">
+              Appearance
+            </span>
             <ThemeToggle />
           </div>
         </div>
@@ -511,21 +513,21 @@ function AccountDropdown({
 
         <DropdownMenuSeparator />
 
-        <DropdownMenuItem render={<Link to="/portfolio" />}>
-          <WalletCardsIcon className="size-3.5" />
+        <DropdownMenuItem className="text-sm" render={<Link to="/portfolio" />}>
+          <WalletCardsIcon className="size-4" />
           Portfolio
         </DropdownMenuItem>
-        <DropdownMenuItem onClick={onOpenProfile}>
-          <DatabaseZapIcon className="size-3.5" />
+        <DropdownMenuItem className="text-sm" onClick={onOpenProfile}>
+          <DatabaseZapIcon className="size-4" />
           Account details
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem
-          className="text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
+          className="text-sm text-destructive focus:bg-destructive/10 focus:text-destructive [&_svg]:text-destructive focus:[&_svg]:text-destructive"
           variant="destructive"
           onClick={() => void onSignOut()}
         >
-          <LogOutIcon className="size-3.5" />
+          <LogOutIcon className="size-4" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>
