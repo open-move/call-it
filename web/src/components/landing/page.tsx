@@ -25,13 +25,15 @@ import type {
 import { cn } from "@/lib/utils"
 
 const tickerItems = [
-  "Settled by on-chain oracle",
-  "Non-custodial",
-  "No borrowing",
-  "No liquidation",
-  "Back the sharpest callers",
+  "Built on DeepBook Predict",
+  "Oracle-settled BTC markets",
+  "Fixed premium, fixed payout",
+  "No borrowing, no liquidation",
+  "Non-custodial, claim on-chain",
+  "Up, Down, Range, and Strike",
+  "Back or fade any caller",
   "Automated strategy vaults",
-  "BTC close markets",
+  "Provide liquidity, earn fees",
 ]
 
 const steps = [
@@ -77,7 +79,9 @@ function Reveal({
       initial={reduce ? false : { filter: "blur(5px)", opacity: 0, y: 28 }}
       transition={{ delay, duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
       viewport={{ amount: 0.25, once: true }}
-      whileInView={reduce ? undefined : { filter: "blur(0px)", opacity: 1, y: 0 }}
+      whileInView={
+        reduce ? undefined : { filter: "blur(0px)", opacity: 1, y: 0 }
+      }
     >
       {children}
     </motion.div>
@@ -145,7 +149,10 @@ function TradeTicketMock() {
         </TicketSection>
       </div>
 
-      <div aria-hidden="true" className={buttonVariants({ className: "mt-3 w-full" })}>
+      <div
+        aria-hidden="true"
+        className={buttonVariants({ className: "mt-3 w-full" })}
+      >
         Open Position
       </div>
     </div>
@@ -283,7 +290,9 @@ function ArenaCallMock() {
           </span>
           <span className="inline-flex shrink-0 items-center gap-1 text-[11px] text-muted-foreground">
             <TrophyIcon className="size-3 text-primary/70" />
-            <span className="font-medium text-foreground tabular-nums">68%</span>
+            <span className="font-medium text-foreground tabular-nums">
+              68%
+            </span>
           </span>
         </div>
         <Badge tone={BadgeTone.Neutral}>Preview</Badge>
@@ -318,12 +327,18 @@ function ArenaCallMock() {
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-2">
-        <div aria-hidden="true" className={buttonVariants({ className: "w-full" })}>
+        <div
+          aria-hidden="true"
+          className={buttonVariants({ className: "w-full" })}
+        >
           Back
         </div>
         <div
           aria-hidden="true"
-          className={buttonVariants({ className: "w-full", variant: "outline" })}
+          className={buttonVariants({
+            className: "w-full",
+            variant: "outline",
+          })}
         >
           Fade
         </div>
@@ -529,34 +544,34 @@ function StatsBand({ stats }: { stats: LandingStatsResult }) {
 
         <Reveal className="mt-12" delay={0.12}>
           <dl className="grid grid-cols-2 md:grid-cols-4 md:divide-x md:divide-border/40">
-          {statDefs.map((def, index) => (
-            <div
-              className={cn(
-                "px-2 py-8 sm:px-6",
-                index === 0 && "md:pl-0",
-                index === statDefs.length - 1 && "md:pr-0"
-              )}
-              key={def.label}
-            >
-              <dt className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
-                {def.label}
-              </dt>
-              <dd className="mt-3 font-mono text-3xl leading-none font-semibold tracking-tight text-foreground tabular-nums md:text-4xl">
-                {stats.status === "ready" ? (
-                  <>
-                    {def.render(stats.stats)}
-                    {def.unit ? (
-                      <span className="ml-1.5 text-base font-medium text-muted-foreground">
-                        {def.unit}
-                      </span>
-                    ) : null}
-                  </>
-                ) : (
-                  <span className="text-muted-foreground">—</span>
+            {statDefs.map((def, index) => (
+              <div
+                className={cn(
+                  "px-2 py-8 sm:px-6",
+                  index === 0 && "md:pl-0",
+                  index === statDefs.length - 1 && "md:pr-0"
                 )}
-              </dd>
-            </div>
-          ))}
+                key={def.label}
+              >
+                <dt className="font-mono text-[11px] tracking-[0.18em] text-muted-foreground uppercase">
+                  {def.label}
+                </dt>
+                <dd className="mt-3 font-mono text-3xl leading-none font-semibold tracking-tight text-foreground tabular-nums md:text-4xl">
+                  {stats.status === "ready" ? (
+                    <>
+                      {def.render(stats.stats)}
+                      {def.unit ? (
+                        <span className="ml-1.5 text-base font-medium text-muted-foreground">
+                          {def.unit}
+                        </span>
+                      ) : null}
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </dd>
+              </div>
+            ))}
           </dl>
         </Reveal>
       </div>
@@ -600,10 +615,7 @@ function FeatureBlock({
             <ArrowRightIcon className="size-4 transition-transform duration-150 group-hover:translate-x-0.5" />
           </Link>
         </Reveal>
-        <Reveal
-          className={cn("min-w-0", reverse && "lg:order-1")}
-          delay={0.12}
-        >
+        <Reveal className={cn("min-w-0", reverse && "lg:order-1")} delay={0.12}>
           {children}
         </Reveal>
       </div>
@@ -680,13 +692,12 @@ function Protocol() {
             Built on DeepBook Predict.
           </h2>
           <p className="mt-5 max-w-md text-base leading-relaxed text-pretty text-muted-foreground">
-            CallIt is the prediction hub for DeepBook Predict: a terminal,
-            an arena, strategy vaults, a liquidity pool, and keeper
-            infrastructure in one app. Every position is a native Predict
-            position and every deposit is book liquidity, so CallIt composes the
-            protocol instead of competing with it. Markets, premiums and
-            settlement all stay on-chain, transparent and impossible to quietly
-            change.
+            CallIt is the prediction hub for DeepBook Predict: a terminal, an
+            arena, strategy vaults, a liquidity pool, and keeper infrastructure
+            in one app. Every position is a native Predict position and every
+            deposit is book liquidity, so CallIt composes the protocol instead
+            of competing with it. Markets, premiums and settlement all stay
+            on-chain, transparent and impossible to quietly change.
           </p>
         </Reveal>
         <Reveal className="space-y-6" delay={0.12}>
