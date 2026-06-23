@@ -1,10 +1,9 @@
-import type {SuiTransactionSigner} from "@/services/predict-transactions";
+import type { SuiTransactionSigner } from "@/services/predict-transactions"
 
 export const RECONNECT_SUI_WALLET_MESSAGE =
   "Reconnect wallet to approve Sui transactions."
 
 interface SuiWalletCandidate extends SuiTransactionSigner {
-  isConnected?: () => Promise<boolean>
   sync?: () => Promise<void>
 }
 
@@ -27,15 +26,13 @@ export async function getReadySuiTransactionSigner(value: unknown) {
 
   const wallet = value as SuiWalletCandidate
 
+  // Mirror Dynamic's own signMessage flow: bring the connector to an active
+  // state with sync() before signing, rather than gating on isConnected().
+  // Embedded (email/social) WaaS wallets report no "connected accounts", so
+  // isConnected() returns false for them and wrongly blocks signing — sync()
+  // works for both embedded and injected wallets, and throws (→ reconnect
+  // message) only when the wallet genuinely can't be made active.
   try {
-    if (typeof wallet.isConnected === "function") {
-      const isConnected = await wallet.isConnected()
-
-      if (!isConnected) {
-        return undefined
-      }
-    }
-
     if (typeof wallet.sync === "function") {
       await wallet.sync()
     }
