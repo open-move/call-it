@@ -68,7 +68,7 @@ function ClaimBondAction({
 
   if (call.status === "bond_claimed") {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-border/35 bg-muted/25 px-3 py-2.5 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 rounded-lg bg-muted/25 px-3 py-2.5 text-xs text-muted-foreground">
         <CheckIcon className="size-3.5 text-outcome-up" />
         <span>Bond claimed</span>
       </div>
@@ -113,16 +113,14 @@ function ClaimBondAction({
     } catch (error) {
       setStatusMessage(undefined)
       setStatusKind("neutral")
-      setErrorMessage(
-        formatPredictTradeError(error, "Claim bond failed")
-      )
+      setErrorMessage(formatPredictTradeError(error, "Claim bond failed"))
     } finally {
       setIsSubmitting(false)
     }
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-border/35 bg-muted/25 p-4">
+    <div className="space-y-3 rounded-lg bg-card p-4">
       <div className="space-y-1">
         <div className="text-sm font-medium text-foreground">Creator bond</div>
         <p className="text-xs text-muted-foreground">
@@ -328,7 +326,7 @@ function ClaimPayoutAction({
   }
 
   return (
-    <div className="space-y-3 rounded-md border border-border/35 bg-muted/25 p-4">
+    <div className="space-y-3 rounded-lg bg-card p-4">
       <div className="space-y-1">
         <div className="text-sm font-medium text-foreground">Your payout</div>
         <p className="text-xs text-muted-foreground">
@@ -363,7 +361,11 @@ function ClaimPayoutAction({
                 size="lg"
                 type="button"
               >
-                {rowState.isSubmitting ? "Claiming" : actionLabel === "Redeem position" ? "Claim payout" : actionLabel}
+                {rowState.isSubmitting
+                  ? "Claiming"
+                  : actionLabel === "Redeem position"
+                    ? "Claim payout"
+                    : actionLabel}
               </Button>
             </div>
           )
