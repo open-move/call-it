@@ -48,8 +48,8 @@ const directions: {
   label: string
   value: LaunchDirection
 }[] = [
-  { icon: ArrowUpIcon, label: "Up", value: "up" },
-  { icon: ArrowDownIcon, label: "Down", value: "down" },
+  { icon: ArrowUpIcon, label: "Above", value: "up" },
+  { icon: ArrowDownIcon, label: "Below", value: "down" },
 ]
 
 const usdFormatter = new Intl.NumberFormat("en-US", {

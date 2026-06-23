@@ -1,4 +1,5 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
+import { formatDistanceToNowStrict } from "date-fns"
 import { useEffect, useState } from "react"
 
 import { TicketMessage } from "@/components/shared/ticket/ticket"
@@ -14,7 +15,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { PanelRow } from "@/components/primitives/panel-row"
 import { formatUnitPrice, parseDecimalUnits } from "@/lib/amounts"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
+import { PREDICT_QUOTE_DECIMALS, QUOTE_SCALE } from "@/lib/config"
+import { formatUsd } from "@/lib/format"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -23,7 +25,7 @@ import { useAppRouteRefresh } from "@/lib/hooks/router"
 import { usePredictAccount } from "@/lib/providers/predict-account"
 import { cn } from "@/lib/utils"
 import type { ArenaCall } from "@/lib/arena/types"
-import { formatDusdc, getTradeReserveAmount } from "@/lib/market-detail/helpers"
+import { getTradeReserveAmount } from "@/lib/market-detail/helpers"
 import { executeBackCall, executeFadeCall } from "@/services/arena-transactions"
 import {
   formatPredictQuoteMessage,
@@ -33,7 +35,12 @@ import {
 import type { PredictQuoteResult } from "@/services/predict-quotes"
 import type { DirectionalTradeParams } from "@/services/predict-transactions"
 
-import { formatMarketLabel, oppositeMarket, percentFormatter } from "./atoms"
+import {
+  DirectionPill,
+  formatMarketLabel,
+  oppositeMarket,
+  percentFormatter,
+} from "./atoms"
 
 export type CallActionMode = "back" | "fade"
 
@@ -75,27 +82,35 @@ export function CallActionDialog({
   // (1 per contract), so profit is quantity minus what you paid.
   const pricePreview =
     quotedQuote && quantityUnits
-      ? `${formatUnitPrice(quotedQuote.mintCost, quantityUnits)} DUSDC`
+      ? `$${formatUnitPrice(quotedQuote.mintCost, quantityUnits)}`
       : quote?.status === "no_quote"
         ? "No quote"
         : isQuoting
           ? "Quoting…"
           : "—"
-  const premiumPreview = quotedQuote ? formatDusdc(quotedQuote.mintCost) : "—"
+  const premiumPreview = quotedQuote
+    ? formatUsd(Number(quotedQuote.mintCost) / QUOTE_SCALE)
+    : "—"
   const profitPreview =
     quotedQuote && quantityUnits
-      ? formatDusdc(
-          quantityUnits > quotedQuote.mintCost
-            ? quantityUnits - quotedQuote.mintCost
-            : 0n
+      ? formatUsd(
+          Number(
+            quantityUnits > quotedQuote.mintCost
+              ? quantityUnits - quotedQuote.mintCost
+              : 0n
+          ) / QUOTE_SCALE
         )
       : "—"
 
   // Quote-implied probability (0..1): the share of the payout you pay upfront.
+  // Before a quote lands, fall back to the call's base chance for the side
+  // being taken (back = the call's side, fade = the opposite).
   const impliedChance =
     quotedQuote && quantityUnits
       ? Number(quotedQuote.mintCost) / Number(quantityUnits)
       : undefined
+  const sideChance = isUp ? call.fairUpProbability : 1 - call.fairUpProbability
+  const displayChance = impliedChance ?? sideChance
 
   const guardMessage = !isLiveCall
     ? "Preview data. Backing and fading need the deployed Arena."
@@ -301,16 +316,24 @@ export function CallActionDialog({
           </p>
         </DialogHeader>
 
-        <div className="rounded-md border border-border/35 bg-muted/25 px-3 py-2.5">
-          <div className="text-sm font-medium text-foreground">{market}</div>
-          {impliedChance !== undefined && (
-            <div className="mt-1 text-xs text-muted-foreground">
+        <div className="space-y-2 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <DirectionPill direction={isUp ? "up" : "down"} />
+            <span className="truncate text-sm font-medium text-foreground">
+              {market}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <span>
               <span className="font-medium text-foreground tabular-nums">
-                {percentFormatter.format(impliedChance)}
+                {percentFormatter.format(displayChance)}
               </span>{" "}
               chance
-            </div>
-          )}
+            </span>
+            <span className="font-mono tabular-nums">
+              Settles in {formatDistanceToNowStrict(call.expiryMs)}
+            </span>
+          </div>
         </div>
 
         <label className="block space-y-2">
@@ -333,8 +356,7 @@ export function CallActionDialog({
 
         <div className="space-y-2.5 rounded-md border border-border/35 bg-muted/25 px-3 py-3">
           <PanelRow label="Price" value={pricePreview} />
-          <PanelRow label="Premium" value={premiumPreview} />
-          <PanelRow label="Max loss" value={premiumPreview} />
+          <PanelRow label="Premium / Max loss" value={premiumPreview} />
           <PanelRow label="Potential profit" value={profitPreview} />
         </div>
 

@@ -128,15 +128,10 @@ export function CallDetailPage({
           <div className="space-y-3 border-t border-border/35 pt-4">
             <SentimentBar backers={call.backers} faders={call.faders} />
             {isActive ? (
-              <>
-                <div className="grid grid-cols-2 gap-2">
-                  <CallActionDialog call={call} mode="back" />
-                  <CallActionDialog call={call} mode="fade" />
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  No borrowing. No liquidation.
-                </p>
-              </>
+              <div className="grid grid-cols-2 gap-2">
+                <CallActionDialog call={call} mode="back" />
+                <CallActionDialog call={call} mode="fade" />
+              </div>
             ) : null}
           </div>
         </section>
