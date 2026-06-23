@@ -28,7 +28,11 @@ export interface PageProps {
   predictionActivity: PredictionActivity
 }
 
-export function Page({ expiredMarkets, markets, predictionActivity }: PageProps) {
+export function Page({
+  expiredMarkets,
+  markets,
+  predictionActivity,
+}: PageProps) {
   const [searchParams, setSearchParams] = useAppSearchParams()
   const [searchQuery, setSearchQuery] = useState("")
   const assetOptions = getAssetOptions(markets)
@@ -58,7 +62,12 @@ export function Page({ expiredMarkets, markets, predictionActivity }: PageProps)
       ? searchedMarkets
       : sortMarkets(searchedMarkets, selectedSort)
   const topMarkets = getTopMarkets(markets)
-  const nearestMarket = sortMarkets(markets)[0]
+  // Skip already-expired markets so "Next expiry" points at the soonest
+  // upcoming one (default sort is expiry-ascending).
+  const nowMs = Date.now()
+  const nearestMarket = sortMarkets(
+    markets.filter((market) => market.expiryMs > nowMs)
+  )[0]
 
   function setFilterParam(
     nextSearchParams: URLSearchParams,
