@@ -6,9 +6,9 @@ import {
 import type { PositionTableRow } from "@/components/shared/activity/position-table"
 import { formatExpiryDistance, formatRelativeTime } from "@/lib/format"
 import {
-  formatDusdc,
   formatQuantity,
-  formatSignedDusdc,
+  formatSignedUsd,
+  formatUsd,
 } from "@/lib/portfolio/format"
 import {
   canAddToPortfolioPosition,
@@ -190,19 +190,18 @@ export function ActivityTable({
             </ActivityNotice>
           ) : null}
           <PortfolioHeaderRow
-            className="grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_6rem_5.5rem]"
+            className="grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_5.5rem]"
             columns={[
               { label: "Contract" },
               { label: "Contracts" },
               { align: "right", label: "Value" },
               { align: "right", label: "PnL" },
-              { label: "Status" },
               { align: "right", label: "Time" },
             ]}
           />
           {positions.map((position) => (
             <div
-              className="grid grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_6rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0"
+              className="grid grid-cols-[minmax(13rem,1.9fr)_7rem_6.5rem_6.5rem_5.5rem] items-center gap-4 border-b border-border/35 px-3 py-2 text-xs last:border-b-0"
               key={position.id}
             >
               <PositionMarketCell position={position} />
@@ -212,7 +211,7 @@ export function ActivityTable({
               <span className="truncate text-right font-mono tabular-nums">
                 {position.currentValueUsd === null
                   ? "--"
-                  : formatDusdc(position.currentValueUsd)}
+                  : formatUsd(position.currentValueUsd)}
               </span>
               <span
                 className={cn(
@@ -222,10 +221,7 @@ export function ActivityTable({
               >
                 {position.unrealizedPnlUsd === null
                   ? "--"
-                  : formatSignedDusdc(position.unrealizedPnlUsd)}
-              </span>
-              <span className="truncate text-muted-foreground capitalize">
-                {position.status}
+                  : formatSignedUsd(position.unrealizedPnlUsd)}
               </span>
               <span className="text-right font-mono text-muted-foreground tabular-nums">
                 {formatRelativeTime(position.lastActivityAt)}
@@ -266,7 +262,7 @@ export function ActivityTable({
                 value={
                   position.currentValueUsd === null
                     ? "--"
-                    : formatDusdc(position.currentValueUsd)
+                    : formatUsd(position.currentValueUsd)
                 }
               />
               <MobileStat
@@ -275,7 +271,7 @@ export function ActivityTable({
                 value={
                   position.unrealizedPnlUsd === null
                     ? "--"
-                    : formatSignedDusdc(position.unrealizedPnlUsd)
+                    : formatSignedUsd(position.unrealizedPnlUsd)
                 }
               />
               <MobileStat

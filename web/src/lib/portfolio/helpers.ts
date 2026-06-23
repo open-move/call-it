@@ -51,8 +51,6 @@ export type PortfolioMarketSearch =
       strike: number
     }
 
-export type TradingAccountModalMode = "deposit" | "withdraw"
-
 export interface PortfolioPosition {
   assetSymbol: string
   averageEntryPrice: number | null

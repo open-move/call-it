@@ -18,11 +18,11 @@ import {
 import type { ChartConfig } from "@/components/ui/chart"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  DusdcValue,
-  SignedDusdcValue,
   formatPercent,
   formatPnlAxisTick,
-  formatSignedDusdc,
+  formatSignedUsd,
+  SignedUsdValue,
+  UsdValue,
 } from "@/lib/portfolio/format"
 import {
   chartIntervals,
@@ -81,7 +81,7 @@ function ExposureTile({
           {formatPercent(percent)}
         </span>
       </div>
-      <DusdcValue
+      <UsdValue
         className="mt-2 text-sm font-medium text-foreground"
         value={segment.value}
       />
@@ -115,7 +115,7 @@ function ExposurePanel({ summary }: { summary: PortfolioSummary }) {
   if (total <= 0) {
     return (
       <div className="grid w-full max-w-2xl place-items-center gap-2 text-center">
-        <DusdcValue className="text-2xl text-muted-foreground" value={0} />
+        <UsdValue className="text-2xl text-muted-foreground" value={0} />
         <div className="text-sm font-medium text-foreground">
           No open exposure
         </div>
@@ -131,7 +131,7 @@ function ExposurePanel({ summary }: { summary: PortfolioSummary }) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="text-xs text-muted-foreground">Open Cost Basis</div>
-          <DusdcValue
+          <UsdValue
             className="mt-1 text-xl font-medium text-foreground"
             value={total}
           />
@@ -247,7 +247,7 @@ export function PortfolioChartCard({
           <ExposurePanel summary={summary} />
         ) : visibleRealizedPnlPoints.length === 0 ? (
           <div className="text-center">
-            <DusdcValue className="text-2xl text-muted-foreground" value={0} />
+            <UsdValue className="text-2xl text-muted-foreground" value={0} />
             <p className="mt-10 text-sm text-muted-foreground">
               No realized P&L yet. Close or redeem a position to start the
               chart.
@@ -261,7 +261,7 @@ export function PortfolioChartCard({
                 getPnlClassName(visibleRealizedPnl)
               )}
             >
-              <SignedDusdcValue value={visibleRealizedPnl} />
+              <SignedUsdValue value={visibleRealizedPnl} />
             </div>
             <ChartContainer
               className="h-40 w-full [&_.recharts-cartesian-axis-tick_text]:font-mono"
@@ -333,7 +333,7 @@ export function PortfolioChartCard({
                     <ChartTooltipContent
                       formatter={(value) =>
                         typeof value === "number"
-                          ? formatSignedDusdc(value)
+                          ? formatSignedUsd(value)
                           : String(value)
                       }
                       labelFormatter={(_, payload) => {

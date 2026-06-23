@@ -1,8 +1,6 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useState } from "react"
 
-import { formatDecimalUnits } from "@/lib/amounts"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   coinBalanceToAmount,
   getManagerDusdcBalance,
@@ -13,7 +11,6 @@ import { AccountCard } from "./account-card"
 import { ConnectPortfolioCard } from "./connect-card"
 import { PortfolioChartCard } from "./chart-card"
 import { PositionsLedger } from "./positions-ledger"
-import { TradingAccountDialog } from "./trading-account-dialog"
 
 export interface PageProps {
   oracles: OracleInfo[]
@@ -42,37 +39,24 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
   const { setShowAuthFlow } = useDynamicContext()
   const {
     activeTab,
-    createManagerError,
-    depositAmount,
-    depositError,
-    depositStatusMessage,
+    claimError,
     filteredPositions,
-    isCreatingManager,
-    isDepositing,
-    isLoadingAccount,
-    isWithdrawing,
-    managerId,
+    handleClaim,
+    isClaiming,
     managerSummary,
     portfolioState,
     redeemState,
     searchQuery,
     summary,
-    tradingAccountModalMode,
     walletAddress,
-    withdrawAmount,
-    withdrawError,
-    withdrawStatusMessage,
     setActiveTab,
-    setDepositAmount,
     setSearchQuery,
-    setWithdrawAmount,
-    setTradingAccountModalMode,
-    resetTradingAccountState,
-    handleCreateTradingAccount,
-    handleDepositToTradingAccount,
-    handleWithdrawFromTradingAccount,
     handleRedeemPosition,
   } = usePortfolio(oracles, vaultSummary)
+
+  const claimableDusdc = coinBalanceToAmount(
+    getManagerDusdcBalance(managerSummary)
+  )
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 lg:px-8">
@@ -83,64 +67,11 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
           <>
             <section className="grid gap-3 xl:grid-cols-[minmax(0,25rem)_minmax(0,1fr)]">
               <AccountCard
+                claimableDusdc={claimableDusdc}
+                isClaiming={isClaiming}
+                onClaim={handleClaim}
                 summary={summary}
-                deployedDusdc={coinBalanceToAmount(
-                  getManagerDusdcBalance(managerSummary)
-                )}
-                onOpenDeposit={() => {
-                  resetTradingAccountState()
-                  setTradingAccountModalMode("deposit")
-                }}
-                onOpenWithdraw={() => {
-                  resetTradingAccountState()
-                  setTradingAccountModalMode("withdraw")
-                }}
-              />
-              <TradingAccountDialog
-                createManagerError={createManagerError}
-                depositAmount={depositAmount}
-                depositError={depositError}
-                depositStatusMessage={depositStatusMessage}
-                dusdcBalance={portfolioState.dusdcBalance}
-                isCreatingManager={isCreatingManager}
-                isDepositing={isDepositing}
-                isLoadingAccount={isLoadingAccount}
-                isWithdrawing={isWithdrawing}
-                managerId={managerId}
-                managerSummary={managerSummary}
-                mode={tradingAccountModalMode}
-                summary={summary}
-                withdrawAmount={withdrawAmount}
-                withdrawError={withdrawError}
-                withdrawStatusMessage={withdrawStatusMessage}
                 walletAddress={walletAddress}
-                onCreateManager={handleCreateTradingAccount}
-                onDepositAmountChange={setDepositAmount}
-                onDepositMax={() =>
-                  setDepositAmount(
-                    formatDecimalUnits(
-                      portfolioState.dusdcBalance,
-                      PREDICT_QUOTE_DECIMALS
-                    )
-                  )
-                }
-                onDepositSubmit={handleDepositToTradingAccount}
-                onOpenChange={(open) => {
-                  if (!open) {
-                    setTradingAccountModalMode(null)
-                    resetTradingAccountState()
-                  }
-                }}
-                onWithdrawAmountChange={setWithdrawAmount}
-                onWithdrawMax={() =>
-                  setWithdrawAmount(
-                    formatDecimalUnits(
-                      getManagerDusdcBalance(managerSummary),
-                      PREDICT_QUOTE_DECIMALS
-                    )
-                  )
-                }
-                onWithdrawSubmit={handleWithdrawFromTradingAccount}
               />
 
               <PortfolioChartCard
@@ -158,6 +89,11 @@ function PageClient({ oracles, vaultSummary }: PageProps) {
             {redeemState.errorMessage ? (
               <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {redeemState.errorMessage}
+              </div>
+            ) : null}
+            {claimError ? (
+              <div className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {claimError}
               </div>
             ) : null}
 

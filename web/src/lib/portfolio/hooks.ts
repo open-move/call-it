@@ -1,8 +1,6 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 import { useEffect, useState } from "react"
 
-import { formatDecimalUnits, parseDecimalUnits } from "@/lib/amounts"
-import { PREDICT_QUOTE_DECIMALS } from "@/lib/config"
 import {
   getReadySuiTransactionSigner,
   RECONNECT_SUI_WALLET_MESSAGE,
@@ -13,7 +11,6 @@ import type { OracleInfo, VaultSummary } from "@/lib/types/predict"
 import { loadManagerPredictPositions } from "@/lib/predict-position-source"
 import { formatPredictLifecycleError } from "@/services/predict-quotes"
 import {
-  buildManagerDepositTransaction,
   buildManagerWithdrawTransaction,
   buildPredictRedeemTransaction,
   executeSuiTransaction,
@@ -41,7 +38,6 @@ import type {
   PortfolioState,
   PortfolioTab,
   RedeemState,
-  TradingAccountModalMode,
 } from "./helpers"
 
 export function usePortfolio(
@@ -61,31 +57,12 @@ export function usePortfolio(
   const [activeTab, setActiveTab] = useState<PortfolioTab>("open")
   const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
   const [redeemState, setRedeemState] = useState<RedeemState>({})
-  const [createManagerError, setCreateManagerError] = useState<string>()
-  const [depositAmount, setDepositAmount] = useState("")
-  const [depositError, setDepositError] = useState<string>()
-  const [depositStatusMessage, setDepositStatusMessage] = useState<string>()
-  const [withdrawAmount, setWithdrawAmount] = useState("")
-  const [withdrawError, setWithdrawError] = useState<string>()
-  const [withdrawStatusMessage, setWithdrawStatusMessage] = useState<string>()
-  const [isDepositing, setIsDepositing] = useState(false)
-  const [isWithdrawing, setIsWithdrawing] = useState(false)
-  const [tradingAccountModalMode, setTradingAccountModalMode] =
-    useState<TradingAccountModalMode | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const walletAddress = primaryWallet?.address
   const managerId = predictAccount.managerId
   const managerSummary = predictAccount.managerSummary
   const dusdcBalance = predictAccount.walletDusdcBalance ?? 0n
   const plpBalance = predictAccount.walletPlpBalance ?? 0n
-  const parsedDepositAmount = parseDecimalUnits(
-    depositAmount,
-    PREDICT_QUOTE_DECIMALS
-  )
-  const parsedWithdrawAmount = parseDecimalUnits(
-    withdrawAmount,
-    PREDICT_QUOTE_DECIMALS
-  )
   const oracleById = getOracleById(oracles)
   const summary = getPortfolioSummary({
     dusdcBalance: portfolioState.dusdcBalance,
@@ -139,9 +116,6 @@ export function usePortfolio(
         managerSummary,
         plpBalance,
       }))
-      setCreateManagerError(undefined)
-      setDepositError(undefined)
-      setWithdrawError(undefined)
 
       if (!managerId) {
         setPortfolioState((currentState) => ({
@@ -235,168 +209,52 @@ export function usePortfolio(
     walletAddress,
   ])
 
-  function resetTradingAccountState() {
-    setCreateManagerError(undefined)
-    setDepositAmount("")
-    setDepositError(undefined)
-    setDepositStatusMessage(undefined)
-    setWithdrawAmount("")
-    setWithdrawError(undefined)
-    setWithdrawStatusMessage(undefined)
-  }
+  const [isClaiming, setIsClaiming] = useState(false)
+  const [claimError, setClaimError] = useState<string | undefined>(undefined)
 
-  async function handleCreateTradingAccount() {
+  // Sweep any free DUSDC sitting in the manager (redemption proceeds, trade
+  // leftovers) back to the wallet. The amount is the known manager balance, so
+  // there's no withdraw-all guesswork.
+  async function handleClaim() {
     if (!walletAddress) {
       setShowAuthFlow(true)
-      return
-    }
-
-    const signer = await getReadySuiTransactionSigner(primaryWallet)
-
-    if (!signer) {
-      setCreateManagerError(RECONNECT_SUI_WALLET_MESSAGE)
-      setShowAuthFlow(true)
-      return
-    }
-
-    setCreateManagerError(undefined)
-
-    try {
-      const createdManagerId = await predictAccount.ensureManager(signer)
-
-      setPortfolioState((currentState) => ({
-        ...currentState,
-        managerId: createdManagerId,
-      }))
-      setTradingAccountModalMode("deposit")
-      void predictAccount.refreshAccount()
-      setPositionRefreshNonce((current) => current + 1)
-    } catch (error) {
-      setCreateManagerError(
-        error instanceof Error
-          ? error.message
-          : "Failed to initialize portfolio."
-      )
-    }
-  }
-
-  async function handleDepositToTradingAccount() {
-    if (!walletAddress) {
-      setShowAuthFlow(true)
-      return
-    }
-
-    if (!managerId) {
-      setDepositError(
-        predictAccount.status === "loading"
-          ? "Preparing portfolio. Try again in a moment."
-          : "Initialize portfolio first."
-      )
-      return
-    }
-
-    const signer = await getReadySuiTransactionSigner(primaryWallet)
-
-    if (!signer) {
-      setDepositError(RECONNECT_SUI_WALLET_MESSAGE)
-      setShowAuthFlow(true)
-      return
-    }
-
-    if (!parsedDepositAmount) {
-      setDepositError("Enter a positive deposit amount")
-      return
-    }
-
-    if (parsedDepositAmount > dusdcBalance) {
-      setDepositError("Deposit amount exceeds wallet DUSDC balance")
-      return
-    }
-
-    setIsDepositing(true)
-    setDepositError(undefined)
-    setDepositStatusMessage("Submitting deposit")
-
-    try {
-      const transaction = await buildManagerDepositTransaction({
-        amount: parsedDepositAmount,
-        managerId,
-        walletAddress,
-      })
-
-      await executeSuiTransaction(signer, transaction)
-      resetTradingAccountState()
-      setTradingAccountModalMode(null)
-      void predictAccount.refreshAccount()
-      setPositionRefreshNonce((current) => current + 1)
-    } catch (error) {
-      setDepositStatusMessage(undefined)
-      setDepositError(
-        error instanceof Error ? error.message : "Failed to deposit DUSDC."
-      )
-    } finally {
-      setIsDepositing(false)
-    }
-  }
-
-  async function handleWithdrawFromTradingAccount() {
-    if (!walletAddress) {
-      setShowAuthFlow(true)
-      return
-    }
-
-    if (!managerId) {
-      setWithdrawError(
-        predictAccount.status === "loading"
-          ? "Preparing portfolio. Try again in a moment."
-          : "Initialize portfolio first."
-      )
-      return
-    }
-
-    const signer = await getReadySuiTransactionSigner(primaryWallet)
-
-    if (!signer) {
-      setWithdrawError(RECONNECT_SUI_WALLET_MESSAGE)
-      setShowAuthFlow(true)
-      return
-    }
-
-    if (!parsedWithdrawAmount) {
-      setWithdrawError("Enter a positive withdrawal amount")
       return
     }
 
     const managerBalance = getManagerDusdcBalance(managerSummary)
 
-    if (parsedWithdrawAmount > managerBalance) {
-      setWithdrawError("Withdrawal amount exceeds available DUSDC")
+    if (!managerId || managerBalance <= 0n) {
       return
     }
 
-    setIsWithdrawing(true)
-    setWithdrawError(undefined)
-    setWithdrawStatusMessage("Submitting withdrawal")
+    const signer = await getReadySuiTransactionSigner(primaryWallet)
+
+    if (!signer) {
+      setClaimError(RECONNECT_SUI_WALLET_MESSAGE)
+      setShowAuthFlow(true)
+      return
+    }
+
+    setIsClaiming(true)
+    setClaimError(undefined)
 
     try {
-      const transaction = buildManagerWithdrawTransaction({
-        amount: parsedWithdrawAmount,
-        managerId,
-        walletAddress,
-      })
-
-      await executeSuiTransaction(signer, transaction)
-      resetTradingAccountState()
-      setTradingAccountModalMode(null)
+      await executeSuiTransaction(
+        signer,
+        buildManagerWithdrawTransaction({
+          amount: managerBalance,
+          managerId,
+          walletAddress,
+        })
+      )
       void predictAccount.refreshAccount()
       setPositionRefreshNonce((current) => current + 1)
     } catch (error) {
-      setWithdrawStatusMessage(undefined)
-      setWithdrawError(
-        error instanceof Error ? error.message : "Failed to withdraw DUSDC."
+      setClaimError(
+        error instanceof Error ? error.message : "Failed to claim DUSDC."
       )
     } finally {
-      setIsWithdrawing(false)
+      setIsClaiming(false)
     }
   }
 
@@ -471,16 +329,11 @@ export function usePortfolio(
 
   return {
     activeTab,
-    createManagerError,
-    depositAmount,
-    depositError,
-    depositStatusMessage,
+    claimError,
     filteredPositions,
-    isCreatingManager: predictAccount.isCreatingManager,
-    isDepositing,
-    isLoadingAccount: predictAccount.status === "loading",
-    isWithdrawing,
-    managerId,
+    handleClaim,
+    handleRedeemPosition,
+    isClaiming,
     managerSummary,
     oracleById,
     portfolioState,
@@ -488,20 +341,8 @@ export function usePortfolio(
     redeemState,
     searchQuery,
     summary,
-    tradingAccountModalMode,
     walletAddress,
-    withdrawAmount,
-    withdrawError,
-    withdrawStatusMessage,
     setActiveTab,
-    setDepositAmount,
     setSearchQuery,
-    setWithdrawAmount,
-    setTradingAccountModalMode,
-    resetTradingAccountState,
-    handleCreateTradingAccount,
-    handleDepositToTradingAccount,
-    handleWithdrawFromTradingAccount,
-    handleRedeemPosition,
   }
 }
