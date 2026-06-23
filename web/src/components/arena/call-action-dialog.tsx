@@ -33,7 +33,7 @@ import {
 import type { PredictQuoteResult } from "@/services/predict-quotes"
 import type { DirectionalTradeParams } from "@/services/predict-transactions"
 
-import { oppositeMarket, percentFormatter } from "./atoms"
+import { formatMarketLabel, oppositeMarket, percentFormatter } from "./atoms"
 
 export type CallActionMode = "back" | "fade"
 
@@ -59,7 +59,9 @@ export function CallActionDialog({
   const isBack = mode === "back"
   // Back takes the call's side; fade takes the opposite.
   const isUp = isBack ? call.direction === "up" : call.direction !== "up"
-  const market = isBack ? call.market : oppositeMarket(call.market)
+  const market = formatMarketLabel(
+    isBack ? call.market : oppositeMarket(call.market)
+  )
 
   const walletAddress = primaryWallet?.address
 

@@ -8,6 +8,7 @@ import {
   CreatorAvatar,
   DetailStat,
   DirectionArrow,
+  formatMarketLabel,
   formatPlp,
   getCallChance,
   getWinRate,
@@ -81,7 +82,7 @@ export function CreatorDetailPage({
                   />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-foreground">
-                      {call.market}
+                      {formatMarketLabel(call.market)}
                     </div>
                     <div className="truncate text-xs text-muted-foreground">
                       <span className="font-medium text-foreground tabular-nums">

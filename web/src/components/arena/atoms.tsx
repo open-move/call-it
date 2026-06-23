@@ -46,7 +46,14 @@ export function formatDusdc(value: number) {
 }
 
 export function formatDirection(direction: ArenaDirection) {
-  return direction === "up" ? "Up" : "Down"
+  return direction === "up" ? "Above" : "Below"
+}
+
+// Backend emits the default label as "<asset> Up @ <strike>" /
+// "<asset> Down @ <strike>". Present it as a readable phrase:
+// "<asset> above <strike>" / "<asset> below <strike>".
+export function formatMarketLabel(market: string): string {
+  return market.replace(" Up @ ", " above ").replace(" Down @ ", " below ")
 }
 
 export function getWinRate(creator: ArenaCreator) {
@@ -149,7 +156,7 @@ export function DirectionPill({ direction }: { direction: ArenaDirection }) {
       )}
     >
       <Icon className="size-3" />
-      {isUp ? "UP" : "DOWN"}
+      {isUp ? "Above" : "Below"}
     </span>
   )
 }

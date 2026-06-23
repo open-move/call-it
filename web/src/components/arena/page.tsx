@@ -16,6 +16,7 @@ import {
   DirectionPill,
   SentimentBar,
   formatCallTimestamp,
+  formatMarketLabel,
   getCallChance,
   percentFormatter,
 } from "./atoms"
@@ -116,7 +117,7 @@ function CallCard({ call }: { call: ArenaCall }) {
           <DirectionPill direction={call.direction} />
           <div className="min-w-0 flex-1">
             <h3 className="min-w-0 text-sm leading-5 font-semibold text-balance text-foreground">
-              {call.market}
+              {formatMarketLabel(call.market)}
             </h3>
             <p className="mt-0.5 font-mono text-[11px] text-muted-foreground tabular-nums">
               {isActive

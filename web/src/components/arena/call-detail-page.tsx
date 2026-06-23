@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router"
 import { formatDistanceToNowStrict } from "date-fns"
-import { ArrowLeftIcon } from "lucide-react"
+import { ArrowLeftIcon, ArrowUpRightIcon } from "lucide-react"
 import { useState } from "react"
 
 import { TicketRow, TicketSection } from "@/components/shared/ticket/ticket"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { ArenaActivity, ArenaCall, ArenaCreator } from "@/lib/arena/types"
+import { formatUsd } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
 import { CallActionDialog } from "./call-action-dialog"
@@ -16,10 +17,10 @@ import {
   CallStatusBadge,
   CreatorAvatar,
   DetailStat,
-  DirectionArrow,
+  DirectionPill,
   SentimentBar,
   formatCallTimestamp,
-  formatDusdc,
+  formatMarketLabel,
   formatPlp,
   getCallChance,
   getWinRate,
@@ -32,24 +33,21 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
   const [amount, setAmount] = useState("")
 
   if (call.status !== "active") {
-    return (
-      <div className="rounded-lg bg-card p-4 text-sm text-muted-foreground">
-        Settled. Backing and fading are closed.
-      </div>
-    )
+    return null
   }
 
   const isBack = mode === "back"
   const backPrice = getCallChance(call)
   const price = isBack ? backPrice : 1 - backPrice
-  const market = isBack ? call.market : oppositeMarket(call.market)
+  const market = formatMarketLabel(
+    isBack ? call.market : oppositeMarket(call.market)
+  )
   const quantity = Number(amount)
   const hasQuantity =
     amount.trim() !== "" && !Number.isNaN(quantity) && quantity > 0
   const premium = price * quantity
   const potentialProfit = quantity - premium
-  const previewValue = (value: number) =>
-    hasQuantity ? formatDusdc(value) : "—"
+  const previewValue = (value: number) => (hasQuantity ? formatUsd(value) : "—")
 
   return (
     <div className="space-y-3 rounded-lg bg-card p-4">
@@ -57,7 +55,7 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
         <Button
           aria-pressed={isBack}
           className={cn(
-            "shadow-none",
+            "shadow-none active:scale-[0.98]",
             isBack
               ? "bg-primary/10 text-primary hover:bg-primary/15"
               : "bg-muted/25 text-muted-foreground hover:text-foreground"
@@ -72,10 +70,10 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
         <Button
           aria-pressed={!isBack}
           className={cn(
-            "shadow-none",
+            "shadow-none active:scale-[0.98]",
             isBack
               ? "bg-muted/25 text-muted-foreground hover:text-foreground"
-              : "bg-muted/55 text-foreground"
+              : "bg-outcome-down/10 text-outcome-down hover:bg-outcome-down/15"
           )}
           onClick={() => setMode("fade")}
           size="sm"
@@ -114,7 +112,7 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
       </label>
 
       <TicketSection>
-        <TicketRow label="Price" value={formatDusdc(price)} />
+        <TicketRow label="Price" value={formatUsd(price)} />
         <TicketRow label="Premium" value={previewValue(premium)} />
         <TicketRow label="Max loss" value={previewValue(premium)} />
         <TicketRow
@@ -122,6 +120,10 @@ function CallActionPanel({ call }: { call: ArenaCall }) {
           value={previewValue(potentialProfit)}
         />
       </TicketSection>
+
+      <p className="text-[11px] text-muted-foreground">
+        No borrowing. No liquidation.
+      </p>
 
       <div className="grid grid-cols-2 gap-2">
         <CallActionDialog call={call} mode="back" />
@@ -141,6 +143,7 @@ export function CallDetailPage({
   creator?: ArenaCreator
 }) {
   const isActive = call.status === "active"
+  const showChance = isActive && call.fairUpProbability > 0
 
   return (
     <main className="mx-auto w-full max-w-5xl px-4 py-4 sm:px-6 lg:px-8">
@@ -155,7 +158,7 @@ export function CallDetailPage({
 
         <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
           <div className="min-w-0 space-y-3">
-            <div className="space-y-4 rounded-lg bg-card p-5">
+            <div className="space-y-4 rounded-lg bg-card p-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <CreatorAvatar
@@ -185,13 +188,10 @@ export function CallDetailPage({
                 />
               </div>
 
-              <div className="flex items-start gap-2">
-                <DirectionArrow
-                  className="mt-1 size-5"
-                  direction={call.direction}
-                />
+              <div className="space-y-2">
+                <DirectionPill direction={call.direction} />
                 <h1 className="text-lg leading-snug font-semibold tracking-tight text-balance text-foreground sm:text-xl">
-                  {call.market}
+                  {formatMarketLabel(call.market)}
                   {isActive ? (
                     <span className="text-muted-foreground">
                       {" "}
@@ -201,11 +201,18 @@ export function CallDetailPage({
                 </h1>
               </div>
 
-              <div className="grid grid-cols-3 gap-3 border-y border-border/35 py-3">
-                <DetailStat
-                  label="Chance"
-                  value={percentFormatter.format(getCallChance(call))}
-                />
+              <div
+                className={cn(
+                  "grid gap-3 border-y border-border/35 py-3",
+                  showChance ? "grid-cols-3" : "grid-cols-2"
+                )}
+              >
+                {showChance ? (
+                  <DetailStat
+                    label="Chance"
+                    value={percentFormatter.format(getCallChance(call))}
+                  />
+                ) : null}
                 <DetailStat
                   label="Strike"
                   value={`$${call.strikeUsd.toLocaleString("en-US")}`}
@@ -218,47 +225,6 @@ export function CallDetailPage({
 
               <SentimentBar backers={call.backers} faders={call.faders} />
             </div>
-
-            {creator ? (
-              <div className="rounded-lg bg-card p-4">
-                <Link
-                  className="mb-3 flex items-center gap-2.5 rounded-md transition-opacity outline-none hover:opacity-80 focus-visible:ring-2 focus-visible:ring-primary/30"
-                  params={{ handle: creator.handle }}
-                  to="/arena/creator/$handle"
-                >
-                  <CreatorAvatar
-                    className="size-7 text-xs"
-                    seed={creator.handle}
-                  />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-foreground">
-                      {creator.handle}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Creator track record
-                    </div>
-                  </div>
-                </Link>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <DetailStat
-                    label="Win rate"
-                    value={percentFormatter.format(getWinRate(creator))}
-                  />
-                  <DetailStat
-                    label="Settled"
-                    value={creator.settledCount.toString()}
-                  />
-                  <DetailStat
-                    label="Calls"
-                    value={creator.callCount.toString()}
-                  />
-                  <DetailStat
-                    label="Bonded"
-                    value={formatPlp(creator.bondPlp)}
-                  />
-                </div>
-              </div>
-            ) : null}
 
             <div className="rounded-lg bg-card">
               <div className="border-b border-border/35 px-4 py-3">
@@ -283,6 +249,38 @@ export function CallDetailPage({
           <aside className="space-y-3 lg:sticky lg:top-[4.25rem]">
             <CallActionPanel call={call} />
             <SettlementActions call={call} />
+            {creator ? (
+              <Link
+                className="block rounded-lg bg-card p-4 ring-1 ring-transparent transition-[box-shadow] duration-150 outline-none hover:ring-border/50 focus-visible:ring-2 focus-visible:ring-primary/40"
+                params={{ handle: creator.handle }}
+                to="/arena/creator/$handle"
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <span className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
+                    Creator track record
+                  </span>
+                  <ArrowUpRightIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <DetailStat
+                    label="Win rate"
+                    value={percentFormatter.format(getWinRate(creator))}
+                  />
+                  <DetailStat
+                    label="Settled"
+                    value={creator.settledCount.toString()}
+                  />
+                  <DetailStat
+                    label="Calls"
+                    value={creator.callCount.toString()}
+                  />
+                  <DetailStat
+                    label="Bonded"
+                    value={formatPlp(creator.bondPlp)}
+                  />
+                </div>
+              </Link>
+            ) : null}
           </aside>
         </div>
       </div>
