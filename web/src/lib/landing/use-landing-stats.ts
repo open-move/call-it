@@ -1,5 +1,9 @@
 import { QUOTE_SCALE } from "@/lib/config"
-import { getPredictOracles, getPredictVaultSummary } from "@/services/predict-client"
+import {
+  getPredictOracles,
+  getPredictVaultSummary,
+  PREDICT_CACHE,
+} from "@/services/predict-client"
 
 export interface LandingStats {
   /** PLP vault value, in DUSDC. */
@@ -32,9 +36,10 @@ export function formatCompactDusdc(value: number) {
  * slow/unavailable testnet RPC degrades to an em dash rather than breaking SSR.
  */
 export async function loadLandingStats(): Promise<LandingStatsResult> {
+  // Anonymous, high-traffic landing band — cache to spare the Predict server.
   const [summaryResult, oraclesResult] = await Promise.allSettled([
-    getPredictVaultSummary(),
-    getPredictOracles(),
+    getPredictVaultSummary(PREDICT_CACHE.STATS),
+    getPredictOracles(PREDICT_CACHE.STATS),
   ])
 
   if (summaryResult.status !== "fulfilled") {
@@ -44,7 +49,8 @@ export async function loadLandingStats(): Promise<LandingStatsResult> {
   const summary = summaryResult.value
   const activeMarkets =
     oraclesResult.status === "fulfilled"
-      ? oraclesResult.value.filter((oracle) => oracle.status === "active").length
+      ? oraclesResult.value.filter((oracle) => oracle.status === "active")
+          .length
       : 0
 
   return {

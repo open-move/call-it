@@ -698,17 +698,17 @@ function parseLpWithdrawalEventArray(value: unknown): LpWithdrawalEvent[] {
 // includes query params), so distinct ranges / limits cache independently.
 const predictCache = new TtlCache()
 
-// Tunable cache windows. Short enough that stats still feel live, long enough to
-// collapse bursts of identical SSR loads into a single upstream call. Each entry
-// keeps serving for STALE_GRACE_MS past expiry if the Predict server errors.
+// Cache windows for anonymous, background stats only. Opt-in per call site:
+// caching is NEVER the default, so anything that must reflect a user's own
+// action (their trade, their LP deposit) or a real-time market signal stays
+// live unless a caller explicitly passes a preset. Each entry keeps serving for
+// STALE_GRACE_MS past expiry if the Predict server errors.
 const STALE_GRACE_MS = 5 * 60_000
 export const PREDICT_CACHE = {
-  /** Vault summary, oracle list — move often, want near-live. */
+  /** Landing-band figures (vault value, active-market count). */
   STATS: { staleMs: STALE_GRACE_MS, ttlMs: 30_000 },
-  /** LP supply / withdrawal feeds. */
+  /** Global "recent volume" / leaderboard aggregates (no oracle filter). */
   ACTIVITY: { staleMs: STALE_GRACE_MS, ttlMs: 60_000 },
-  /** Vault performance history — coarse, changes slowly. */
-  HISTORY: { staleMs: STALE_GRACE_MS, ttlMs: 5 * 60_000 },
 } satisfies Record<string, CacheOptions>
 
 async function fetchPredictJson<T>(
@@ -744,11 +744,14 @@ async function readPredictJson<T>(
   return predictCache.fetch(path, () => fetchPredictJson(path, parse), cache)
 }
 
-export function getPredictOracles() {
+// Live by default; pass `cache` only from anonymous background reads (e.g. the
+// landing band). Trading surfaces call it without a cache so settlement / new
+// markets show promptly.
+export function getPredictOracles(cache?: CacheOptions) {
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/oracles`,
     parseOracleInfoArray,
-    PREDICT_CACHE.STATS
+    cache
   )
 }
 
@@ -767,11 +770,13 @@ export function getOraclePrices(oracleId: string, limit: number) {
   )
 }
 
-export function getPredictVaultSummary() {
+// Live by default; the earn page reads it fresh so a just-placed deposit /
+// withdrawal is reflected immediately. Pass `cache` only from the landing band.
+export function getPredictVaultSummary(cache?: CacheOptions) {
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/vault/summary`,
     parseVaultSummary,
-    PREDICT_CACHE.STATS
+    cache
   )
 }
 
@@ -780,8 +785,7 @@ export function getPredictVaultPerformance(range = "ALL") {
 
   return readPredictJson(
     `/predicts/${PREDICT_OBJECT_ID}/vault/performance?${params.toString()}`,
-    parseVaultPerformanceResponse,
-    PREDICT_CACHE.HISTORY
+    parseVaultPerformanceResponse
   )
 }
 
@@ -792,10 +796,13 @@ export function getDirectionalPositionMints(limit: number, oracleId?: string) {
     params.set("oracle_id", oracleId)
   }
 
+  // Only cache the global feed (recent volume / leaderboard). Per-market reads
+  // (oracleId set) power live market-detail activity and must stay fresh so a
+  // just-placed trade shows up on refresh.
   return readPredictJson(
     `/positions/minted?${params.toString()}`,
     parseDirectionalPositionMintEventArray,
-    PREDICT_CACHE.ACTIVITY
+    oracleId ? undefined : PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -812,7 +819,7 @@ export function getDirectionalPositionRedeems(
   return readPredictJson(
     `/positions/redeemed?${params.toString()}`,
     parseDirectionalPositionRedeemEventArray,
-    PREDICT_CACHE.ACTIVITY
+    oracleId ? undefined : PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -826,7 +833,7 @@ export function getRangeMints(limit: number, oracleId?: string) {
   return readPredictJson(
     `/ranges/minted?${params.toString()}`,
     parseRangeMintEventArray,
-    PREDICT_CACHE.ACTIVITY
+    oracleId ? undefined : PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -840,7 +847,7 @@ export function getRangeRedeems(limit: number, oracleId?: string) {
   return readPredictJson(
     `/ranges/redeemed?${params.toString()}`,
     parseRangeRedeemEventArray,
-    PREDICT_CACHE.ACTIVITY
+    oracleId ? undefined : PREDICT_CACHE.ACTIVITY
   )
 }
 
@@ -849,8 +856,7 @@ export function getLpSupplies(limit: number) {
 
   return readPredictJson(
     `/lp/supplies?${params.toString()}`,
-    parseLpSupplyEventArray,
-    PREDICT_CACHE.ACTIVITY
+    parseLpSupplyEventArray
   )
 }
 
@@ -859,8 +865,7 @@ export function getLpWithdrawals(limit: number) {
 
   return readPredictJson(
     `/lp/withdrawals?${params.toString()}`,
-    parseLpWithdrawalEventArray,
-    PREDICT_CACHE.ACTIVITY
+    parseLpWithdrawalEventArray
   )
 }
 
