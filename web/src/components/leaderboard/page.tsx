@@ -7,7 +7,6 @@ import type {
 import { LeaderboardHeader } from "./header"
 import { LeaderboardSummary } from "./summary-card"
 import { AccountRankings } from "./rankings-table"
-import { MethodologyNote } from "./methodology-note"
 
 export interface LeaderboardPageProps {
   models: LeaderboardPeriodModels
@@ -27,7 +26,6 @@ export function Page({ models }: LeaderboardPageProps) {
         />
         <LeaderboardSummary model={model} />
         <AccountRankings rows={model.rows} />
-        <MethodologyNote assumptions={model.assumptions} />
       </section>
     </main>
   )
