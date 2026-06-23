@@ -146,6 +146,7 @@ export const hedgedPlpDriver: StrategyDriver<HedgedPlpStrategyState> = {
       typeArguments: [config.predict.quoteAsset],
       arguments: [
         tx.object(config.hedgedPlp.strategyId),
+        tx.object(config.baseVault.vaultId),
         tx.object(config.hedgedPlp.keeperCapId),
         tx.object(config.predict.sharedObjectId),
         tx.object(state.managerId),
