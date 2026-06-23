@@ -27,14 +27,12 @@ import {
 
 export const Route = createFileRoute("/markets/$oracleId")({
   validateSearch: marketSearchSchema,
-  loaderDeps: ({ search }) => ({
-    higherStrike: search.higherStrike,
-    lowerStrike: search.lowerStrike,
-    mode: search.mode,
-    side: search.side,
-    strike: search.strike,
-  }),
-  loader: async ({ deps, params }) => {
+  // The strike/side/mode/range search params are UI selections (seeds for the
+  // ticket's local state) — they don't change what we fetch. Keep them OUT of
+  // loaderDeps so changing them (e.g. pinning the strike after a trade) updates
+  // the URL without re-running this heavy loader, which would otherwise show the
+  // route skeleton and remount the page. The loader keys on params.oracleId.
+  loader: async ({ params }) => {
     const market = await loadMarketSnapshot(params.oracleId)
 
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
@@ -42,7 +40,6 @@ export const Route = createFileRoute("/markets/$oracleId")({
       throw notFound()
     }
 
-    const selectedStrikePriceUsd = deps.strike ?? getDefaultTradeStrike(market)
     const [
       expiryOptions,
       positionMints,
@@ -65,16 +62,11 @@ export const Route = createFileRoute("/markets/$oracleId")({
 
     return {
       expiryOptions,
-      initialHigherStrikePriceUsd: deps.higherStrike,
-      initialLowerStrikePriceUsd: deps.lowerStrike,
-      initialMode: deps.mode,
-      initialSide: getInitialSide(deps.side),
       market,
       marketOptions,
       rangeRedemptions: filterRangeRedemptions(rangeRedeems, activityOptions),
       rangeTrades: filterRangeTrades(rangeMints, activityOptions),
       redemptions: filterRedemptions(positionRedeems, activityOptions),
-      selectedStrikePriceUsd,
       trades: filterTrades(positionMints, activityOptions),
     }
   },
@@ -84,20 +76,23 @@ export const Route = createFileRoute("/markets/$oracleId")({
 
 function Market() {
   const loaderData = Route.useLoaderData()
+  const search = Route.useSearch()
+  const selectedStrikePriceUsd =
+    search.strike ?? getDefaultTradeStrike(loaderData.market)
 
   return (
     <MarketDetailPage
       expiryOptions={loaderData.expiryOptions}
-      initialHigherStrikePriceUsd={loaderData.initialHigherStrikePriceUsd}
-      initialLowerStrikePriceUsd={loaderData.initialLowerStrikePriceUsd}
-      initialMode={loaderData.initialMode}
-      initialSide={loaderData.initialSide}
+      initialHigherStrikePriceUsd={search.higherStrike}
+      initialLowerStrikePriceUsd={search.lowerStrike}
+      initialMode={search.mode}
+      initialSide={getInitialSide(search.side)}
       market={loaderData.market}
       marketOptions={loaderData.marketOptions}
       rangeRedemptions={loaderData.rangeRedemptions}
       rangeTrades={loaderData.rangeTrades}
       redemptions={loaderData.redemptions}
-      selectedStrikePriceUsd={loaderData.selectedStrikePriceUsd}
+      selectedStrikePriceUsd={selectedStrikePriceUsd}
       trades={loaderData.trades}
     />
   )
