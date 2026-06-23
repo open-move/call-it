@@ -2,7 +2,14 @@
 
 **The prediction hub for Sui, built on [DeepBook Predict](https://www.deepbook.tech/).**
 
-CallIt turns DeepBook Predict's on-chain prediction markets into a full suite of products people actually want to use: a pro trading terminal, a social arena, automated strategy vaults, a liquidity pool, and permissionless keeper infrastructure. Every market is oracle-settled and every action is wallet-signed, so the app is non-custodial end to end.
+CallIt turns DeepBook Predict's on-chain prediction markets into a full suite of products people actually want to use: 
+- a pro trading terminal
+- a social arena
+- automated strategy vaults
+- a liquidity pool
+- permissionless keeper infrastructure
+
+Every market is oracle-settled and every action is wallet-signed, so the app is non-custodial end to end.
 
 CallIt **composes** DeepBook Predict rather than competing with it. Every Arena bet is a native Predict position and every vault round is book liquidity, so the app drives volume and liquidity straight back to the protocol.
 
