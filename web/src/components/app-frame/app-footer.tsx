@@ -37,7 +37,7 @@ export function AppFooter() {
           />
 
           <span className="font-mono text-[11px] tracking-wide text-muted-foreground">
-            Testnet · Not investment advice
+            Testnet
           </span>
         </div>
       </div>

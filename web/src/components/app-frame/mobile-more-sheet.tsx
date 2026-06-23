@@ -6,6 +6,7 @@ import { Badge, BadgeTone } from "@/components/primitives/badge"
 import { cn } from "@/lib/utils"
 
 import { AppNavStatus, isNavHrefActive, mobileMoreNavItems } from "./app-nav"
+import { MobileTabItemContent } from "./mobile-tab-item"
 
 export function MobileMoreSheet({
   active,
@@ -16,19 +17,17 @@ export function MobileMoreSheet({
 }) {
   return (
     <DialogPrimitive.Root>
-      <DialogPrimitive.Trigger
-        className={cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-medium outline-none transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-primary/30",
-          active ? "text-primary" : "text-muted-foreground"
-        )}
-      >
-        <EllipsisIcon className="size-5" />
-        <span>More</span>
+      <DialogPrimitive.Trigger className="group flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1 outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+        <MobileTabItemContent
+          active={active}
+          icon={EllipsisIcon}
+          label="More"
+        />
       </DialogPrimitive.Trigger>
 
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-50 bg-black/40 duration-150 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 md:hidden" />
-        <DialogPrimitive.Popup className="fixed inset-x-0 bottom-0 z-50 rounded-t-xl bg-popover pb-[max(0.75rem,env(safe-area-inset-bottom))] text-popover-foreground ring-1 ring-foreground/10 duration-200 outline-none data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-6 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6 md:hidden">
+        <DialogPrimitive.Backdrop className="data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0 fixed inset-0 z-50 bg-black/40 duration-150 supports-backdrop-filter:backdrop-blur-xs md:hidden" />
+        <DialogPrimitive.Popup className="data-open:animate-in data-open:fade-in-0 data-open:slide-in-from-bottom-6 data-closed:animate-out data-closed:fade-out-0 data-closed:slide-out-to-bottom-6 fixed inset-x-0 bottom-0 z-50 rounded-t-xl bg-popover pb-[max(0.75rem,env(safe-area-inset-bottom))] text-popover-foreground ring-1 ring-foreground/10 duration-200 outline-none md:hidden">
           <div className="mx-auto mt-2.5 h-1 w-9 rounded-full bg-foreground/15" />
           <DialogPrimitive.Title className="px-4 pt-3 pb-1 font-mono text-[10px] tracking-wide text-muted-foreground uppercase">
             More

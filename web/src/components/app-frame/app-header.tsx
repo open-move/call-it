@@ -28,10 +28,11 @@ import {
 } from "./app-nav"
 import { BrandMark } from "./brand-mark"
 import { MobileMoreSheet } from "./mobile-more-sheet"
+import { MobileTabItemContent } from "./mobile-tab-item"
 
 function getNavLinkClassName(status: AppNavStatus) {
   return cn(
-    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 outline-none hover:bg-transparent focus:bg-transparent data-[active=true]:bg-transparent focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none",
+    "flex items-center gap-2 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150 outline-none hover:bg-transparent focus:bg-transparent focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none data-[active=true]:bg-transparent",
     status === AppNavStatus.Active
       ? "text-primary"
       : "text-muted-foreground hover:text-foreground",
@@ -109,24 +110,23 @@ function MobileTabBar({ pathname }: { pathname: string }) {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/35 bg-background/95 backdrop-blur-xl md:hidden"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 bg-gradient-to-t from-background from-55% via-background to-transparent pt-8 md:hidden"
     >
-      <div className="mx-auto flex max-w-md items-stretch justify-around gap-1 px-2 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
+      <div className="pointer-events-auto mx-auto flex max-w-md items-stretch justify-around gap-1 px-2 pt-1 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
         {mobileTabNavItems.map((item) => {
           const active = isNavHrefActive(pathname, item.href)
-          const Icon = item.icon
           return (
             <Link
               key={item.href}
               to={item.href}
               aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1.5 text-[10px] font-medium transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-                active ? "text-primary" : "text-muted-foreground"
-              )}
+              className="group flex flex-1 flex-col items-center justify-center gap-1 rounded-md py-1 outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
-              <Icon className="size-5" />
-              <span>{item.label}</span>
+              <MobileTabItemContent
+                active={active}
+                icon={item.icon}
+                label={item.label}
+              />
             </Link>
           )
         })}
