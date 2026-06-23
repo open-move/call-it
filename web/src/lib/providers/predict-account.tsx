@@ -226,11 +226,15 @@ function PredictAccountProviderClient({ children }: { children: ReactNode }) {
     }
 
     const cachedManagerId = readCachedManagerId(walletAddress)
+    // Once we've loaded, refreshes (after every mutation) revalidate in the
+    // background without regressing to "loading" — the balance values are kept,
+    // so consumers gated on status (nav balance pill, account dialog, trade /
+    // earn buttons) stop flickering on each tx.
     setAccountState((current) => ({
       ...current,
       errorMessage: undefined,
       managerId: current.managerId ?? cachedManagerId,
-      status: "loading",
+      status: current.status === "ready" ? "ready" : "loading",
       walletAddress,
     }))
 
@@ -253,11 +257,13 @@ function PredictAccountProviderClient({ children }: { children: ReactNode }) {
         return
       }
 
+      // A failed background refresh keeps the last-good values; only a failed
+      // first load surfaces an error state.
       setAccountState((current) => ({
         ...current,
         errorMessage:
           error instanceof Error ? error.message : "Failed to load account.",
-        status: "error",
+        status: current.status === "ready" ? "ready" : "error",
         walletAddress,
       }))
     }

@@ -1,5 +1,5 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import {
   getReadySuiTransactionSigner,
@@ -77,11 +77,17 @@ export function usePortfolio(
     tab: activeTab,
   })
 
+  // Once positions have loaded once, refetches (after a redeem/claim, a balance
+  // refresh, or a route invalidation) keep the current rows on screen instead of
+  // blanking to the loading state — stale-while-revalidate, no flicker.
+  const hasLoadedRef = useRef(false)
+
   useEffect(() => {
     let isStale = false
 
     async function loadPortfolio() {
       if (!walletAddress) {
+        hasLoadedRef.current = false
         setPortfolioState({
           dusdcBalance: 0n,
           isLoading: false,
@@ -97,12 +103,10 @@ export function usePortfolio(
           ...currentState,
           dusdcBalance,
           errorMessage: undefined,
-          isLoading: true,
+          isLoading: !hasLoadedRef.current,
           managerId: undefined,
           managerSummary: undefined,
           plpBalance,
-          positions: [],
-          realizedPnlPoints: [],
         }))
         return
       }
@@ -111,13 +115,14 @@ export function usePortfolio(
         ...currentState,
         dusdcBalance,
         errorMessage: undefined,
-        isLoading: Boolean(managerId),
+        isLoading: !hasLoadedRef.current && Boolean(managerId),
         managerId,
         managerSummary,
         plpBalance,
       }))
 
       if (!managerId) {
+        hasLoadedRef.current = false
         setPortfolioState((currentState) => ({
           ...currentState,
           dusdcBalance,
@@ -156,6 +161,7 @@ export function usePortfolio(
         )
 
         if (!isStale) {
+          hasLoadedRef.current = true
           setPortfolioState({
             dusdcBalance,
             isLoading: false,

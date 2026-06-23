@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core"
 
@@ -109,6 +109,9 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   })
   const [confirmState, setConfirmState] = useState<PositionConfirmState>({})
   const [positionRefreshNonce, setPositionRefreshNonce] = useState(0)
+  // Keep loaded positions on screen through refetches (after a trade/redeem or a
+  // route refresh) instead of blanking to the loading state.
+  const hasLoadedRef = useRef(false)
   // Control the active tab. Uncontrolled base-ui Tabs re-sync their selected
   // value against tabs that register in a layout effect; after the SSR->client
   // swap that can leave the default panel unmounted (tab highlighted, body
@@ -118,7 +121,9 @@ function ActivityTabsClient(props: ActivityTabsProps) {
   const managerId = predictAccount.managerId
   const publicActivityVersion = `${trades.length}:${redemptions.length}`
 
-  async function resolveLifecyclePosition(position: LoadedPositions["positions"][number]) {
+  async function resolveLifecyclePosition(
+    position: LoadedPositions["positions"][number]
+  ) {
     if (!walletAddress) {
       setPreviewState({
         errorMessage: "Connect wallet to manage this position.",
@@ -183,7 +188,9 @@ function ActivityTabsClient(props: ActivityTabsProps) {
     }
   }
 
-  async function requestPositionLifecycle(position: LoadedPositions["positions"][number]) {
+  async function requestPositionLifecycle(
+    position: LoadedPositions["positions"][number]
+  ) {
     const resolvedLifecycle = await resolveLifecyclePosition(position)
 
     if (!resolvedLifecycle) {
@@ -194,7 +201,9 @@ function ActivityTabsClient(props: ActivityTabsProps) {
     setConfirmState({ position: resolvedLifecycle.position })
   }
 
-  async function executePositionLifecycle(position: LoadedPositions["positions"][number]) {
+  async function executePositionLifecycle(
+    position: LoadedPositions["positions"][number]
+  ) {
     if (!walletAddress) {
       setShowAuthFlow(true)
       return
@@ -294,16 +303,19 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
     async function loadPositions() {
       if (!walletAddress) {
+        hasLoadedRef.current = false
         setPositionState({ isLoading: false, positions: [] })
         setPreviewState({ isLoading: false })
         setConfirmState({})
         return
       }
 
+      // Only show the loading state before the first successful load; later
+      // refetches keep the current rows visible until the new data arrives.
       setPositionState((currentState) => ({
         ...currentState,
         errorMessage: undefined,
-        isLoading: true,
+        isLoading: !hasLoadedRef.current,
       }))
 
       try {
@@ -313,6 +325,7 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         })
 
         if (!isStale) {
+          hasLoadedRef.current = true
           setPositionState({
             isLoading: false,
             managerId: loadedPositions.managerId,
@@ -321,14 +334,17 @@ function ActivityTabsClient(props: ActivityTabsProps) {
         }
       } catch (error) {
         if (!isStale) {
-          setPositionState({
+          // Keep already-loaded rows on a refetch failure; only surface a hard
+          // error state on the very first load.
+          setPositionState((currentState) => ({
+            ...currentState,
             errorMessage:
               error instanceof Error
                 ? error.message
                 : "Failed to load positions",
             isLoading: false,
-            positions: [],
-          })
+            positions: hasLoadedRef.current ? currentState.positions : [],
+          }))
           setPreviewState({ isLoading: false })
         }
       }
@@ -350,11 +366,16 @@ function ActivityTabsClient(props: ActivityTabsProps) {
 
   const visiblePositions = positionState.positions
   const visibleTrades = walletAddress
-    ? trades.filter((trade) => trade.trader.toLowerCase() === walletAddress.toLowerCase())
+    ? trades.filter(
+        (trade) => trade.trader.toLowerCase() === walletAddress.toLowerCase()
+      )
     : []
   const visibleRedemptions = walletAddress
     ? redemptions.filter((redemption) => {
-        const owner = redemption.kind === "directional" ? redemption.owner : redemption.trader
+        const owner =
+          redemption.kind === "directional"
+            ? redemption.owner
+            : redemption.trader
         return owner.toLowerCase() === walletAddress.toLowerCase()
       })
     : []
