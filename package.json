@@ -1,0 +1,15 @@
+{
+  "name": "callit",
+  "private": true,
+  "packageManager": "bun@1.2.10",
+  "type": "module",
+  "scripts": {
+    "verify": "bun run verify:services && bun run verify:web && bun run verify:operator",
+    "verify:services": "bun run --cwd services/backend typecheck && bun run --cwd services/backend test && bun run --cwd services/keeper typecheck && bun run --cwd services/operator typecheck",
+    "verify:web": "bun run --cwd web typecheck && bun run --cwd web test -- --passWithNoTests",
+    "verify:web:format": "bun run --cwd web check",
+    "verify:web:lint": "bun run --cwd web lint",
+    "verify:operator": "bun run --cwd services/operator test",
+    "verify:move": "bun scripts/verify-move.ts"
+  }
+}

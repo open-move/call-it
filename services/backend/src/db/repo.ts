@@ -429,8 +429,8 @@ export class Repository {
   }
 }
 
-// Per-checkpoint write surface. All inserts are idempotent (ON CONFLICT DO
-// NOTHING on the event_id PK) so a re-scanned checkpoint never double-counts.
+// Per-checkpoint write surface. Typed event inserts gate projection writes so a
+// re-scanned checkpoint never double-counts counters or activity.
 export class CheckpointContext {
   constructor(private readonly tx: Tx) {}
 
@@ -458,7 +458,7 @@ export class CheckpointContext {
   // --- CallLaunched ---
 
   async applyCallLaunched(meta: EventMeta, event: CallLaunchedEvent): Promise<void> {
-    await this.tx
+    const inserted = await this.tx
       .insert(arenaCallLaunchedEvents)
       .values({
         arenaId: event.arenaId,
@@ -477,6 +477,10 @@ export class CheckpointContext {
         strike: event.strike,
       })
       .onConflictDoNothing({ target: arenaCallLaunchedEvents.eventId })
+      .returning({ eventId: arenaCallLaunchedEvents.eventId })
+    if (inserted.length === 0) {
+      return
+    }
 
     await this.tx
       .insert(arenaCalls)
@@ -524,7 +528,7 @@ export class CheckpointContext {
     event: CallParticipationEvent
   ): Promise<void> {
     const table = side === "back" ? arenaCallBackedEvents : arenaCallFadedEvents
-    await this.tx
+    const inserted = await this.tx
       .insert(table)
       .values({
         callId: event.callId,
@@ -540,6 +544,10 @@ export class CheckpointContext {
         refundAmount: event.refundAmount,
       })
       .onConflictDoNothing({ target: table.eventId })
+      .returning({ eventId: table.eventId })
+    if (inserted.length === 0) {
+      return
+    }
 
     await this.tx
       .insert(arenaParticipations)
@@ -567,7 +575,7 @@ export class CheckpointContext {
   // --- CreatorBondClaimed (creator claimed against a settled oracle) ---
 
   async applyBondClaimed(meta: EventMeta, event: CreatorBondClaimedEvent): Promise<void> {
-    await this.tx
+    const inserted = await this.tx
       .insert(arenaBondClaimedEvents)
       .values({
         bondPlpAmount: event.bondPlpAmount,
@@ -580,6 +588,10 @@ export class CheckpointContext {
         oracleId: event.oracleId,
       })
       .onConflictDoNothing({ target: arenaBondClaimedEvents.eventId })
+      .returning({ eventId: arenaBondClaimedEvents.eventId })
+    if (inserted.length === 0) {
+      return
+    }
 
     const existing = await this.tx.query.arenaCalls.findFirst({
       where: eq(arenaCalls.callId, event.callId),
@@ -596,7 +608,7 @@ export class CheckpointContext {
   // --- CreatorBondReclaimed (escape hatch: oracle never settled) ---
 
   async applyBondReclaimed(meta: EventMeta, event: CreatorBondReclaimedEvent): Promise<void> {
-    await this.tx
+    const inserted = await this.tx
       .insert(arenaBondReclaimedEvents)
       .values({
         bondPlpAmount: event.bondPlpAmount,
@@ -608,6 +620,10 @@ export class CheckpointContext {
         reclaimedAtMs: event.reclaimedAtMs,
       })
       .onConflictDoNothing({ target: arenaBondReclaimedEvents.eventId })
+      .returning({ eventId: arenaBondReclaimedEvents.eventId })
+    if (inserted.length === 0) {
+      return
+    }
 
     const existing = await this.tx.query.arenaCalls.findFirst({
       where: eq(arenaCalls.callId, event.callId),

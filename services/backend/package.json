@@ -10,6 +10,7 @@
     "once": "bun src/index.ts once",
     "status": "bun src/index.ts status",
     "typecheck": "tsc --noEmit",
+    "test": "bun test",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
