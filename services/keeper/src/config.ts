@@ -24,6 +24,7 @@ export interface Config {
   statusToken: string | null
   suiNetwork: SuiClientTypes.Network
   suiRpcUrl: string
+  suiRpcUrls: string[]
 }
 
 const SUI_NETWORKS = ["devnet", "localnet", "mainnet", "testnet"] as const
@@ -73,6 +74,16 @@ const optionalAddress = optionalEnvString.transform((value) =>
   value === undefined ? null : value.toLowerCase()
 )
 
+const optionalRpcUrls = optionalEnvString.transform((value) =>
+  value === undefined
+    ? null
+    : value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+        .map(normalizeSuiRpcUrl)
+)
+
 const configSchema = z
   .object({
     CLOCK_OBJECT_ID: envString("0x6"),
@@ -99,34 +110,39 @@ const configSchema = z
       .pipe(z.enum(SUI_NETWORKS).optional())
       .transform((value): SuiClientTypes.Network => value ?? "testnet"),
     SUI_RPC_URL: envString("https://fullnode.testnet.sui.io:443"),
+    SUI_RPC_URLS: optionalRpcUrls,
   })
   .transform(
-    (env): Config => ({
-      clockObjectId: env.CLOCK_OBJECT_ID,
-      dbPath: env.KEEPER_DB_PATH,
-      dryRun: env.KEEPER_DRY_RUN,
-      httpPort: env.KEEPER_HTTP_PORT,
-      maxBatchSize: env.KEEPER_MAX_BATCH_SIZE,
-      maxCheckpointsPerScan: env.KEEPER_MAX_CHECKPOINTS_PER_SCAN,
-      minPayout: env.KEEPER_MIN_PAYOUT,
-      minSuiBalance: env.KEEPER_MIN_SUI_BALANCE,
-      pollSeconds: env.KEEPER_POLL_SECONDS,
-      predictObjectId: env.PREDICT_OBJECT_ID,
-      predictPackageId: env.PREDICT_PACKAGE_ID,
-      predictQuoteAsset: env.PREDICT_QUOTE_ASSET,
-      redeemKey: env.SUI_KEEPER_REDEEM_KEY,
-      // The reward vault is created with the quote asset (DUSDC) as its reward
-      // coin, so default to that unless explicitly overridden.
-      rewardCoinType: env.KEEPER_REWARD_COIN_TYPE ?? env.PREDICT_QUOTE_ASSET,
-      rewardPackageId: env.KEEPER_REWARD_PACKAGE_ID,
-      rewardVaultId: env.KEEPER_REWARD_VAULT_ID,
-      startCheckpoint: env.KEEPER_START_CHECKPOINT,
-      startFromLatest: env.KEEPER_START_FROM_LATEST,
-      statusCorsOrigin: env.KEEPER_STATUS_CORS_ORIGIN,
-      statusToken: env.KEEPER_STATUS_TOKEN,
-      suiNetwork: env.SUI_NETWORK,
-      suiRpcUrl: env.SUI_RPC_URL,
-    })
+    (env): Config => {
+      const suiRpcUrl = normalizeSuiRpcUrl(env.SUI_RPC_URL)
+      return {
+        clockObjectId: env.CLOCK_OBJECT_ID,
+        dbPath: env.KEEPER_DB_PATH,
+        dryRun: env.KEEPER_DRY_RUN,
+        httpPort: env.KEEPER_HTTP_PORT,
+        maxBatchSize: env.KEEPER_MAX_BATCH_SIZE,
+        maxCheckpointsPerScan: env.KEEPER_MAX_CHECKPOINTS_PER_SCAN,
+        minPayout: env.KEEPER_MIN_PAYOUT,
+        minSuiBalance: env.KEEPER_MIN_SUI_BALANCE,
+        pollSeconds: env.KEEPER_POLL_SECONDS,
+        predictObjectId: env.PREDICT_OBJECT_ID,
+        predictPackageId: env.PREDICT_PACKAGE_ID,
+        predictQuoteAsset: env.PREDICT_QUOTE_ASSET,
+        redeemKey: env.SUI_KEEPER_REDEEM_KEY,
+        // The reward vault is created with the quote asset (DUSDC) as its reward
+        // coin, so default to that unless explicitly overridden.
+        rewardCoinType: env.KEEPER_REWARD_COIN_TYPE ?? env.PREDICT_QUOTE_ASSET,
+        rewardPackageId: env.KEEPER_REWARD_PACKAGE_ID,
+        rewardVaultId: env.KEEPER_REWARD_VAULT_ID,
+        startCheckpoint: env.KEEPER_START_CHECKPOINT,
+        startFromLatest: env.KEEPER_START_FROM_LATEST,
+        statusCorsOrigin: env.KEEPER_STATUS_CORS_ORIGIN,
+        statusToken: env.KEEPER_STATUS_TOKEN,
+        suiNetwork: env.SUI_NETWORK,
+        suiRpcUrl,
+        suiRpcUrls: dedupe([...(env.SUI_RPC_URLS ?? []), suiRpcUrl]),
+      }
+    }
   )
   .refine((config) => config.rewardVaultId === null || config.rewardPackageId !== null, {
     error: "KEEPER_REWARD_PACKAGE_ID is required when KEEPER_REWARD_VAULT_ID is set",
@@ -134,4 +150,17 @@ const configSchema = z
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return configSchema.parse(env)
+}
+
+export function normalizeSuiRpcUrl(value: string): string {
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  const url = new URL(withScheme)
+  if (url.protocol === "http:" && url.port === "443") {
+    url.protocol = "https:"
+  }
+  return url.toString().replace(/\/$/, "")
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)]
 }

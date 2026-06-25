@@ -75,6 +75,7 @@ export interface OperatorConfig {
   strangle: DualLegConfig
   suiNetwork: SuiNetwork
   suiRpcUrl: string
+  suiRpcUrls: string[]
 }
 
 const SUI_NETWORKS = ["devnet", "localnet", "mainnet", "testnet"] as const
@@ -116,6 +117,17 @@ function envBoolean(defaultValue: boolean) {
   }, z.boolean())
 }
 
+const optionalRpcUrls = z.preprocess((value) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null
+  }
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0)
+    .map(normalizeSuiRpcUrl)
+}, z.array(z.string()).nullable())
+
 const envSchema = z
   .object({
     SUI_NETWORK: z.preprocess(
@@ -123,6 +135,7 @@ const envSchema = z
       z.enum(SUI_NETWORKS)
     ),
     SUI_RPC_URL: envString("https://fullnode.testnet.sui.io:443"),
+    SUI_RPC_URLS: optionalRpcUrls,
     CLOCK_OBJECT_ID: envString("0x6"),
     PREDICT_PACKAGE_ID: envString("0xf5ea2b3749c65d6e56507cc35388719aadb28f9cab873696a2f8687f5c785138"),
     PREDICT_OBJECT_ID: envString("0xc8736204d12f0a7277c86388a68bf8a194b0a14c5538ad13f22cbd8e2a38028a"),
@@ -245,6 +258,7 @@ function loadDeployment(network: SuiNetwork, explicitPath: string | undefined): 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): OperatorConfig {
   const parsed = envSchema.parse(env)
   const deployment = loadDeployment(parsed.SUI_NETWORK, parsed.OPERATOR_DEPLOYMENT_PATH)
+  const suiRpcUrl = normalizeSuiRpcUrl(parsed.SUI_RPC_URL)
 
   return {
     baseVault: {
@@ -312,6 +326,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): OperatorConfig
       strategyId: deployment.hedgedPlp.strategyId,
     },
     suiNetwork: parsed.SUI_NETWORK,
-    suiRpcUrl: parsed.SUI_RPC_URL,
+    suiRpcUrl,
+    suiRpcUrls: dedupe([...(parsed.SUI_RPC_URLS ?? []), suiRpcUrl]),
   }
+}
+
+export function normalizeSuiRpcUrl(value: string): string {
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`
+  const url = new URL(withScheme)
+  if (url.protocol === "http:" && url.port === "443") {
+    url.protocol = "https:"
+  }
+  return url.toString().replace(/\/$/, "")
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)]
 }

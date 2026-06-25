@@ -163,4 +163,5 @@ const testConfig: Config = {
   suiGraphqlUrl: "https://example.invalid/graphql",
   suiNetwork: "testnet",
   suiRpcUrl: "https://example.invalid/sui",
+  suiRpcUrls: ["https://example.invalid/sui"],
 }

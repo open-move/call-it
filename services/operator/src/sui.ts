@@ -5,8 +5,23 @@ import type { SuiClientTypes } from "@mysten/sui/client"
 import type { Transaction } from "@mysten/sui/transactions"
 
 import type { OperatorConfig } from "./config.ts"
+import { logger, toLogFields } from "./logger.ts"
 
-export type SuiClient = SuiGrpcClient
+type SimulateTransaction = SuiGrpcClient["simulateTransaction"]
+type SignAndExecuteTransaction = SuiGrpcClient["signAndExecuteTransaction"]
+type WaitForTransaction = SuiGrpcClient["waitForTransaction"]
+
+export interface SuiClient {
+  getObject: SuiGrpcClient["getObject"]
+  signAndExecuteTransaction: SignAndExecuteTransaction
+  simulateTransaction: SimulateTransaction
+  waitForTransaction: WaitForTransaction
+}
+
+interface SuiEndpoint {
+  client: SuiGrpcClient
+  url: string
+}
 
 export interface ExecutedTransaction {
   digest: string
@@ -20,10 +35,70 @@ export interface SimulationResult {
 }
 
 export function createSuiClient(config: OperatorConfig) {
-  return new SuiGrpcClient({
-    baseUrl: config.suiRpcUrl,
-    network: config.suiNetwork,
-  })
+  return new RotatingSuiClient(config)
+}
+
+class RotatingSuiClient implements SuiClient {
+  private current = 0
+  private readonly endpoints: SuiEndpoint[]
+
+  readonly getObject: SuiGrpcClient["getObject"] = ((input) =>
+    this.withEndpointRetry((client) => client.getObject(input), "getObject")) as SuiGrpcClient["getObject"]
+
+  readonly signAndExecuteTransaction: SignAndExecuteTransaction = ((input) =>
+    this.withEndpointRetry(
+      (client) => client.signAndExecuteTransaction(input),
+      "signAndExecuteTransaction"
+    )) as SignAndExecuteTransaction
+
+  readonly simulateTransaction: SimulateTransaction = ((input) =>
+    this.withEndpointRetry((client) => client.simulateTransaction(input), "simulateTransaction")) as SimulateTransaction
+
+  readonly waitForTransaction: WaitForTransaction = ((input) =>
+    this.withEndpointRetry((client) => client.waitForTransaction(input), "waitForTransaction")) as WaitForTransaction
+
+  constructor(config: OperatorConfig) {
+    this.endpoints = config.suiRpcUrls.map((url) => ({
+      client: new SuiGrpcClient({
+        baseUrl: url,
+        network: config.suiNetwork,
+      }),
+      url,
+    }))
+    if (this.endpoints.length === 0) {
+      throw new Error("at least one Sui RPC URL is required")
+    }
+  }
+
+  private async withEndpointRetry<T>(run: (client: SuiGrpcClient) => Promise<T>, operation: string): Promise<T> {
+    let lastError: unknown = null
+    for (let attempt = 0; attempt < this.endpoints.length; attempt += 1) {
+      const endpoint = this.nextEndpoint()
+      try {
+        return await run(endpoint.client)
+      } catch (error) {
+        lastError = error
+        logger.warn(
+          toLogFields({
+            error: error instanceof Error ? error.message : String(error),
+            operation,
+            url: endpoint.url,
+          }),
+          "Sui RPC endpoint failed; rotating"
+        )
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError))
+  }
+
+  private nextEndpoint(): SuiEndpoint {
+    const endpoint = this.endpoints[this.current]
+    if (endpoint === undefined) {
+      throw new Error("no Sui RPC endpoint configured")
+    }
+    this.current = (this.current + 1) % this.endpoints.length
+    return endpoint
+  }
 }
 
 export function loadKeeperKeypair() {

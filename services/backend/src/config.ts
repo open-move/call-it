@@ -24,6 +24,7 @@ export interface Config {
   suiGraphqlUrl: string;
   suiNetwork: SuiClientTypes.Network;
   suiRpcUrl: string;
+  suiRpcUrls: string[];
 }
 
 export interface StrategyPackageIds {
@@ -81,6 +82,16 @@ const optionalAddressEnv = optionalEnvString.transform((value) =>
   value === undefined ? null : value.toLowerCase(),
 );
 
+const optionalRpcUrls = optionalEnvString.transform((value) =>
+  value === undefined
+    ? null
+    : value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+        .map(normalizeSuiRpcUrl),
+);
+
 const configSchema = z
   .object({
     ARENA_OBJECT_ID: requiredEnvString.transform((value) =>
@@ -123,9 +134,11 @@ const configSchema = z
       (value) => value as SuiClientTypes.Network,
     ),
     SUI_RPC_URL: envString("https://fullnode.testnet.sui.io:443"),
+    SUI_RPC_URLS: optionalRpcUrls,
   })
   .transform((env): Config => {
     const dynamicEnvId = env.DYNAMIC_ENV_ID;
+    const suiRpcUrl = normalizeSuiRpcUrl(env.SUI_RPC_URL);
     return {
       arenaObjectId: env.ARENA_OBJECT_ID,
       arenaPackageId: env.ARENA_PACKAGE_ID,
@@ -165,7 +178,8 @@ const configSchema = z
       strategyRepairPollSeconds: env.STRATEGY_REPAIR_POLL_SECONDS,
       suiGraphqlUrl: env.SUI_GRAPHQL_URL,
       suiNetwork: env.SUI_NETWORK,
-      suiRpcUrl: env.SUI_RPC_URL,
+      suiRpcUrl,
+      suiRpcUrls: dedupe([...(env.SUI_RPC_URLS ?? []), suiRpcUrl]),
     };
   });
 
@@ -173,4 +187,17 @@ export function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): Config {
   return configSchema.parse(env);
+}
+
+export function normalizeSuiRpcUrl(value: string): string {
+  const withScheme = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+  const url = new URL(withScheme);
+  if (url.protocol === "http:" && url.port === "443") {
+    url.protocol = "https:";
+  }
+  return url.toString().replace(/\/$/, "");
+}
+
+function dedupe(values: string[]): string[] {
+  return [...new Set(values)];
 }

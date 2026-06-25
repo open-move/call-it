@@ -82,6 +82,7 @@ const baseConfig: Config = {
   statusToken: null,
   suiNetwork: "testnet",
   suiRpcUrl: "http://localhost",
+  suiRpcUrls: ["http://localhost"],
 }
 
 function fakeClient(): SuiClient {
