@@ -98,6 +98,10 @@ async function ingestForever(
 ): Promise<void> {
   const control = installSignalHandlers()
   const gates = new IngestGates()
+  if (config.strategyBackfillOnStart) {
+    logger.info("strategy startup GraphQL backfill enabled")
+    await backfillStrategyPerformanceFromGraphql(config, client, repo)
+  }
   await Promise.all(
     [
       ...pipelines.map((pipeline) =>

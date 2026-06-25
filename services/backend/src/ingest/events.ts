@@ -12,6 +12,8 @@ import {
 import type { SuiClient } from "../sui/client.ts"
 import type { IngestGate } from "./gate.ts"
 
+const STRATEGY_PIPELINE_PREFIX = "strategy:"
+
 // Handles a single event that matched the pipeline's package filter. Inserts run
 // inside the checkpoint transaction (ctx).
 export type CheckpointHandler = (ctx: CheckpointContext, event: CheckpointEvent) => Promise<void>
@@ -263,6 +265,20 @@ export async function runPipelineStream(
           // Contiguity: fill any gap between the cursor and this checkpoint before
           // processing it, so the cursor never skips checkpoints.
           if (seq > cursor + 1n) {
+            const gap = seq - cursor - 1n
+            if (isStrategyPipeline(pipeline.name) && gap > BigInt(config.strategyMaxGrpcBackfillCheckpoints)) {
+              logger.error(
+                toLogFields({
+                  cursor: cursor.toString(),
+                  gap: gap.toString(),
+                  maxGap: config.strategyMaxGrpcBackfillCheckpoints,
+                  pipeline: pipeline.name,
+                  seq: seq.toString(),
+                }),
+                "strategy checkpoint gap too large for gRPC backfill; run GraphQL strategy backfill"
+              )
+              throw new Error(`strategy ${pipeline.name} cursor is too far behind for gRPC backfill`)
+            }
             await backfillRange(client, repo, pipeline, cursor + 1n, seq - 1n)
             cursor = (await repo.getCursor(pipeline.name)) ?? cursor
             if (cursor < seq - 1n) {
@@ -303,6 +319,10 @@ export async function runPipelineStream(
 
 async function runWithOptionalGate<T>(gate: IngestGate | undefined, run: () => Promise<T>): Promise<T> {
   return gate === undefined ? run() : gate.runExclusive(run)
+}
+
+function isStrategyPipeline(name: string): boolean {
+  return name.startsWith(STRATEGY_PIPELINE_PREFIX)
 }
 
 function delay(ms: number): Promise<void> {

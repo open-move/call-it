@@ -17,6 +17,8 @@ export interface Config {
   predictObjectId: string;
   predictPackageId: string;
   predictServerUrl: string;
+  strategyBackfillOnStart: boolean;
+  strategyMaxGrpcBackfillCheckpoints: number;
   strategyObjectIds: StrategyObjectIds;
   strategyPackageIds: StrategyPackageIds;
   strategyRepairCursorLagCheckpoints: number;
@@ -78,6 +80,12 @@ function envPositiveInteger(defaultValue: number) {
     .pipe(z.number().int().positive());
 }
 
+function envBoolean(defaultValue: boolean) {
+  return optionalEnvString
+    .pipe(z.enum(["true", "false"]).optional())
+    .transform((value) => (value === undefined ? defaultValue : value === "true"));
+}
+
 const optionalAddressEnv = optionalEnvString.transform((value) =>
   value === undefined ? null : value.toLowerCase(),
 );
@@ -127,6 +135,8 @@ const configSchema = z
     RANGE_LADDER_STRATEGY_ID: optionalAddressEnv,
     STRANGLE_PACKAGE_ID: optionalAddressEnv,
     STRANGLE_STRATEGY_ID: optionalAddressEnv,
+    STRATEGY_BACKFILL_ON_START: envBoolean(true),
+    STRATEGY_MAX_GRPC_BACKFILL_CHECKPOINTS: envPositiveInteger(5000),
     STRATEGY_REPAIR_CURSOR_LAG_CHECKPOINTS: envPositiveInteger(10),
     STRATEGY_REPAIR_POLL_SECONDS: envPositiveInteger(300),
     SUI_GRAPHQL_URL: envString("https://graphql.testnet.sui.io/graphql"),
@@ -159,6 +169,9 @@ const configSchema = z
       predictObjectId: env.PREDICT_OBJECT_ID,
       predictPackageId: env.PREDICT_PACKAGE_ID,
       predictServerUrl: env.PREDICT_SERVER_URL,
+      strategyBackfillOnStart: env.STRATEGY_BACKFILL_ON_START,
+      strategyMaxGrpcBackfillCheckpoints:
+        env.STRATEGY_MAX_GRPC_BACKFILL_CHECKPOINTS,
       strategyObjectIds: {
         bullishUpside: env.BULLISH_UPSIDE_STRATEGY_ID,
         hedgedPlp: env.HEDGED_PLP_STRATEGY_ID,
