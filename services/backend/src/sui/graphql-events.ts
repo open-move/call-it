@@ -3,7 +3,8 @@ import { z } from "zod";
 import type { CheckpointEvent } from "./checkpoint.ts";
 import { normalizeAddress } from "./bcs.ts";
 
-const GRAPHQL_EVENT_PAGE_SIZE = 100;
+// Sui GraphQL caps event page size at 50.
+const GRAPHQL_EVENT_PAGE_SIZE = 50;
 
 const checkpointSchema = z.object({
   sequenceNumber: z.number().int().nonnegative(),
