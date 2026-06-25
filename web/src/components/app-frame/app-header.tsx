@@ -154,13 +154,10 @@ export function AppHeader() {
         <div className="mx-auto flex min-h-14 w-full max-w-[96rem] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-5">
             <Link
-              className="flex shrink-0 items-center gap-2.5 rounded-md focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
+              className="flex shrink-0 items-center rounded-md focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:outline-none"
               to="/"
             >
               <BrandMark />
-              <span className="text-base leading-none font-semibold tracking-[-0.03em] text-foreground">
-                Call<span className="text-primary">It</span>
-              </span>
             </Link>
 
             <div className="hidden items-center gap-0.5 md:flex">
