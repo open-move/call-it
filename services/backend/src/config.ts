@@ -19,6 +19,9 @@ export interface Config {
   predictServerUrl: string;
   strategyObjectIds: StrategyObjectIds;
   strategyPackageIds: StrategyPackageIds;
+  strategyRepairCursorLagCheckpoints: number;
+  strategyRepairPollSeconds: number;
+  suiGraphqlUrl: string;
   suiNetwork: SuiClientTypes.Network;
   suiRpcUrl: string;
 }
@@ -113,6 +116,9 @@ const configSchema = z
     RANGE_LADDER_STRATEGY_ID: optionalAddressEnv,
     STRANGLE_PACKAGE_ID: optionalAddressEnv,
     STRANGLE_STRATEGY_ID: optionalAddressEnv,
+    STRATEGY_REPAIR_CURSOR_LAG_CHECKPOINTS: envPositiveInteger(10),
+    STRATEGY_REPAIR_POLL_SECONDS: envPositiveInteger(300),
+    SUI_GRAPHQL_URL: envString("https://graphql.testnet.sui.io/graphql"),
     SUI_NETWORK: envString("testnet").transform(
       (value) => value as SuiClientTypes.Network,
     ),
@@ -154,6 +160,10 @@ const configSchema = z
         rangeLadder: env.RANGE_LADDER_PACKAGE_ID,
         strangle: env.STRANGLE_PACKAGE_ID,
       },
+      strategyRepairCursorLagCheckpoints:
+        env.STRATEGY_REPAIR_CURSOR_LAG_CHECKPOINTS,
+      strategyRepairPollSeconds: env.STRATEGY_REPAIR_POLL_SECONDS,
+      suiGraphqlUrl: env.SUI_GRAPHQL_URL,
       suiNetwork: env.SUI_NETWORK,
       suiRpcUrl: env.SUI_RPC_URL,
     };

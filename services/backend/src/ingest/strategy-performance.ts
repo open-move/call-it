@@ -14,7 +14,7 @@ import type { CheckpointHandler, PipelineDefinition } from "./events.ts"
 import type { SuiClient } from "../sui/client.ts"
 import { logger, toLogFields } from "../logger.ts"
 
-interface StrategyPipelineConfig {
+export interface StrategyPipelineConfig {
   kind: StrategyPipelineKind
   name: string
   packageId: string | null
@@ -25,8 +25,8 @@ const strategySupplySchema = z.object({
   treasury: z.object({ total_supply: z.object({ value: z.coerce.bigint() }) }),
 })
 
-export function strategyPerformancePipelines(config: Config): PipelineDefinition[] {
-  const packages: StrategyPipelineConfig[] = [
+export function strategyPerformancePipelineConfigs(config: Config): StrategyPipelineConfig[] {
+  return [
     {
       kind: "hedged-plp",
       name: PIPELINE.HEDGED_PLP,
@@ -58,6 +58,10 @@ export function strategyPerformancePipelines(config: Config): PipelineDefinition
       strategyId: config.strategyObjectIds.rangeLadder,
     },
   ]
+}
+
+export function strategyPerformancePipelines(config: Config): PipelineDefinition[] {
+  const packages = strategyPerformancePipelineConfigs(config)
 
   return packages.flatMap((entry) => {
     if (entry.packageId === null) {
@@ -88,14 +92,18 @@ async function resetBeforeReplay(repo: Repository, strategyId: string, from: big
   )
 }
 
-async function checksumStrategySupply(client: SuiClient, repo: Repository, strategyId: string): Promise<void> {
+export async function readLiveStrategySupply(client: SuiClient, strategyId: string): Promise<bigint> {
+  const object = await client.getObject({ include: { json: true }, objectId: strategyId })
+  return strategySupplySchema.parse(object.object.json).treasury.total_supply.value
+}
+
+export async function checksumStrategySupply(client: SuiClient, repo: Repository, strategyId: string): Promise<void> {
   const reconstructed = await repo.getStrategyFoldSupply(strategyId)
   if (reconstructed === null) {
     return
   }
 
-  const object = await client.getObject({ include: { json: true }, objectId: strategyId })
-  const live = strategySupplySchema.parse(object.object.json).treasury.total_supply.value
+  const live = await readLiveStrategySupply(client, strategyId)
   if (reconstructed !== live) {
     throw new Error(
       `strategy supply checksum failed for ${strategyId}: fold=${reconstructed.toString()} live=${live.toString()}`

@@ -8,6 +8,7 @@
     "serve": "bun src/index.ts serve",
     "ingest": "bun src/index.ts ingest",
     "once": "bun src/index.ts once",
+    "strategy-backfill": "bun src/index.ts strategy-backfill",
     "status": "bun src/index.ts status",
     "typecheck": "tsc --noEmit",
     "test": "bun test",

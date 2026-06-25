@@ -63,6 +63,21 @@ services:
       - "traefik.http.services.callit-api.loadbalancer.server.port=8080"
     restart: unless-stopped
 
+  backend-strategy-backfill:
+    build: ./services/backend
+    command: ["strategy-backfill"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - path: ./services/backend/.env
+        required: false
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-callit}:${POSTGRES_PASSWORD:-callit}@postgres:5432/${POSTGRES_DB:-callit_backend}
+    profiles:
+      - backfill
+    restart: "no"
+
   operator:
     build: ./services/operator
     command: ["--watch", "--run-all"]

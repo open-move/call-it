@@ -13,6 +13,19 @@ services:
       - "8799:8080"
     restart: unless-stopped
 
+  backend-strategy-backfill:
+    build: .
+    command: ["strategy-backfill"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://callit:callit@postgres:5432/callit_backend
+    profiles:
+      - backfill
+    restart: "no"
+
   postgres:
     image: postgres:18
     environment:

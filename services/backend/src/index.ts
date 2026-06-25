@@ -7,13 +7,16 @@ import { arenaPipeline } from "./ingest/arena.ts"
 import { PIPELINE } from "./ingest/cursor.ts"
 import { backfillRange, runPipelineStream } from "./ingest/events.ts"
 import type { PipelineDefinition } from "./ingest/events.ts"
+import { IngestGates } from "./ingest/gate.ts"
+import { backfillStrategyPerformanceFromGraphql } from "./ingest/strategy-graphql-backfill.ts"
+import { runStrategyRepairLoop } from "./ingest/strategy-repair.ts"
 import { strategyPerformancePipelines } from "./ingest/strategy-performance.ts"
 import { logger, toLogFields } from "./logger.ts"
 import { createSuiClient } from "./sui/client.ts"
 import type { SuiClient } from "./sui/client.ts"
 import { getLatestCheckpoint } from "./sui/checkpoint.ts"
 
-const VALID_COMMANDS = new Set(["serve", "ingest", "once", "status"])
+const VALID_COMMANDS = new Set(["serve", "ingest", "once", "strategy-backfill", "status"])
 
 async function main(): Promise<void> {
   const command = process.argv[2] ?? "serve"
@@ -43,6 +46,12 @@ async function main(): Promise<void> {
 
   if (command === "once") {
     await ingestOnce(client, repo, pipelines)
+    await database.pool.end()
+    return
+  }
+
+  if (command === "strategy-backfill") {
+    await backfillStrategyPerformanceFromGraphql(config, client, repo)
     await database.pool.end()
     return
   }
@@ -88,18 +97,36 @@ async function ingestForever(
   pipelines: PipelineDefinition[]
 ): Promise<void> {
   const control = installSignalHandlers()
+  const gates = new IngestGates()
   await Promise.all(
-    pipelines.map((pipeline) =>
-      runPipelineStream(config, client, repo, pipeline, () => control.stopping).catch((error: unknown) => {
-        logger.error(
-          toLogFields({
-            error: error instanceof Error ? error.message : String(error),
-            pipeline: pipeline.name,
-          }),
-          "pipeline stream crashed"
+    [
+      ...pipelines.map((pipeline) =>
+        runPipelineStream(config, client, repo, pipeline, () => control.stopping, gates.get(pipeline.name)).catch(
+          (error: unknown) => {
+            logger.error(
+              toLogFields({
+                error: error instanceof Error ? error.message : String(error),
+                pipeline: pipeline.name,
+              }),
+              "pipeline stream crashed"
+            )
+          }
         )
-      })
-    )
+      ),
+      runStrategyRepairLoop({
+        client,
+        config,
+        gates,
+        isStopping: () => control.stopping,
+        pipelines,
+        repo,
+      }).catch((error: unknown) => {
+        logger.error(
+          toLogFields({ error: error instanceof Error ? error.message : String(error) }),
+          "strategy repair loop crashed"
+        )
+      }),
+    ]
   )
   logger.info("ingest stopped")
 }

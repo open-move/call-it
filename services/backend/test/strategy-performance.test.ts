@@ -3,6 +3,7 @@ import { bcs } from "@mysten/sui/bcs"
 
 import { annualizedReturn } from "../src/domains/performance.ts"
 import { applyStrategyFold, parseStrategyPerformanceEvent } from "../src/domains/strategy-performance.ts"
+import { graphqlEventEdgeToCheckpointEvent } from "../src/sui/graphql-events.ts"
 import type {
   StrategyFoldState,
   StrategyPerformanceEvent,
@@ -114,6 +115,88 @@ describe("parseStrategyPerformanceEvent RoundSettled BCS", () => {
         strategyId: address(1),
       })
     }
+  })
+})
+
+describe("graphqlEventEdgeToCheckpointEvent", () => {
+  test("normalizes GraphQL event edges into checkpoint events", () => {
+    const event = graphqlEventEdgeToCheckpointEvent({
+      cursor: "cursor",
+      node: {
+        contents: {
+          json: {
+            amount: "5000000",
+            depositor: address(9),
+            nav_before: "0",
+            shares_minted: "5000000",
+            strategy_id: address(1),
+          },
+          type: { repr: "0xabc::strategy::StrategyDeposited" },
+        },
+        sender: { address: address(9).slice(2) },
+        sequenceNumber: 2,
+        timestamp: "2026-06-22T21:49:05.872Z",
+        transaction: {
+          digest: "digest",
+          effects: { checkpoint: { sequenceNumber: 351634439 } },
+        },
+      },
+    })
+
+    expect(event).toEqual({
+      contents: null,
+      json: {
+        amount: "5000000",
+        depositor: address(9),
+        nav_before: "0",
+        shares_minted: "5000000",
+        strategy_id: address(1),
+      },
+      meta: {
+        checkpoint: 351634439,
+        checkpointTimestampMs: Date.parse("2026-06-22T21:49:05.872Z"),
+        digest: "digest",
+        eventId: "digest:2",
+        eventIndex: 2,
+        eventType: "0xabc::strategy::StrategyDeposited",
+        module: "strategy",
+        packageId: "0xabc",
+        sender: address(9),
+        txIndex: 0,
+      },
+    })
+  })
+
+  test("parses JSON-normalized GraphQL events through the strategy fold decoder", () => {
+    const event = graphqlEventEdgeToCheckpointEvent({
+      cursor: "cursor",
+      node: {
+        contents: {
+          json: {
+            amount: "5000000",
+            depositor: address(9),
+            nav_before: "0",
+            shares_minted: "5000000",
+            strategy_id: address(1),
+          },
+          type: { repr: "0xabc::strategy::StrategyDeposited" },
+        },
+        sender: { address: address(9) },
+        sequenceNumber: 1,
+        timestamp: null,
+        transaction: {
+          digest: "digest",
+          effects: { checkpoint: { sequenceNumber: 1 } },
+        },
+      },
+    })
+
+    expect(parseStrategyPerformanceEvent(event, "hedged-plp")).toEqual({
+      kind: "deposit",
+      navBefore: 0n,
+      sharesMinted: 5_000_000n,
+      strategyId: address(1),
+    })
   })
 })
 

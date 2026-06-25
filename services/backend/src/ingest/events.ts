@@ -10,6 +10,7 @@ import {
   readCheckpoint,
 } from "../sui/checkpoint.ts"
 import type { SuiClient } from "../sui/client.ts"
+import type { IngestGate } from "./gate.ts"
 
 // Handles a single event that matched the pipeline's package filter. Inserts run
 // inside the checkpoint transaction (ctx).
@@ -185,7 +186,8 @@ export async function runPipelineStream(
   client: SuiClient,
   repo: Repository,
   pipeline: PipelineDefinition,
-  isStopping: () => boolean
+  isStopping: () => boolean,
+  gate?: IngestGate
 ): Promise<void> {
   // Resume from the stored cursor, else the configured start, else the current
   // tip (so a fresh pipeline doesn't backfill from genesis). Persist the chosen
@@ -252,20 +254,27 @@ export async function runPipelineStream(
           continue
         }
 
-        // Contiguity: fill any gap between the cursor and this checkpoint before
-        // processing it, so the cursor never skips checkpoints.
-        if (seq > cursor + 1n) {
-          await backfillRange(client, repo, pipeline, cursor + 1n, seq - 1n)
+        await runWithOptionalGate(gate, async () => {
           cursor = (await repo.getCursor(pipeline.name)) ?? cursor
-          if (cursor < seq - 1n) {
-            // Backfill stalled; retry the gap on the next stream item / reconnect.
-            continue
+          if (seq <= cursor) {
+            return
           }
-        }
 
-        const events = cp === undefined ? (await readCheckpoint(client, seq)).events : checkpointToEvents(cp, seq)
-        await processCheckpoint(repo, pipeline, seq, events)
-        cursor = seq
+          // Contiguity: fill any gap between the cursor and this checkpoint before
+          // processing it, so the cursor never skips checkpoints.
+          if (seq > cursor + 1n) {
+            await backfillRange(client, repo, pipeline, cursor + 1n, seq - 1n)
+            cursor = (await repo.getCursor(pipeline.name)) ?? cursor
+            if (cursor < seq - 1n) {
+              // Backfill stalled; retry the gap on the next stream item / reconnect.
+              return
+            }
+          }
+
+          const events = cp === undefined ? (await readCheckpoint(client, seq)).events : checkpointToEvents(cp, seq)
+          await processCheckpoint(repo, pipeline, seq, events)
+          cursor = seq
+        })
       }
     } catch (error) {
       reason = "error"
@@ -290,6 +299,10 @@ export async function runPipelineStream(
     )
     await delay(backoffMs)
   }
+}
+
+async function runWithOptionalGate<T>(gate: IngestGate | undefined, run: () => Promise<T>): Promise<T> {
+  return gate === undefined ? run() : gate.runExclusive(run)
 }
 
 function delay(ms: number): Promise<void> {

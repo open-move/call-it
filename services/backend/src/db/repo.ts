@@ -99,6 +99,12 @@ export class Repository {
     })
   }
 
+  async withProjectionTransaction(run: (ctx: CheckpointContext) => Promise<void>): Promise<void> {
+    await this.database.db.transaction(async (tx) => {
+      await run(new CheckpointContext(tx))
+    })
+  }
+
   private async upsertCursor(executor: Tx | Database["db"], pipeline: string, checkpoint: bigint) {
     await executor
       .insert(ingestCursors)

@@ -158,6 +158,9 @@ const testConfig: Config = {
     rangeLadder: null,
     strangle: null,
   },
+  strategyRepairCursorLagCheckpoints: 10,
+  strategyRepairPollSeconds: 300,
+  suiGraphqlUrl: "https://example.invalid/graphql",
   suiNetwork: "testnet",
   suiRpcUrl: "https://example.invalid/sui",
 }
