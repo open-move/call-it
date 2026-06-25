@@ -80,16 +80,24 @@ function OverviewCard({
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">Overview</h2>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className="mt-4 grid grid-cols-3 items-end gap-3">
         <div className="min-w-0">
           <div className="text-xs text-muted-foreground">NAV</div>
-          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+          <div className="mt-1 font-mono text-lg leading-none font-medium tracking-tight text-foreground tabular-nums">
             {formatUsd(state.nav)}
+          </div>
+        </div>
+        <div className="min-w-0 text-center">
+          <div className="text-xs text-muted-foreground">
+            {performanceMetric(annualized).label}
+          </div>
+          <div className="mt-1 truncate font-mono text-lg leading-none font-medium tracking-tight text-foreground tabular-nums">
+            {performanceMetric(annualized).value}
           </div>
         </div>
         <div className="min-w-0 text-right">
           <div className="text-xs text-muted-foreground">Share price</div>
-          <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+          <div className="mt-1 font-mono text-lg leading-none font-medium tracking-tight text-foreground tabular-nums">
             ${sharePriceFormatter.format(state.sharePrice)}
           </div>
         </div>
@@ -100,10 +108,6 @@ function OverviewCard({
       </div>
 
       <div className="mt-5">
-        <DataRow
-          label={performanceMetric(annualized).label}
-          value={performanceMetric(annualized).value}
-        />
         {meta.hasPlp ? (
           <DataRow label="PLP deployed" value={formatUsd(state.plpCostBasis ?? 0n)} />
         ) : null}

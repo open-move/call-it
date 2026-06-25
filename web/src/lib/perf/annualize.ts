@@ -62,20 +62,14 @@ function formatRatioPercent(ratio: number): string {
   return Math.abs(pct) >= 1000 ? `${compactNumber.format(pct)}%` : `${pct.toFixed(2)}%`
 }
 
-function windowLabelDays(windowDays: number): string {
-  return windowDays < 1 ? "<1" : `${Math.max(1, Math.round(windowDays))}`
-}
-
-// What to show for a vault's headline return: a real APY only once there's
-// enough history to annualize; otherwise the realized return over the (short)
-// window, clearly labelled as such. Null/undefined -> dashes.
+// A vault's headline return, always labelled "APY". Once there's enough history
+// we annualize; below that, annualizing a few days explodes into nonsense, so we
+// fall back to the realized return so far (still shown under "APY").
+// Null/undefined -> dashes.
 export function performanceMetric(metric: AnnualizedReturn | null | undefined): PerformanceMetric {
   if (metric === undefined || metric === null) {
     return { label: "APY", value: "—" }
   }
-  const days = windowLabelDays(metric.windowDays)
-  if (metric.windowDays < MIN_ANNUALIZE_DAYS) {
-    return { label: `${days}D return`, value: formatRatioPercent(metric.periodReturn) }
-  }
-  return { label: `${days}D APY`, value: formatRatioPercent(metric.apy) }
+  const ratio = metric.windowDays < MIN_ANNUALIZE_DAYS ? metric.periodReturn : metric.apy
+  return { label: "APY", value: formatRatioPercent(ratio) }
 }

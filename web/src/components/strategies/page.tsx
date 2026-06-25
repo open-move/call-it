@@ -108,7 +108,7 @@ function StrategyCard({
             <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               NAV
             </div>
-            <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            <div className="mt-1 font-mono text-base leading-none font-medium tracking-tight text-foreground tabular-nums">
               {stat ? (
                 stat.navUsd === undefined ? (
                   "—"
@@ -124,7 +124,7 @@ function StrategyCard({
             <div className="truncate text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               {performanceMetric(stat?.apyMetric).label}
             </div>
-            <div className="mt-1 truncate font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            <div className="mt-1 truncate font-mono text-base leading-none font-medium tracking-tight text-foreground tabular-nums">
               {stat ? (
                 performanceMetric(stat.apyMetric).value
               ) : (
@@ -136,7 +136,7 @@ function StrategyCard({
             <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               {strategy.asset ? "Share" : strategy.shareToken} price
             </div>
-            <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            <div className="mt-1 font-mono text-base leading-none font-medium tracking-tight text-foreground tabular-nums">
               {stat ? (
                 stat.sharePrice === undefined ? (
                   "—"
