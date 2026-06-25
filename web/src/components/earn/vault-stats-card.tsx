@@ -2,8 +2,8 @@ import { AllocationBar } from "@/components/primitives/allocation-bar"
 import type { AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
 import { getDisplayChartPoints } from "@/lib/earn/chart"
-import { formatPercent, formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
-import { annualizedReturn, apyWindowLabel } from "@/lib/perf/annualize"
+import { formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
+import { annualizedReturn, performanceMetric } from "@/lib/perf/annualize"
 import type { VaultPerformanceResponse, VaultSummary } from "@/lib/types/predict"
 
 function utilizationSegments(summary: VaultSummary): AllocationSegment[] {
@@ -51,8 +51,8 @@ export function VaultStatsCard({
 
       <div className="mt-5">
         <DataRow
-          label={apyWindowLabel(annualized?.windowDays)}
-          value={annualized === null ? "—" : formatPercent(annualized.apy)}
+          label={performanceMetric(annualized).label}
+          value={performanceMetric(annualized).value}
         />
         <DataRow
           label="Withdrawable"

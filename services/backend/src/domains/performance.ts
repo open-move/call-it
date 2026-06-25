@@ -6,11 +6,17 @@ export interface PerformancePoint {
 export interface AnnualizedReturn {
   apr: number
   apy: number
+  periodReturn: number
   windowDays: number
 }
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// Below this much history, annualizing a share-price move is meaningless (a few
+// days of a volatile vault extrapolated to a year explodes). Callers should
+// surface `periodReturn` instead of `apy`/`apr` under this threshold.
+export const MIN_ANNUALIZE_DAYS = 7
 
 export function annualizedReturn(
   points: PerformancePoint[],
@@ -40,6 +46,7 @@ export function annualizedReturn(
   return {
     apr: (growth - 1) * periodsPerYear,
     apy: Math.pow(growth, periodsPerYear) - 1,
+    periodReturn: growth - 1,
     windowDays: dt / DAY_MS,
   }
 }

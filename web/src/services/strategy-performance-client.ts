@@ -14,6 +14,7 @@ export interface StrategyPerformancePoint {
 export interface StrategyPerformanceResponse {
   apr: number | null
   apy: number | null
+  period_return?: number | null
   points: StrategyPerformancePoint[]
   range: StrategyPerformanceRange
   strategy_id: string

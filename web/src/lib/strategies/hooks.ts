@@ -4,6 +4,7 @@ import { StatusTone } from "@/components/primitives/status-indicator"
 import { QUOTE_SCALE } from "@/lib/config"
 import { getDisplayChartPoints } from "@/lib/earn/chart"
 import { annualizedReturn } from "@/lib/perf/annualize"
+import type { AnnualizedReturn } from "@/lib/perf/annualize"
 import { getStrategyStatus } from "@/lib/strategies/format"
 import { STRATEGY_ORDER } from "@/lib/strategies/registry"
 import { getPredictVaultPerformance, getPredictVaultSummary } from "@/services/predict-client"
@@ -15,8 +16,8 @@ import type { StrategyKey } from "@/services/strategy-transactions"
 export type StrategyStatsKey = "earn" | StrategyKey
 
 export interface StrategyStat {
-  apy?: number | null
-  apyWindowDays?: number | null
+  // null = computed but no data; undefined = not loaded yet.
+  apyMetric?: AnnualizedReturn | null
   navUsd?: number
   sharePrice?: number
   status?: string
@@ -74,8 +75,7 @@ export function useStrategyStats() {
 
       const next: StrategyStats = {
         earn: {
-          apy: earnPerformance ? earnAnnualized?.apy ?? null : undefined,
-          apyWindowDays: earnPerformance ? earnAnnualized?.windowDays ?? null : undefined,
+          apyMetric: earnPerformance ? earnAnnualized : undefined,
           navUsd: earn ? earn.vault_value / QUOTE_SCALE : undefined,
           sharePrice: earn?.plp_share_price,
           status: earn ? "Live" : undefined,
@@ -87,8 +87,7 @@ export function useStrategyStats() {
         const annualized = performance ? annualizedReturn(displayPoints) : null
 
         next[key] = {
-          apy: performance ? annualized?.apy ?? null : undefined,
-          apyWindowDays: performance ? annualized?.windowDays ?? null : undefined,
+          apyMetric: performance ? annualized : undefined,
           navUsd: state ? Number(state.nav) / QUOTE_SCALE : undefined,
           sharePrice: state?.sharePrice,
           status: state ? getStrategyStatus(state) : undefined,

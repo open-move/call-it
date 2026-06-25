@@ -24,7 +24,7 @@ import {
   metadataWriteContentSchema,
   parseArenaMetadata,
 } from "./domains/metadata.ts"
-import { annualizedReturn } from "./domains/performance.ts"
+import { MIN_ANNUALIZE_DAYS, annualizedReturn } from "./domains/performance.ts"
 import type {
   ArenaActivityModel,
   ArenaCallModel,
@@ -100,6 +100,7 @@ interface StrategyPerformancePoint {
 interface StrategyPerformanceResponse {
   apr: number | null
   apy: number | null
+  period_return: number | null
   points: StrategyPerformancePoint[]
   range: PerformanceRange
   strategy_id: string
@@ -362,10 +363,14 @@ export function buildApi(config: Config, repo: Repository) {
         total_shares: Number(row.totalShares),
       }))
       const annualized = annualizedReturn(points, rangeToAnnualizedWindowMs(range))
+      // Only expose an annualized figure once there's enough history; below the
+      // threshold a few days extrapolate to nonsense, so callers use period_return.
+      const annualizable = annualized !== null && annualized.windowDays >= MIN_ANNUALIZE_DAYS
 
       return {
-        apr: annualized?.apr ?? null,
-        apy: annualized?.apy ?? null,
+        apr: annualizable ? annualized.apr : null,
+        apy: annualizable ? annualized.apy : null,
+        period_return: annualized?.periodReturn ?? null,
         points,
         range,
         strategy_id: strategyId,

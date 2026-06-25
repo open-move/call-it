@@ -4,7 +4,7 @@ import { ArrowRightIcon } from "lucide-react"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { Card } from "@/components/ui/card"
 import { StrategyVisual } from "./strategy-visual"
-import { apyWindowLabel } from "@/lib/perf/annualize"
+import { performanceMetric } from "@/lib/perf/annualize"
 import {
   getStrategyStatusTone,
   useStrategyStats,
@@ -62,11 +62,6 @@ const navFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
 })
 
-const percentFormatter = new Intl.NumberFormat("en-US", {
-  maximumFractionDigits: 2,
-  minimumFractionDigits: 2,
-  style: "percent",
-})
 
 function SkeletonBar({ className }: { className: string }) {
   return (
@@ -126,16 +121,12 @@ function StrategyCard({
             </div>
           </div>
           <div className="min-w-0 text-center">
-            <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
-              {apyWindowLabel(stat?.apyWindowDays)}
+            <div className="truncate text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
+              {performanceMetric(stat?.apyMetric).label}
             </div>
-            <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+            <div className="mt-1 truncate font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
               {stat ? (
-                stat.apy === undefined || stat.apy === null ? (
-                  "—"
-                ) : (
-                  percentFormatter.format(stat.apy)
-                )
+                performanceMetric(stat.apyMetric).value
               ) : (
                 <SkeletonBar className="h-5 w-14" />
               )}

@@ -6,11 +6,17 @@ export interface PerformancePoint {
 export interface AnnualizedReturn {
   apr: number
   apy: number
+  periodReturn: number
   windowDays: number
 }
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000
 const DAY_MS = 24 * 60 * 60 * 1000
+
+// Below this much history, annualizing a share-price move is meaningless — a
+// few days of a volatile vault extrapolated to a year explodes into thousands
+// of percent — so callers show the realized period return instead.
+export const MIN_ANNUALIZE_DAYS = 7
 
 export function annualizedReturn(
   points: PerformancePoint[],
@@ -34,16 +40,42 @@ export function annualizedReturn(
   return {
     apr: (growth - 1) * periodsPerYear,
     apy: Math.pow(growth, periodsPerYear) - 1,
+    periodReturn: growth - 1,
     windowDays: dt / DAY_MS,
   }
 }
 
-export function apyWindowLabel(windowDays?: number | null): string {
-  if (windowDays === undefined || windowDays === null || windowDays >= 29.5) {
-    return "30D APY"
+export interface PerformanceMetric {
+  label: string
+  value: string
+}
+
+const compactNumber = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+  notation: "compact",
+})
+
+// Percent of a ratio (0.0103 -> "1.03%"), switching to compact notation past
+// 1000% so an extreme value can never overflow its column.
+function formatRatioPercent(ratio: number): string {
+  const pct = ratio * 100
+  return Math.abs(pct) >= 1000 ? `${compactNumber.format(pct)}%` : `${pct.toFixed(2)}%`
+}
+
+function windowLabelDays(windowDays: number): string {
+  return windowDays < 1 ? "<1" : `${Math.max(1, Math.round(windowDays))}`
+}
+
+// What to show for a vault's headline return: a real APY only once there's
+// enough history to annualize; otherwise the realized return over the (short)
+// window, clearly labelled as such. Null/undefined -> dashes.
+export function performanceMetric(metric: AnnualizedReturn | null | undefined): PerformanceMetric {
+  if (metric === undefined || metric === null) {
+    return { label: "APY", value: "—" }
   }
-  if (windowDays < 1) {
-    return "<1D APY"
+  const days = windowLabelDays(metric.windowDays)
+  if (metric.windowDays < MIN_ANNUALIZE_DAYS) {
+    return { label: `${days}D return`, value: formatRatioPercent(metric.periodReturn) }
   }
-  return `${Math.max(1, Math.round(windowDays))}D APY`
+  return { label: `${days}D APY`, value: formatRatioPercent(metric.apy) }
 }

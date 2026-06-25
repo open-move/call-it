@@ -8,8 +8,7 @@ import { RoundCountdown } from "@/components/shared/round-countdown"
 import { SharePriceChart } from "@/components/shared/share-price-chart"
 import { Button } from "@/components/ui/button"
 import { getDisplayChartPoints } from "@/lib/earn/chart"
-import { formatPercent } from "@/lib/earn/format"
-import { annualizedReturn, apyWindowLabel } from "@/lib/perf/annualize"
+import { annualizedReturn, performanceMetric } from "@/lib/perf/annualize"
 import {
   formatBps,
   formatCount,
@@ -102,8 +101,8 @@ function OverviewCard({
 
       <div className="mt-5">
         <DataRow
-          label={apyWindowLabel(annualized?.windowDays)}
-          value={annualized === null ? "—" : formatPercent(annualized.apy)}
+          label={performanceMetric(annualized).label}
+          value={performanceMetric(annualized).value}
         />
         {meta.hasPlp ? (
           <DataRow label="PLP deployed" value={formatUsd(state.plpCostBasis ?? 0n)} />
