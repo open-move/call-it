@@ -8,7 +8,10 @@ import { PIPELINE } from "./ingest/cursor.ts";
 import { backfillRange, runPipelineStream } from "./ingest/events.ts";
 import type { PipelineDefinition } from "./ingest/events.ts";
 import { IngestGates } from "./ingest/gate.ts";
-import { backfillStrategyPerformanceFromGraphql } from "./ingest/strategy-graphql-backfill.ts";
+import {
+  backfillStrategyPerformanceFromGraphql,
+  makeStrategyLargeGapHandler,
+} from "./ingest/strategy-graphql-backfill.ts";
 import { runStrategyRepairLoop } from "./ingest/strategy-repair.ts";
 import { strategyPerformancePipelines } from "./ingest/strategy-performance.ts";
 import { logger, toLogFields } from "./logger.ts";
@@ -67,7 +70,13 @@ async function main(): Promise<void> {
 }
 
 function buildPipelines(config: Config): PipelineDefinition[] {
-  return [arenaPipeline(config), ...strategyPerformancePipelines(config)];
+  const strategyPipelines = strategyPerformancePipelines(config).map(
+    (pipeline) => ({
+      ...pipeline,
+      onLargeGap: makeStrategyLargeGapHandler(config, pipeline),
+    }),
+  );
+  return [arenaPipeline(config), ...strategyPipelines];
 }
 
 // One-shot backfill: catch each pipeline up from its cursor to the current tip,

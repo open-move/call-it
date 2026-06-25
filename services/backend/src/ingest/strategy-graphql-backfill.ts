@@ -48,6 +48,31 @@ export async function backfillStrategyPerformanceFromGraphql(
   }
 }
 
+// Builds the live-stream `onLargeGap` handler for a strategy pipeline: when the
+// cursor falls too far behind for a gRPC backfill, catch it up via the sparse
+// GraphQL event query instead.
+export function makeStrategyLargeGapHandler(
+  config: Config,
+  pipeline: PipelineDefinition,
+): (input: {
+  client: SuiClient;
+  repo: Repository;
+  throughSeq: bigint;
+}) => Promise<void> {
+  return async ({ client, repo, throughSeq }) => {
+    const latest = await getLatestGraphqlCheckpoint(config.suiGraphqlUrl);
+    const target = latest > throughSeq ? latest : throughSeq;
+    await backfillStrategyPipelineFromGraphql({
+      client,
+      config,
+      fromCheckpoint: null,
+      pipeline,
+      repo,
+      target,
+    });
+  };
+}
+
 export async function backfillStrategyPipelineFromGraphql(input: {
   client: SuiClient;
   config: Config;

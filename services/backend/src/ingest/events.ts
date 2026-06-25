@@ -23,6 +23,14 @@ export interface PipelineDefinition {
   beforeBackfill?: (repo: Repository, from: bigint) => Promise<void>
   handler: CheckpointHandler
   name: string
+  // Invoked when the live stream finds the cursor too far behind for a gRPC
+  // checkpoint-walk; should close the gap (e.g. via GraphQL backfill) and
+  // advance the cursor so the stream can resume.
+  onLargeGap?: (input: {
+    client: SuiClient
+    repo: Repository
+    throughSeq: bigint
+  }) => Promise<void>
   packageId: string
 }
 
@@ -267,17 +275,33 @@ export async function runPipelineStream(
           if (seq > cursor + 1n) {
             const gap = seq - cursor - 1n
             if (isStrategyPipeline(pipeline.name) && gap > BigInt(config.strategyMaxGrpcBackfillCheckpoints)) {
-              logger.error(
+              if (pipeline.onLargeGap === undefined) {
+                logger.error(
+                  toLogFields({
+                    cursor: cursor.toString(),
+                    gap: gap.toString(),
+                    maxGap: config.strategyMaxGrpcBackfillCheckpoints,
+                    pipeline: pipeline.name,
+                    seq: seq.toString(),
+                  }),
+                  "strategy checkpoint gap too large for gRPC backfill; run GraphQL strategy backfill"
+                )
+                throw new Error(`strategy ${pipeline.name} cursor is too far behind for gRPC backfill`)
+              }
+              // Too far behind for a gRPC checkpoint-walk: close the gap via the
+              // GraphQL strategy backfill (sparse event query), then resume the
+              // live stream from the advanced cursor on the next item.
+              logger.warn(
                 toLogFields({
                   cursor: cursor.toString(),
                   gap: gap.toString(),
-                  maxGap: config.strategyMaxGrpcBackfillCheckpoints,
                   pipeline: pipeline.name,
                   seq: seq.toString(),
                 }),
-                "strategy checkpoint gap too large for gRPC backfill; run GraphQL strategy backfill"
+                "strategy gap exceeds gRPC limit; catching up via GraphQL backfill"
               )
-              throw new Error(`strategy ${pipeline.name} cursor is too far behind for gRPC backfill`)
+              await pipeline.onLargeGap({ client, repo, throughSeq: seq - 1n })
+              return
             }
             await backfillRange(client, repo, pipeline, cursor + 1n, seq - 1n)
             cursor = (await repo.getCursor(pipeline.name)) ?? cursor
