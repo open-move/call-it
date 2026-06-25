@@ -1,10 +1,15 @@
 import { useEffect, useState } from "react"
 
-import { AllocationBar, type AllocationSegment } from "@/components/primitives/allocation-bar"
+import { AllocationBar } from "@/components/primitives/allocation-bar"
+import type { AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { RoundCountdown } from "@/components/shared/round-countdown"
+import { SharePriceChart } from "@/components/shared/share-price-chart"
 import { Button } from "@/components/ui/button"
+import { getDisplayChartPoints } from "@/lib/earn/chart"
+import { formatPercent } from "@/lib/earn/format"
+import { annualizedReturn, apyWindowLabel } from "@/lib/perf/annualize"
 import {
   formatBps,
   formatCount,
@@ -20,6 +25,7 @@ import { getStrategyStatusTone } from "@/lib/strategies/hooks"
 import type { StrategyMeta } from "@/lib/strategies/registry"
 import type { StrategyState } from "@/lib/strategies/types"
 import { useStrategyAction } from "@/lib/strategies/use-strategy-action"
+import type { StrategyPerformanceResponse } from "@/services/strategy-performance-client"
 import { StrategyActionDialog } from "./action-dialog"
 import { StrategyLifecycle } from "./position-lifecycle"
 
@@ -60,7 +66,17 @@ function Hero({ meta }: { meta: StrategyMeta }) {
   )
 }
 
-function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyState }) {
+function OverviewCard({
+  meta,
+  performance,
+  state,
+}: {
+  meta: StrategyMeta
+  performance: StrategyPerformanceResponse
+  state: StrategyState
+}) {
+  const annualized = annualizedReturn(getDisplayChartPoints(performance.points).points)
+
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">Overview</h2>
@@ -85,6 +101,10 @@ function OverviewCard({ meta, state }: { meta: StrategyMeta; state: StrategyStat
       </div>
 
       <div className="mt-5">
+        <DataRow
+          label={apyWindowLabel(annualized?.windowDays)}
+          value={annualized === null ? "—" : formatPercent(annualized.apy)}
+        />
         {meta.hasPlp ? (
           <DataRow label="PLP deployed" value={formatUsd(state.plpCostBasis ?? 0n)} />
         ) : null}
@@ -264,7 +284,15 @@ function PositionBody({ meta, state }: { meta: StrategyMeta; state: StrategyStat
   )
 }
 
-export function StrategyDetail({ meta, state }: { meta: StrategyMeta; state?: StrategyState }) {
+export function StrategyDetail({
+  meta,
+  performance,
+  state,
+}: {
+  meta: StrategyMeta
+  performance: StrategyPerformanceResponse
+  state?: StrategyState
+}) {
   if (!state) {
     return (
       <main className="mx-auto w-full max-w-2xl px-4 py-10 sm:px-6 lg:px-8">
@@ -284,7 +312,15 @@ export function StrategyDetail({ meta, state }: { meta: StrategyMeta; state?: St
         <Hero meta={meta} />
         <div className="mx-auto grid max-w-5xl items-stretch gap-3 lg:grid-cols-2">
           <PositionPanel meta={meta} state={state} />
-          <OverviewCard meta={meta} state={state} />
+          <OverviewCard meta={meta} performance={performance} state={state} />
+        </div>
+        <div className="mx-auto max-w-5xl rounded-lg bg-card p-4">
+          <SharePriceChart
+            currentPrice={`$${sharePriceFormatter.format(state.sharePrice)}`}
+            gradientId={`strategy-${meta.key}-share-gradient`}
+            points={performance.points}
+            title={`${meta.shareSymbol} Price`}
+          />
         </div>
         <div className="mx-auto grid max-w-5xl gap-3 lg:grid-cols-2">
           <RoundCard meta={meta} state={state} />

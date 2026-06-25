@@ -144,6 +144,20 @@ const testConfig: Config = {
   predictObjectId: "0xpredict",
   predictPackageId: "0xpredict_package",
   predictServerUrl: "https://example.invalid/predict",
+  strategyObjectIds: {
+    bullishUpside: null,
+    hedgedPlp: null,
+    plpCollar: null,
+    rangeLadder: null,
+    strangle: null,
+  },
+  strategyPackageIds: {
+    bullishUpside: null,
+    hedgedPlp: null,
+    plpCollar: null,
+    rangeLadder: null,
+    strangle: null,
+  },
   suiNetwork: "testnet",
   suiRpcUrl: "https://example.invalid/sui",
 }

@@ -4,6 +4,7 @@ import { z, ZodError } from "zod"
 
 import type { Config } from "./config.ts"
 import { Repository, UsernameConflictError } from "./db/repo.ts"
+import type { PerformanceRange } from "./db/repo.ts"
 import type { ArenaCreatorRow, UserRow, WalletRow } from "./db/schema.ts"
 import {
   AuthError,
@@ -23,6 +24,7 @@ import {
   metadataWriteContentSchema,
   parseArenaMetadata,
 } from "./domains/metadata.ts"
+import { annualizedReturn } from "./domains/performance.ts"
 import type {
   ArenaActivityModel,
   ArenaCallModel,
@@ -42,6 +44,7 @@ import {
 import { logger } from "./logger.ts"
 
 const ACTIVITY_LIMIT = 50
+const DAY_MS = 24 * 60 * 60 * 1000
 
 const metadataBodySchema = z.object({
   content: metadataWriteContentSchema,
@@ -66,6 +69,8 @@ const profileBodySchema = z.object({
   username: usernameSchema.optional(),
 })
 
+const performanceRangeSchema = z.enum(["ALL", "30D", "7D"]).default("ALL")
+
 interface ProfileResponse {
   user: PublicUser
   wallets: PublicWallet[]
@@ -83,6 +88,22 @@ interface PublicWallet {
   address: string
   chain: string
   isPrimary: boolean
+}
+
+interface StrategyPerformancePoint {
+  nav: number
+  share_price: number
+  timestamp_ms: number
+  total_shares: number
+}
+
+interface StrategyPerformanceResponse {
+  apr: number | null
+  apy: number | null
+  points: StrategyPerformancePoint[]
+  range: PerformanceRange
+  strategy_id: string
+  window_days: number | null
 }
 
 function toPublicUser(user: UserRow): PublicUser {
@@ -330,6 +351,27 @@ export function buildApi(config: Config, repo: Repository) {
       }
       return detail
     })
+    .get("/strategies/:id/performance", async ({ params, query }): Promise<StrategyPerformanceResponse> => {
+      const range = performanceRangeSchema.parse(query.range)
+      const strategyId = params.id.toLowerCase()
+      const snapshots = await repo.listStrategyPerformanceSnapshots(strategyId, range)
+      const points = snapshots.map((row) => ({
+        nav: Number(row.nav),
+        share_price: row.sharePrice,
+        timestamp_ms: row.timestampMs,
+        total_shares: Number(row.totalShares),
+      }))
+      const annualized = annualizedReturn(points, rangeToAnnualizedWindowMs(range))
+
+      return {
+        apr: annualized?.apr ?? null,
+        apy: annualized?.apy ?? null,
+        points,
+        range,
+        strategy_id: strategyId,
+        window_days: annualized?.windowDays ?? null,
+      }
+    })
     .get(
       "/arena/creators/:addressOrHandle",
       async ({ params, set }): Promise<ArenaCreatorDetail | undefined> => {
@@ -471,6 +513,16 @@ function parseJsonOrString(value: string): unknown {
     return JSON.parse(value)
   } catch {
     return value
+  }
+}
+
+function rangeToAnnualizedWindowMs(range: PerformanceRange): number {
+  switch (range) {
+    case "7D":
+      return 7 * DAY_MS
+    case "30D":
+    case "ALL":
+      return 30 * DAY_MS
   }
 }
 

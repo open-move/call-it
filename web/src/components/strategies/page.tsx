@@ -4,6 +4,7 @@ import { ArrowRightIcon } from "lucide-react"
 import { StatusIndicator } from "@/components/primitives/status-indicator"
 import { Card } from "@/components/ui/card"
 import { StrategyVisual } from "./strategy-visual"
+import { apyWindowLabel } from "@/lib/perf/annualize"
 import {
   getStrategyStatusTone,
   useStrategyStats,
@@ -61,6 +62,12 @@ const navFormatter = new Intl.NumberFormat("en-US", {
   style: "currency",
 })
 
+const percentFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 2,
+  minimumFractionDigits: 2,
+  style: "percent",
+})
+
 function SkeletonBar({ className }: { className: string }) {
   return (
     <span
@@ -101,7 +108,7 @@ function StrategyCard({
           {strategy.description}
         </p>
 
-        <div className="mt-9 flex items-end justify-between gap-3">
+        <div className="mt-9 grid grid-cols-3 items-end gap-3">
           <div className="min-w-0">
             <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               NAV
@@ -118,7 +125,23 @@ function StrategyCard({
               )}
             </div>
           </div>
-          <div className="text-right">
+          <div className="min-w-0 text-center">
+            <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
+              {apyWindowLabel(stat?.apyWindowDays)}
+            </div>
+            <div className="mt-1 font-mono text-xl leading-none font-medium tracking-tight text-foreground tabular-nums">
+              {stat ? (
+                stat.apy === undefined || stat.apy === null ? (
+                  "—"
+                ) : (
+                  percentFormatter.format(stat.apy)
+                )
+              ) : (
+                <SkeletonBar className="h-5 w-14" />
+              )}
+            </div>
+          </div>
+          <div className="min-w-0 text-right">
             <div className="text-[10px] tracking-[0.16em] text-muted-foreground uppercase">
               {strategy.asset ? "Share" : strategy.shareToken} price
             </div>

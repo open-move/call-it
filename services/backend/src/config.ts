@@ -17,8 +17,26 @@ export interface Config {
   predictObjectId: string;
   predictPackageId: string;
   predictServerUrl: string;
+  strategyObjectIds: StrategyObjectIds;
+  strategyPackageIds: StrategyPackageIds;
   suiNetwork: SuiClientTypes.Network;
   suiRpcUrl: string;
+}
+
+export interface StrategyPackageIds {
+  bullishUpside: string | null;
+  hedgedPlp: string | null;
+  plpCollar: string | null;
+  rangeLadder: string | null;
+  strangle: string | null;
+}
+
+export interface StrategyObjectIds {
+  bullishUpside: string | null;
+  hedgedPlp: string | null;
+  plpCollar: string | null;
+  rangeLadder: string | null;
+  strangle: string | null;
 }
 
 const DEFAULT_DYNAMIC_ENV_ID = "981f0d75-a958-444d-8eb4-703aa3d30c18";
@@ -56,6 +74,10 @@ function envPositiveInteger(defaultValue: number) {
     .pipe(z.number().int().positive());
 }
 
+const optionalAddressEnv = optionalEnvString.transform((value) =>
+  value === undefined ? null : value.toLowerCase(),
+);
+
 const configSchema = z
   .object({
     ARENA_OBJECT_ID: requiredEnvString.transform((value) =>
@@ -64,10 +86,14 @@ const configSchema = z
     ARENA_PACKAGE_ID: requiredEnvString.transform((value) =>
       value.toLowerCase(),
     ),
+    BULLISH_UPSIDE_PACKAGE_ID: optionalAddressEnv,
+    BULLISH_UPSIDE_STRATEGY_ID: optionalAddressEnv,
     DATABASE_URL: requiredEnvString,
     DYNAMIC_ENV_ID: envString(DEFAULT_DYNAMIC_ENV_ID),
     DYNAMIC_ISSUER: optionalEnvString,
     DYNAMIC_JWKS_URL: optionalEnvString,
+    HEDGED_PLP_PACKAGE_ID: optionalAddressEnv,
+    HEDGED_PLP_STRATEGY_ID: optionalAddressEnv,
     INGEST_MAX_CHECKPOINTS_PER_SCAN: envPositiveInteger(25),
     INGEST_POLL_SECONDS: envPositiveInteger(15),
     INGEST_START_CHECKPOINT: optionalBigintString,
@@ -81,6 +107,12 @@ const configSchema = z
     PREDICT_SERVER_URL: envString(
       "https://predict-server.testnet.mystenlabs.com",
     ),
+    PLP_COLLAR_PACKAGE_ID: optionalAddressEnv,
+    PLP_COLLAR_STRATEGY_ID: optionalAddressEnv,
+    RANGE_LADDER_PACKAGE_ID: optionalAddressEnv,
+    RANGE_LADDER_STRATEGY_ID: optionalAddressEnv,
+    STRANGLE_PACKAGE_ID: optionalAddressEnv,
+    STRANGLE_STRATEGY_ID: optionalAddressEnv,
     SUI_NETWORK: envString("testnet").transform(
       (value) => value as SuiClientTypes.Network,
     ),
@@ -108,6 +140,20 @@ const configSchema = z
       predictObjectId: env.PREDICT_OBJECT_ID,
       predictPackageId: env.PREDICT_PACKAGE_ID,
       predictServerUrl: env.PREDICT_SERVER_URL,
+      strategyObjectIds: {
+        bullishUpside: env.BULLISH_UPSIDE_STRATEGY_ID,
+        hedgedPlp: env.HEDGED_PLP_STRATEGY_ID,
+        plpCollar: env.PLP_COLLAR_STRATEGY_ID,
+        rangeLadder: env.RANGE_LADDER_STRATEGY_ID,
+        strangle: env.STRANGLE_STRATEGY_ID,
+      },
+      strategyPackageIds: {
+        bullishUpside: env.BULLISH_UPSIDE_PACKAGE_ID,
+        hedgedPlp: env.HEDGED_PLP_PACKAGE_ID,
+        plpCollar: env.PLP_COLLAR_PACKAGE_ID,
+        rangeLadder: env.RANGE_LADDER_PACKAGE_ID,
+        strangle: env.STRANGLE_PACKAGE_ID,
+      },
       suiNetwork: env.SUI_NETWORK,
       suiRpcUrl: env.SUI_RPC_URL,
     };

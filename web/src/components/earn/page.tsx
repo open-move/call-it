@@ -36,7 +36,7 @@ export function Page({
             <LiquidityPanel summary={summary} />
           </aside>
 
-          <VaultStatsCard summary={summary} />
+          <VaultStatsCard performance={performance} summary={summary} />
         </div>
 
         <div className="mx-auto max-w-5xl rounded-lg bg-card p-4">

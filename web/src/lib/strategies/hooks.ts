@@ -2,9 +2,12 @@ import { useEffect, useState } from "react"
 
 import { StatusTone } from "@/components/primitives/status-indicator"
 import { QUOTE_SCALE } from "@/lib/config"
+import { getDisplayChartPoints } from "@/lib/earn/chart"
+import { annualizedReturn } from "@/lib/perf/annualize"
 import { getStrategyStatus } from "@/lib/strategies/format"
 import { STRATEGY_ORDER } from "@/lib/strategies/registry"
-import { getPredictVaultSummary } from "@/services/predict-client"
+import { getPredictVaultPerformance, getPredictVaultSummary } from "@/services/predict-client"
+import { getStrategyPerformance } from "@/services/strategy-performance-client"
 import { getStrategyState } from "@/services/strategy-client"
 import type { StrategyKey } from "@/services/strategy-transactions"
 
@@ -12,6 +15,8 @@ import type { StrategyKey } from "@/services/strategy-transactions"
 export type StrategyStatsKey = "earn" | StrategyKey
 
 export interface StrategyStat {
+  apy?: number | null
+  apyWindowDays?: number | null
   navUsd?: number
   sharePrice?: number
   status?: string
@@ -48,10 +53,14 @@ export function useStrategyStats() {
     let active = true
 
     async function load() {
-      const [earn, ...vaultStates] = await Promise.all([
+      const [earn, earnPerformance, ...vaultResults] = await Promise.all([
         getPredictVaultSummary().catch(() => undefined),
-        ...STRATEGY_ORDER.map((key) =>
-          getStrategyState(key).catch(() => undefined)
+        getPredictVaultPerformance("ALL").catch(() => undefined),
+        ...STRATEGY_ORDER.map(async (key) =>
+          Promise.all([
+            getStrategyState(key).catch(() => undefined),
+            getStrategyPerformance(key, "ALL").catch(() => null),
+          ]).then(([state, performance]) => ({ key, performance, state }))
         ),
       ])
 
@@ -59,18 +68,27 @@ export function useStrategyStats() {
         return
       }
 
+      const earnAnnualized = earnPerformance
+        ? annualizedReturn(getDisplayChartPoints(earnPerformance.points).points)
+        : null
+
       const next: StrategyStats = {
         earn: {
+          apy: earnPerformance ? earnAnnualized?.apy ?? null : undefined,
+          apyWindowDays: earnPerformance ? earnAnnualized?.windowDays ?? null : undefined,
           navUsd: earn ? earn.vault_value / QUOTE_SCALE : undefined,
           sharePrice: earn?.plp_share_price,
           status: earn ? "Live" : undefined,
         },
       }
 
-      STRATEGY_ORDER.forEach((key, index) => {
-        const state = vaultStates[index]
+      vaultResults.forEach(({ key, performance, state }) => {
+        const displayPoints = performance ? getDisplayChartPoints(performance.points).points : []
+        const annualized = performance ? annualizedReturn(displayPoints) : null
 
         next[key] = {
+          apy: performance ? annualized?.apy ?? null : undefined,
+          apyWindowDays: performance ? annualized?.windowDays ?? null : undefined,
           navUsd: state ? Number(state.nav) / QUOTE_SCALE : undefined,
           sharePrice: state?.sharePrice,
           status: state ? getStrategyStatus(state) : undefined,

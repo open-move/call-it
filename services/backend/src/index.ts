@@ -4,8 +4,10 @@ import type { Config } from "./config.ts"
 import { openDatabase, runMigrations } from "./db/database.ts"
 import { Repository } from "./db/repo.ts"
 import { arenaPipeline } from "./ingest/arena.ts"
+import { PIPELINE } from "./ingest/cursor.ts"
 import { backfillRange, runPipelineStream } from "./ingest/events.ts"
 import type { PipelineDefinition } from "./ingest/events.ts"
+import { strategyPerformancePipelines } from "./ingest/strategy-performance.ts"
 import { logger, toLogFields } from "./logger.ts"
 import { createSuiClient } from "./sui/client.ts"
 import type { SuiClient } from "./sui/client.ts"
@@ -50,7 +52,7 @@ async function main(): Promise<void> {
 }
 
 function buildPipelines(config: Config): PipelineDefinition[] {
-  return [arenaPipeline(config)]
+  return [arenaPipeline(config), ...strategyPerformancePipelines(config)]
 }
 
 // One-shot backfill: catch each pipeline up from its cursor to the current tip,
@@ -68,6 +70,9 @@ async function ingestOnce(
       await repo.setCursor(pipeline.name, tip)
     }
     await backfillRange(client, repo, pipeline, cursor + 1n, tip)
+    if (pipeline.afterBackfill !== undefined) {
+      await pipeline.afterBackfill(client, repo)
+    }
     logger.info(
       toLogFields({ cursor: (await repo.getCursor(pipeline.name))?.toString() ?? null, pipeline: pipeline.name }),
       "ingest once complete"
@@ -120,10 +125,15 @@ async function serve(
 }
 
 async function runStatus(repo: Repository): Promise<void> {
-  const arenaCursor = await repo.getCursor("arena")
+  const pipelines = Object.values(PIPELINE)
+  const cursors = Object.fromEntries(
+    await Promise.all(
+      pipelines.map(async (pipeline) => [pipeline, (await repo.getCursor(pipeline))?.toString() ?? null])
+    )
+  )
   logger.info(
     toLogFields({
-      arenaCursor: arenaCursor === null ? null : arenaCursor.toString(),
+      cursors,
       counts: await repo.counts(),
       summary: await repo.summary(),
     }),

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, getTableName, inArray, or, sql } from "drizzle-orm"
+import { and, asc, desc, eq, getTableName, gte, inArray, or, sql } from "drizzle-orm"
 import type { Table } from "drizzle-orm"
 
 import { newId } from "../ids.ts"
@@ -16,6 +16,8 @@ import {
   ingestCursors,
   metadata,
   rawEvents,
+  strategyFoldState,
+  strategyPerfSnapshots,
   users,
   wallets,
 } from "./schema.ts"
@@ -24,6 +26,7 @@ import type {
   ArenaCreatorRow,
   MetadataRow,
   RawEventRow,
+  StrategyPerfSnapshotRow,
   UserRow,
   WalletRow,
 } from "./schema.ts"
@@ -35,6 +38,8 @@ import type {
   CreatorBondClaimedEvent,
   CreatorBondReclaimedEvent,
 } from "../domains/arena.ts"
+import { applyStrategyFold } from "../domains/strategy-performance.ts"
+import type { StrategyPerformanceEvent, StrategySnapshotKind } from "../domains/strategy-performance.ts"
 
 // A transaction-scoped database handle (the type drizzle hands to a tx
 // callback). Used so a checkpoint's inserts + cursor advance commit atomically.
@@ -51,6 +56,8 @@ export interface ProfileInput {
   displayName?: string | undefined
   username?: string | undefined
 }
+
+export type PerformanceRange = "ALL" | "30D" | "7D"
 
 // Thrown when a requested username is already taken by another user. The API
 // maps this to a clean 409 rather than surfacing a raw Postgres unique error.
@@ -403,6 +410,46 @@ export class Repository {
     }
   }
 
+  async listStrategyPerformanceSnapshots(
+    strategyId: string,
+    range: PerformanceRange
+  ): Promise<StrategyPerfSnapshotRow[]> {
+    const windowMs = rangeToWindowMs(range)
+    const where = windowMs === null
+      ? eq(strategyPerfSnapshots.strategyId, strategyId.toLowerCase())
+      : and(
+          eq(strategyPerfSnapshots.strategyId, strategyId.toLowerCase()),
+          gte(strategyPerfSnapshots.timestampMs, Date.now() - windowMs)
+        )
+
+    return this.database.db.query.strategyPerfSnapshots.findMany({
+      orderBy: (table) => [asc(table.timestampMs), asc(table.checkpoint), asc(table.eventSeq)],
+      where,
+    })
+  }
+
+  async getStrategyFoldSupply(strategyId: string): Promise<bigint | null> {
+    const row = await this.database.db.query.strategyFoldState.findFirst({
+      where: eq(strategyFoldState.strategyId, strategyId.toLowerCase()),
+    })
+    return row === undefined ? null : BigInt(row.supply)
+  }
+
+  async shouldResetStrategyPerformance(strategyId: string, fromCheckpoint: bigint): Promise<boolean> {
+    const row = await this.database.db.query.strategyFoldState.findFirst({
+      where: eq(strategyFoldState.strategyId, strategyId.toLowerCase()),
+    })
+    return row !== undefined && fromCheckpoint <= BigInt(row.updatedCheckpoint)
+  }
+
+  async resetStrategyPerformance(strategyId: string): Promise<void> {
+    const normalized = strategyId.toLowerCase()
+    await this.database.db.transaction(async (tx) => {
+      await tx.delete(strategyPerfSnapshots).where(eq(strategyPerfSnapshots.strategyId, normalized))
+      await tx.delete(strategyFoldState).where(eq(strategyFoldState.strategyId, normalized))
+    })
+  }
+
   private async countAll(table: Table): Promise<number> {
     const result = await this.database.db.execute(
       sql`SELECT COUNT(*)::int AS count FROM ${sql.identifier(getTableName(table))}`
@@ -453,6 +500,63 @@ export class CheckpointContext {
         txIndex: input.meta.txIndex,
       })
       .onConflictDoNothing({ target: rawEvents.eventId })
+  }
+
+  async applyStrategyPerformanceEvent(meta: EventMeta, event: StrategyPerformanceEvent): Promise<void> {
+    const existing = await this.tx.query.strategyFoldState.findFirst({
+      where: eq(strategyFoldState.strategyId, event.strategyId),
+    })
+    const result = applyStrategyFold(
+      { lastRound: existing?.lastRound ?? null, supply: existing === undefined ? 0n : BigInt(existing.supply) },
+      event
+    )
+
+    if (result.snapshot !== null) {
+      await this.insertStrategySnapshot(meta, event.strategyId, result.snapshot)
+    }
+
+    await this.tx
+      .insert(strategyFoldState)
+      .values({
+        lastRound: result.state.lastRound,
+        strategyId: event.strategyId,
+        supply: result.state.supply.toString(),
+        updatedCheckpoint: meta.checkpoint,
+      })
+      .onConflictDoUpdate({
+        set: {
+          lastRound: result.state.lastRound,
+          supply: result.state.supply.toString(),
+          updatedCheckpoint: meta.checkpoint,
+        },
+        target: strategyFoldState.strategyId,
+      })
+  }
+
+  private async insertStrategySnapshot(
+    meta: EventMeta,
+    strategyId: string,
+    snapshot: {
+      kind: StrategySnapshotKind
+      nav: bigint
+      sharePrice: number
+      totalShares: bigint
+    }
+  ): Promise<void> {
+    await this.tx
+      .insert(strategyPerfSnapshots)
+      .values({
+        checkpoint: meta.checkpoint,
+        eventSeq: meta.eventIndex,
+        kind: snapshot.kind,
+        nav: snapshot.nav.toString(),
+        sharePrice: snapshot.sharePrice,
+        strategyId,
+        timestampMs: meta.checkpointTimestampMs,
+        totalShares: snapshot.totalShares.toString(),
+        txDigest: meta.digest,
+      })
+      .onConflictDoNothing({ target: [strategyPerfSnapshots.txDigest, strategyPerfSnapshots.eventSeq] })
   }
 
   // --- CallLaunched ---
@@ -688,6 +792,17 @@ function readCount(row: Record<string, unknown> | undefined): number {
     return Number(row.count)
   }
   return 0
+}
+
+function rangeToWindowMs(range: PerformanceRange): number | null {
+  switch (range) {
+    case "ALL":
+      return null
+    case "30D":
+      return 30 * 24 * 60 * 60 * 1000
+    case "7D":
+      return 7 * 24 * 60 * 60 * 1000
+  }
 }
 
 // Re-exported guard for callers needing the composite filter helper.

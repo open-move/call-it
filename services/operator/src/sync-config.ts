@@ -3,7 +3,7 @@
 //   - web/src/lib/deployment.ts  (generated: the complete, typed source of truth)
 //   - web/src/lib/config.ts      (patched: arena ids, base vault, BACKEND_URL)
 //   - web/.env                   (patched/created: VITE_DYNAMIC_ENVIRONMENT_ID)
-//   - services/backend/.env      (patched/created: ARENA_PACKAGE_ID/OBJECT_ID)
+//   - services/backend/.env      (patched/created: arena + strategy package ids)
 // Run after every deploy: `bun run sync-config`.
 
 import { access, copyFile, readFile, writeFile } from "node:fs/promises"
@@ -158,8 +158,18 @@ async function main(): Promise<void> {
   let backendEnv = await readFile(backendEnvPath, "utf8")
   backendEnv = setEnv(backendEnv, "ARENA_PACKAGE_ID", manifest.arena.packageId)
   backendEnv = setEnv(backendEnv, "ARENA_OBJECT_ID", manifest.arena.arenaId)
+  backendEnv = setEnv(backendEnv, "BULLISH_UPSIDE_PACKAGE_ID", manifest.bullishUpside.packageId)
+  backendEnv = setEnv(backendEnv, "BULLISH_UPSIDE_STRATEGY_ID", manifest.bullishUpside.strategyId)
+  backendEnv = setEnv(backendEnv, "HEDGED_PLP_PACKAGE_ID", manifest.hedgedPlp.packageId)
+  backendEnv = setEnv(backendEnv, "HEDGED_PLP_STRATEGY_ID", manifest.hedgedPlp.strategyId)
+  backendEnv = setEnv(backendEnv, "PLP_COLLAR_PACKAGE_ID", manifest.plpCollar.packageId)
+  backendEnv = setEnv(backendEnv, "PLP_COLLAR_STRATEGY_ID", manifest.plpCollar.strategyId)
+  backendEnv = setEnv(backendEnv, "RANGE_LADDER_PACKAGE_ID", manifest.rangeLadder.packageId)
+  backendEnv = setEnv(backendEnv, "RANGE_LADDER_STRATEGY_ID", manifest.rangeLadder.strategyId)
+  backendEnv = setEnv(backendEnv, "STRANGLE_PACKAGE_ID", manifest.strangle.packageId)
+  backendEnv = setEnv(backendEnv, "STRANGLE_STRATEGY_ID", manifest.strangle.strategyId)
   await writeFile(backendEnvPath, backendEnv)
-  logger.info({ file: backendEnvPath }, "patched backend .env arena ids")
+  logger.info({ file: backendEnvPath }, "patched backend .env package ids")
 
   // 5. services/keeper/.env — keeper reward vault ids (create from example if
   // missing). The keeper routes redemptions through the vault when these are set

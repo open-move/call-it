@@ -44,7 +44,7 @@ export interface StrategyState {
   paused: boolean
   round: StrategyRound | null
   /** Raw policy bps/counts by field name (e.g. hedge_budget_bps), for allocation + policy panels. */
-  policy: Record<string, number>
+  policy: Partial<Record<string, number>>
 }
 
 export interface StrategyWalletState {

@@ -16,6 +16,8 @@ import type { SuiClient } from "../sui/client.ts"
 export type CheckpointHandler = (ctx: CheckpointContext, event: CheckpointEvent) => Promise<void>
 
 export interface PipelineDefinition {
+  afterBackfill?: (client: SuiClient, repo: Repository) => Promise<void>
+  beforeBackfill?: (repo: Repository, from: bigint) => Promise<void>
   handler: CheckpointHandler
   name: string
   packageId: string
@@ -91,6 +93,10 @@ export async function backfillRange(
     toLogFields({ from: from.toString(), pipeline: pipeline.name, to: to.toString() }),
     "backfill range start"
   )
+
+  if (pipeline.beforeBackfill !== undefined) {
+    await pipeline.beforeBackfill(repo, from)
+  }
 
   // Sliding window of in-flight reads keyed by sequence number. We launch up to
   // BACKFILL_CONCURRENCY reads ahead, then await + commit them in order.

@@ -1,4 +1,4 @@
-import type { VaultPerformanceResponse } from "@/lib/types/predict"
+import type { PerformancePoint } from "@/lib/perf/annualize"
 
 export function getMedian(values: number[]) {
   const sortedValues = [...values].sort((first, second) => first - second)
@@ -9,7 +9,7 @@ export function getMedian(values: number[]) {
     : sortedValues[midpoint]
 }
 
-export function getDisplayChartPoints(points: VaultPerformanceResponse["points"]) {
+export function getDisplayChartPoints<TPoint extends PerformancePoint>(points: TPoint[]) {
   if (points.length < 8) {
     return { filteredCount: 0, points }
   }
@@ -32,7 +32,7 @@ export function getDisplayChartPoints(points: VaultPerformanceResponse["points"]
   }
 }
 
-export function getChartDomain(points: VaultPerformanceResponse["points"]) {
+export function getChartDomain(points: PerformancePoint[]) {
   if (points.length === 0) {
     return undefined
   }

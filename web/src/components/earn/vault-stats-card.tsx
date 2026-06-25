@@ -1,8 +1,10 @@
 import { AllocationBar } from "@/components/primitives/allocation-bar"
 import type { AllocationSegment } from "@/components/primitives/allocation-bar"
 import { DataRow } from "@/components/primitives/data-row"
-import { formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
-import type { VaultSummary } from "@/lib/types/predict"
+import { getDisplayChartPoints } from "@/lib/earn/chart"
+import { formatPercent, formatQuoteAmount, formatQuoteUsd, formatSharePrice } from "@/lib/earn/format"
+import { annualizedReturn, apyWindowLabel } from "@/lib/perf/annualize"
+import type { VaultPerformanceResponse, VaultSummary } from "@/lib/types/predict"
 
 function utilizationSegments(summary: VaultSummary): AllocationSegment[] {
   const used = Math.min(1, Math.max(0, summary.utilization))
@@ -13,7 +15,15 @@ function utilizationSegments(summary: VaultSummary): AllocationSegment[] {
   ]
 }
 
-export function VaultStatsCard({ summary }: { summary: VaultSummary }) {
+export function VaultStatsCard({
+  performance,
+  summary,
+}: {
+  performance: VaultPerformanceResponse
+  summary: VaultSummary
+}) {
+  const annualized = annualizedReturn(getDisplayChartPoints(performance.points).points)
+
   return (
     <div className="flex h-full flex-col rounded-lg bg-card p-4">
       <h2 className="text-sm leading-none font-medium tracking-[-0.01em] text-foreground">
@@ -40,6 +50,10 @@ export function VaultStatsCard({ summary }: { summary: VaultSummary }) {
       </div>
 
       <div className="mt-5">
+        <DataRow
+          label={apyWindowLabel(annualized?.windowDays)}
+          value={annualized === null ? "—" : formatPercent(annualized.apy)}
+        />
         <DataRow
           label="Withdrawable"
           value={formatQuoteUsd(summary.available_withdrawal)}

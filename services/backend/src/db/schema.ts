@@ -1,4 +1,4 @@
-import { bigint, boolean, index, integer, pgTable, text } from "drizzle-orm/pg-core"
+import { bigint, boolean, doublePrecision, index, integer, pgTable, text, uniqueIndex } from "drizzle-orm/pg-core"
 import type { InferSelectModel } from "drizzle-orm"
 
 // NOTE on u64 storage: Move u64 max (2^64-1) exceeds Postgres bigint
@@ -47,6 +47,32 @@ export const metadata = pgTable("metadata", {
   createdAt: bigint("created_at", { mode: "number" }).notNull(),
   hash: text("hash").primaryKey(),
 })
+
+export const strategyFoldState = pgTable("strategy_fold_state", {
+  lastRound: integer("last_round"),
+  strategyId: text("strategy_id").primaryKey(),
+  supply: text("supply").notNull(),
+  updatedCheckpoint: bigint("updated_checkpoint", { mode: "number" }).notNull(),
+})
+
+export const strategyPerfSnapshots = pgTable(
+  "strategy_perf_snapshot",
+  {
+    checkpoint: bigint("checkpoint", { mode: "number" }).notNull(),
+    eventSeq: integer("event_seq").notNull(),
+    kind: text("kind").notNull(),
+    nav: text("nav").notNull(),
+    sharePrice: doublePrecision("share_price").notNull(),
+    strategyId: text("strategy_id").notNull(),
+    timestampMs: bigint("timestamp_ms", { mode: "number" }).notNull(),
+    totalShares: text("total_shares").notNull(),
+    txDigest: text("tx_digest").notNull(),
+  },
+  (table) => ({
+    strategyTimestampIdx: index("strategy_perf_strategy_timestamp_idx").on(table.strategyId, table.timestampMs),
+    txEventUnique: uniqueIndex("strategy_perf_tx_event_unique").on(table.txDigest, table.eventSeq),
+  })
+)
 
 // ---------------------------------------------------------------------------
 // Identity (Dynamic -> backend user + linked wallets)
@@ -223,5 +249,7 @@ export type ArenaCreatorRow = InferSelectModel<typeof arenaCreators>
 export type ArenaParticipationRow = InferSelectModel<typeof arenaParticipations>
 export type MetadataRow = InferSelectModel<typeof metadata>
 export type RawEventRow = InferSelectModel<typeof rawEvents>
+export type StrategyFoldStateRow = InferSelectModel<typeof strategyFoldState>
+export type StrategyPerfSnapshotRow = InferSelectModel<typeof strategyPerfSnapshots>
 export type UserRow = InferSelectModel<typeof users>
 export type WalletRow = InferSelectModel<typeof wallets>
