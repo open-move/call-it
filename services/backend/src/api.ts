@@ -14,8 +14,15 @@ import {
 } from "./domains/auth.ts"
 import type { BackendSession } from "./domains/auth.ts"
 import { PredictServerClient } from "./domains/predict-server.ts"
-import { parseArenaMetadata } from "./domains/metadata.ts"
-import { hashContent } from "./domains/metadata.ts"
+import {
+  MAX_METADATA_BYTES,
+  canonicalize,
+  hashContent,
+  metadataByteLength,
+  metadataContentTypeSchema,
+  metadataWriteContentSchema,
+  parseArenaMetadata,
+} from "./domains/metadata.ts"
 import type {
   ArenaActivityModel,
   ArenaCallModel,
@@ -37,7 +44,7 @@ import { logger } from "./logger.ts"
 const ACTIVITY_LIMIT = 50
 
 const metadataBodySchema = z.object({
-  content: z.unknown(),
+  content: metadataWriteContentSchema,
   contentType: z.string().min(1),
   hash: z.string().min(1).optional(),
 })
@@ -364,17 +371,26 @@ export function buildApi(config: Config, repo: Repository) {
         }
       }
     )
-    .post("/metadata", async ({ body, set }) => {
+    .post("/metadata", async ({ body, session, set }) => {
+      requireSession(session)
       const parsed = metadataBodySchema.parse(body)
+      const contentType = metadataContentTypeSchema.safeParse(parsed.contentType)
+      if (!contentType.success) {
+        set.status = 400
+        return { error: "unsupported_content_type" }
+      }
+      const contentJson = canonicalize(parsed.content)
+      if (metadataByteLength(contentJson) > MAX_METADATA_BYTES) {
+        set.status = 413
+        return { error: "metadata_too_large", maxBytes: MAX_METADATA_BYTES }
+      }
       const hash = hashContent(parsed.content)
       // V0 integrity check: if a hash is supplied it must match the content hash.
-      // TODO(V1): require a wallet signature over the content/hash before storing.
       if (parsed.hash !== undefined && parsed.hash.toLowerCase() !== hash) {
         set.status = 400
         return { error: "hash_mismatch", expected: hash, supplied: parsed.hash.toLowerCase() }
       }
-      const contentJson = typeof parsed.content === "string" ? parsed.content : JSON.stringify(parsed.content)
-      await repo.storeMetadata(hash, contentJson, parsed.contentType)
+      await repo.storeMetadata(hash, contentJson, contentType.data)
       return { hash }
     })
     .get("/metadata/:hash", async ({ params, set }) => {

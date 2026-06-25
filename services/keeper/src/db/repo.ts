@@ -73,6 +73,12 @@ export class Repository {
       })
   }
 
+  withTransaction<T>(run: (repo: Repository) => T): T {
+    return this.database.db.transaction((tx) =>
+      run(new Repository({ db: tx as unknown as Database["db"], sqlite: this.database.sqlite }))
+    )
+  }
+
   async insertRawEvents(events: StoredRawEvent[]) {
     if (events.length === 0) {
       return 0
@@ -102,23 +108,25 @@ export class Repository {
     return rows.map(rawEventFromRow)
   }
 
-  async markRawEventReconciled(id: string) {
-    await this.database.db
+  markRawEventReconciled(id: string) {
+    this.database.db
       .update(rawEvents)
       .set({ reconcileError: null, reconciledAt: Date.now() })
       .where(eq(rawEvents.id, id))
+      .run()
   }
 
-  async markRawEventFailed(id: string, error: string) {
-    await this.database.db
+  markRawEventFailed(id: string, error: string) {
+    this.database.db
       .update(rawEvents)
       .set({ reconcileError: error, reconciledAt: Date.now() })
       .where(eq(rawEvents.id, id))
+      .run()
   }
 
-  async upsertOracleSettled(event: OracleSettledEvent, checkpoint: number) {
+  upsertOracleSettled(event: OracleSettledEvent, checkpoint: number) {
     const now = Date.now()
-    await this.database.db
+    this.database.db
       .insert(oracles)
       .values({
         expiry: event.expiry.toString(),
@@ -135,42 +143,47 @@ export class Repository {
         },
         target: [oracles.oracleId, oracles.expiry],
       })
+      .run()
 
     // Settlement is per (oracle, expiry): only flag positions of the same
     // expiry so other rounds on the same oracle id are not mismarked.
-    await this.database.db
+    this.database.db
       .update(positions)
       .set({ settled: true, settlementPrice: event.settlementPrice.toString() })
       .where(and(eq(positions.oracleId, event.oracleId), eq(positions.expiry, event.expiry.toString())))
+      .run()
   }
 
-  async applyMint(event: PositionMintedEvent, checkpoint: number) {
+  applyMint(event: PositionMintedEvent, checkpoint: number) {
     const key = positionKey(event)
-    const existing = await this.getPositionRow(key)
+    const existing = this.getPositionRow(key)
     if (existing === null) {
-      await this.database.db.insert(positions).values({
-        cost: event.cost.toString(),
-        expiry: event.expiry.toString(),
-        isUp: event.isUp,
-        key,
-        lastCheckpoint: checkpoint,
-        managerId: event.managerId,
-        mintedQty: event.quantity.toString(),
-        openQty: event.quantity.toString(),
-        oracleId: event.oracleId,
-        owner: event.trader,
-        payout: "0",
-        quoteAsset: event.quoteAsset,
-        redeemedQty: "0",
-        settled: false,
-        settlementPrice: null,
-        strike: event.strike.toString(),
-      })
+      this.database.db
+        .insert(positions)
+        .values({
+          cost: event.cost.toString(),
+          expiry: event.expiry.toString(),
+          isUp: event.isUp,
+          key,
+          lastCheckpoint: checkpoint,
+          managerId: event.managerId,
+          mintedQty: event.quantity.toString(),
+          openQty: event.quantity.toString(),
+          oracleId: event.oracleId,
+          owner: event.trader,
+          payout: "0",
+          quoteAsset: event.quoteAsset,
+          redeemedQty: "0",
+          settled: false,
+          settlementPrice: null,
+          strike: event.strike.toString(),
+        })
+        .run()
       return
     }
 
     const current = positionFromRow(existing)
-    await this.database.db
+    this.database.db
       .update(positions)
       .set({
         cost: (current.cost + event.cost).toString(),
@@ -179,37 +192,41 @@ export class Repository {
         openQty: (current.openQty + event.quantity).toString(),
       })
       .where(eq(positions.key, key))
+      .run()
   }
 
-  async applyRedeem(event: PositionRedeemedEvent, checkpoint: number) {
+  applyRedeem(event: PositionRedeemedEvent, checkpoint: number) {
     const key = positionKey(event)
-    const existing = await this.getPositionRow(key)
+    const existing = this.getPositionRow(key)
     if (existing === null) {
-      await this.database.db.insert(positions).values({
-        cost: "0",
-        expiry: event.expiry.toString(),
-        isUp: event.isUp,
-        key,
-        lastCheckpoint: checkpoint,
-        managerId: event.managerId,
-        mintedQty: "0",
-        openQty: "0",
-        oracleId: event.oracleId,
-        owner: event.owner,
-        payout: event.payout.toString(),
-        quoteAsset: event.quoteAsset,
-        redeemedQty: event.quantity.toString(),
-        settled: event.isSettled,
-        settlementPrice: null,
-        strike: event.strike.toString(),
-      })
+      this.database.db
+        .insert(positions)
+        .values({
+          cost: "0",
+          expiry: event.expiry.toString(),
+          isUp: event.isUp,
+          key,
+          lastCheckpoint: checkpoint,
+          managerId: event.managerId,
+          mintedQty: "0",
+          openQty: "0",
+          oracleId: event.oracleId,
+          owner: event.owner,
+          payout: event.payout.toString(),
+          quoteAsset: event.quoteAsset,
+          redeemedQty: event.quantity.toString(),
+          settled: event.isSettled,
+          settlementPrice: null,
+          strike: event.strike.toString(),
+        })
+        .run()
       return
     }
 
     const current = positionFromRow(existing)
     const redeemedQty = current.redeemedQty + event.quantity
     const openQty = current.openQty > event.quantity ? current.openQty - event.quantity : 0n
-    await this.database.db
+    this.database.db
       .update(positions)
       .set({
         lastCheckpoint: checkpoint,
@@ -219,6 +236,7 @@ export class Repository {
         settled: current.settled || event.isSettled,
       })
       .where(eq(positions.key, key))
+      .run()
   }
 
   async listPositions(
@@ -350,8 +368,8 @@ export class Repository {
     }
   }
 
-  private async getPositionRow(key: string) {
-    const row = await this.database.db.query.positions.findFirst({ where: eq(positions.key, key) })
+  private getPositionRow(key: string) {
+    const row = this.database.db.query.positions.findFirst({ where: eq(positions.key, key) }).sync()
     return row ?? null
   }
 }

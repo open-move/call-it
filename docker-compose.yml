@@ -104,6 +104,8 @@ services:
         required: false
     environment:
       KEEPER_HTTP_PORT: "8801"
+      # Set KEEPER_STATUS_TOKEN in services/keeper/.env for production. With a
+      # token configured, /healthz is the only unauthenticated keeper endpoint.
       # Fresh DB watches forward from now; set KEEPER_START_CHECKPOINT in .env to backfill.
       KEEPER_START_FROM_LATEST: "true"
     ports:

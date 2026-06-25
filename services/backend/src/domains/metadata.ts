@@ -1,13 +1,12 @@
 import { createHash } from "node:crypto"
 import { z } from "zod"
 
-// Off-chain metadata: arbitrary content addressed by the sha256 hash of its
-// canonical JSON-string form. The Arena contract stores `metadata_hash` on
-// chain; the backend stores the resolvable content here.
-//
-// V0 auth: anyone may store content; we only verify that the content actually
-// hashes to the supplied hash (content-addressing integrity).
-// TODO(V1): require a wallet signature over the content/hash before storing.
+// Off-chain metadata: small content-addressed payloads. The Arena contract
+// stores `metadata_hash` on chain; the backend stores the resolvable content.
+
+export const MAX_METADATA_BYTES = 4096
+
+export const metadataContentTypeSchema = z.enum(["application/json", "text/plain"])
 
 export interface ArenaMetadataContent {
   avatarSeed?: string | undefined
@@ -18,11 +17,15 @@ export interface ArenaMetadataContent {
 // Content is open-ended JSON, but known arena fields are surfaced for the API.
 export const metadataContentSchema = z
   .object({
-    avatarSeed: z.string().optional(),
-    handle: z.string().optional(),
-    name: z.string().optional(),
+    avatarSeed: z.string().max(80).optional(),
+    handle: z.string().max(64).optional(),
+    name: z.string().max(120).optional(),
   })
   .passthrough()
+
+export const metadataWriteContentSchema = z.union([metadataContentSchema, z.string()])
+
+export type MetadataWriteContent = z.infer<typeof metadataWriteContentSchema>
 
 export interface StoreMetadataInput {
   content: unknown
@@ -47,6 +50,10 @@ export function canonicalize(content: unknown): string {
 
 export function hashContent(content: unknown): string {
   return createHash("sha256").update(canonicalize(content), "utf8").digest("hex")
+}
+
+export function metadataByteLength(contentJson: string): number {
+  return Buffer.byteLength(contentJson, "utf8")
 }
 
 export function parseArenaMetadata(contentJson: string): ArenaMetadataContent {

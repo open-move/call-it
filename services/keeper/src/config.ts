@@ -20,6 +20,8 @@ export interface Config {
   rewardVaultId: string | null
   startCheckpoint: bigint | null
   startFromLatest: boolean
+  statusCorsOrigin: string | null
+  statusToken: string | null
   suiNetwork: SuiClientTypes.Network
   suiRpcUrl: string
 }
@@ -87,6 +89,8 @@ const configSchema = z
     KEEPER_REWARD_VAULT_ID: optionalAddress,
     KEEPER_START_CHECKPOINT: optionalBigintString,
     KEEPER_START_FROM_LATEST: envBoolean(false),
+    KEEPER_STATUS_CORS_ORIGIN: optionalEnvString.transform((value) => value ?? null),
+    KEEPER_STATUS_TOKEN: optionalEnvString.transform((value) => value ?? null),
     PREDICT_OBJECT_ID: requiredEnvString,
     PREDICT_PACKAGE_ID: requiredEnvString.transform((value) => value.toLowerCase()),
     PREDICT_QUOTE_ASSET: requiredEnvString,
@@ -118,6 +122,8 @@ const configSchema = z
       rewardVaultId: env.KEEPER_REWARD_VAULT_ID,
       startCheckpoint: env.KEEPER_START_CHECKPOINT,
       startFromLatest: env.KEEPER_START_FROM_LATEST,
+      statusCorsOrigin: env.KEEPER_STATUS_CORS_ORIGIN,
+      statusToken: env.KEEPER_STATUS_TOKEN,
       suiNetwork: env.SUI_NETWORK,
       suiRpcUrl: env.SUI_RPC_URL,
     })

@@ -12,6 +12,7 @@
     "serve": "tsx src/index.ts serve",
     "reconcile": "tsx src/index.ts reconcile",
     "typecheck": "tsc --noEmit",
+    "test": "tsx --test test/*.test.ts",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

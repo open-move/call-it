@@ -1,15 +1,20 @@
 import type { Repository } from "./db/repo.ts"
 import { logger } from "./logger.ts"
 import { parsePredictEvent } from "./predict.ts"
+import type { ParsedPredictEvent, RawPredictEventInput } from "./predict.ts"
 
 export interface ReconcileResult {
   failedEvents: number
   processedEvents: number
 }
 
+export interface ReconcileOptions {
+  onAfterApply?: (event: RawPredictEventInput) => void
+}
+
 const RECONCILE_LIMIT = 500
 
-export async function reconcileEvents(repo: Repository): Promise<ReconcileResult> {
+export async function reconcileEvents(repo: Repository, options: ReconcileOptions = {}): Promise<ReconcileResult> {
   let processedEvents = 0
   let failedEvents = 0
 
@@ -21,17 +26,15 @@ export async function reconcileEvents(repo: Repository): Promise<ReconcileResult
 
     for (const event of events) {
       try {
-        const parsed = parsePredictEvent({ eventType: event.eventType, json: event.json })
-        if (parsed !== null) {
-          if (parsed.kind === "OracleSettled") {
-            await repo.upsertOracleSettled(parsed.value, event.checkpoint)
-          } else if (parsed.kind === "PositionMinted") {
-            await repo.applyMint(parsed.value, event.checkpoint)
-          } else {
-            await repo.applyRedeem(parsed.value, event.checkpoint)
+        repo.withTransaction((txRepo) => {
+          const input = { eventType: event.eventType, json: event.json }
+          const parsed = parsePredictEvent(input)
+          if (parsed !== null) {
+            applyParsedEvent(txRepo, parsed, event.checkpoint)
+            options.onAfterApply?.(input)
           }
-        }
-        await repo.markRawEventReconciled(event.id)
+          txRepo.markRawEventReconciled(event.id)
+        })
         processedEvents += 1
       } catch (error) {
         // Quarantine the event instead of letting one malformed payload stall
@@ -45,5 +48,15 @@ export async function reconcileEvents(repo: Repository): Promise<ReconcileResult
         failedEvents += 1
       }
     }
+  }
+}
+
+function applyParsedEvent(repo: Repository, parsed: ParsedPredictEvent, checkpoint: number): void {
+  if (parsed.kind === "OracleSettled") {
+    repo.upsertOracleSettled(parsed.value, checkpoint)
+  } else if (parsed.kind === "PositionMinted") {
+    repo.applyMint(parsed.value, checkpoint)
+  } else {
+    repo.applyRedeem(parsed.value, checkpoint)
   }
 }

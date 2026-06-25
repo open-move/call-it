@@ -29,6 +29,15 @@ function parsePositionStatus(value: unknown): PositionStatusFilter {
     : "all"
 }
 
+function isAuthorized(config: Config, authorization: string | undefined): boolean {
+  return config.statusToken === null || authorization === `Bearer ${config.statusToken}`
+}
+
+function rejectUnauthorized(set: { status?: number | string }) {
+  set.status = 401
+  return { error: "unauthorized" }
+}
+
 /// Read-only operational snapshot: DB counts, scan lag vs chain head, keeper gas
 /// balance, and reward-vault binding. Degrades gracefully if the chain is
 /// unreachable so the dashboard still renders DB state.
@@ -77,33 +86,54 @@ async function buildStatus(config: Config, client: SuiClient, repo: Repository) 
 }
 
 export function buildStatusApp(config: Config, client: SuiClient, repo: Repository) {
+  const corsPlugin = config.statusCorsOrigin === null ? cors() : cors({ origin: config.statusCorsOrigin })
+
   return new Elysia({ adapter: node() })
-    .use(cors())
+    .use(corsPlugin)
     .get("/healthz", () => ({ ok: true }))
-    .get("/status", () => buildStatus(config, client, repo).then(toLogFields))
-    .get("/positions", ({ query }) =>
-      repo
+    .get("/status", ({ headers, set }) => {
+      if (!isAuthorized(config, headers.authorization)) {
+        return rejectUnauthorized(set)
+      }
+      return buildStatus(config, client, repo).then(toLogFields)
+    })
+    .get("/positions", ({ headers, query, set }) => {
+      if (!isAuthorized(config, headers.authorization)) {
+        return rejectUnauthorized(set)
+      }
+      return repo
         .listPositions({
           limit: parseLimit(query.limit),
           offset: parseOffset(query.offset),
           status: parsePositionStatus(query.status),
         })
         .then(toLogFields)
-    )
-    .get("/txs", ({ query }) =>
-      repo
+    })
+    .get("/txs", ({ headers, query, set }) => {
+      if (!isAuthorized(config, headers.authorization)) {
+        return rejectUnauthorized(set)
+      }
+      return repo
         .listTxs({
           limit: parseLimit(query.limit),
           offset: parseOffset(query.offset),
           status: typeof query.status === "string" && query.status ? query.status : "all",
         })
         .then(toLogFields)
-    )
-    .get("/reconcile-errors", () => repo.listReconcileErrors().then(toLogFields))
+    })
+    .get("/reconcile-errors", ({ headers, set }) => {
+      if (!isAuthorized(config, headers.authorization)) {
+        return rejectUnauthorized(set)
+      }
+      return repo.listReconcileErrors().then(toLogFields)
+    })
 }
 
 export function startStatusServer(config: Config, client: SuiClient, repo: Repository) {
   const app = buildStatusApp(config, client, repo)
+  if (config.statusToken === null) {
+    logger.warn("keeper status endpoints are ungated; set KEEPER_STATUS_TOKEN in production")
+  }
   app.listen(config.httpPort, () => {
     logger.info({ port: config.httpPort }, "status server listening")
   })
